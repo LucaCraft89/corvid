@@ -24,9 +24,9 @@ Status: design + verified reference implementation (`src-overlay/corvid/passkeys
 2. No hmac-secret/PRF, EdDSA, RS256 yet (ES256 only; attestation "none", zero AAGUID).
 3. Backup/import uses Corvid's vault format, not FIDO CXP/CXF (not stable). Revisit when CXF is final.
 4. Rollback high-water mark lives next to the vault, so an attacker with full profile write access can reset it. It defends against partial restores (e.g. sync/backup tooling), not a local root attacker. A local attacker with profile write access can also read process memory; out of scope.
-5. Unlock policy (passphrase each session vs OS keyring) is an open user decision; all three modes are implemented and tested: `passphrase`, `keyring`, `passphrase+keyring`.
+5. DECIDED 2026-10-09: OS keyring (Secret Service/libsecret) is the default unlock secret; passphrase is an optional extra (`passphrase+keyring`) or the fallback when no keyring exists. All three modes are implemented and tested. Residual risk: with keyring-only, any process running as the same user that can read the keyring can open the vault; the optional passphrase mitigates this.
 6. Linux user verification: currently equals vault unlock recency. polkit/fprintd UV is future work.
-7. Hybrid (caBLE) transport is upstream code; tunnel host policy is CR-5 (open).
+7. DECIDED 2026-10-09 (CR-5, option A): hybrid uses the existing upstream relays only on explicit user click, never at idle; user setting turns it off; warning shown (relay operator sees a connection and the IP; payload E2E encrypted). See docs/notes/hybrid-tunnel.md. Gate: hybrid-policy.ts (tested); wiring into Chromium UNVERIFIED.
 8. Google enclave authenticator is gated off by patch 2004 (UNVERIFIED sketch).
 9. Sync (Phase 4) must encrypt credentials client-side with a key not derivable by the server; hooks not yet defined beyond the file format being self-contained.
 
@@ -37,5 +37,5 @@ Status: design + verified reference implementation (`src-overlay/corvid/passkeys
 - [ ] Confirm no logging of passphrase, keys, credential ids, or rpIds (diagnostics redaction applies to exports).
 - [ ] Confirm passkeys WebUI is bound only to `corvid://passkeys` and never serves private keys over Mojo (API returns `PublicCredential` only; unit-tested).
 - [ ] Idle network capture clean with the passkeys page open (no Google enclave traffic).
-- [ ] Hybrid: record which hosts are contacted; resolve CR-5.
+- [ ] Hybrid: contacted hosts appear only after the click, never at idle; setting off disables it; warning shown first (CR-5 resolved).
 - [ ] Conditional UI and hardware-key preference verified (see tests/acceptance/phase-2/passkeys-manual.md).

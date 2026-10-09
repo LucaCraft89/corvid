@@ -77,5 +77,13 @@
   "passkeys.create.short": "Use at least 12 characters.",
   "passkeys.lastUsed": "Created",
   "passkeys.site": "Website",
-  "passkeys.account": "Account"
+  "passkeys.account": "Account",
+  "passkeys.create.optional": "Optional extra passphrase (your system keyring already protects the vault)",
+  "hybrid.setting": "Use your phone as a passkey device",
+  "hybrid.setting.desc": "When on, you can sign in by scanning a code with your phone. This only happens after you choose \"use your phone\", never in the background.",
+  "hybrid.warning.title": "Before you use your phone",
+  "hybrid.warning.body": "Your phone and this browser connect through a relay server run by Google or Apple. The relay operator can see that a connection happened and its IP address. The sign-in data itself is end-to-end encrypted and the relay cannot read it. If you turn this off, phone-as-authenticator stops working.",
+  "hybrid.warning.continue": "Continue and use my phone",
+  "hybrid.warning.cancel": "Cancel",
+  "hybrid.off": "Phone sign-in is turned off in settings."
 }

@@ -63,6 +63,21 @@ test('list shows metadata only, sorted; rename; delete needs confirmation', asyn
   assert.equal(model.delete(id, true), true); assert.equal(model.items.length, 1);
 });
 
+test('keyring available: empty passphrase creates a keyring vault (decision 2026-10-09)', async () => {
+  const m = make(); let called: unknown = 'unset';
+  const be = { ...m.be, keyringAvailable: () => true, create: async (p?: string) => { called = p; } };
+  const model = new VaultModel(be);
+  assert.equal(await model.create('', ''), true); assert.equal(called, undefined);
+  const noKr = make();
+  assert.equal(await noKr.model.create('', ''), false, 'without keyring a passphrase is mandatory');
+});
+
+test('hybrid warning strings state operator visibility, E2E encryption, and the off-effect', async () => {
+  const { catalog } = await import('../../diagnostics/i18n.ts');
+  const w = catalog['hybrid.warning.body'];
+  for (const needle of ['IP address', 'end-to-end encrypted', 'turn this off']) assert.ok(w.includes(needle), needle);
+});
+
 test('backup import: wrong passphrase gives error, right one merges', async () => {
   const a = make(); await a.model.create('passphrase number one', 'passphrase number one'); await addCred(a.svc, 'x.example', 'u');
   const b = make(); await b.model.create('passphrase number two', 'passphrase number two');

@@ -4,8 +4,8 @@ import { t } from '../diagnostics/i18n.ts';
 
 export interface PublicCredential { id: string; rpId: string; userName: string; displayName: string; label?: string; createdAt: number; discoverable: boolean }
 export interface VaultBackend {
-  exists(): boolean; unlocked(): boolean;
-  create(passphrase: string): Promise<void>; unlock(passphrase: string): Promise<void>; lock(): void;
+  exists(): boolean; unlocked(): boolean; keyringAvailable?(): boolean;
+  create(passphrase?: string): Promise<void>; unlock(passphrase: string): Promise<void>; lock(): void;
   list(): PublicCredential[]; rename(id: string, label: string): void; delete(id: string): boolean;
   exportBackup(): string; importBackup(raw: string, passphrase: string): Promise<{ added: number; skipped: number }>;
 }
@@ -24,6 +24,8 @@ export class VaultModel {
 
   async create(pass: string, confirm: string): Promise<boolean> {
     this.error = '';
+    // Decision 2026-10-09: OS keyring is the default; passphrase is optional when a keyring exists.
+    if (!pass && !confirm && this.b.keyringAvailable?.()) { await this.b.create(undefined); this.refresh(); return true; }
     if (pass.length < MIN_PASSPHRASE) { this.error = t('passkeys.create.short'); this.onChange(); return false; }
     if (pass !== confirm) { this.error = t('passkeys.create.mismatch'); this.onChange(); return false; }
     await this.b.create(pass); this.refresh(); return true;

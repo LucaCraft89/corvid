@@ -1,11 +1,13 @@
-# Phase 2 open questions for the user (not decided by the agent)
+# Phase 2 decisions (user answers, 2026-10-09)
 
-| # | Question | Default shipped (configurable) | Where it lives |
+| # | Topic | Decision (2026-10-09) | Where implemented |
 |---|---|---|---|
-| Q1 / CR-5 | Hybrid passkey transport needs a tunnel server host. Use upstream default hosts, a configurable host, or disable hybrid? | Nothing decided; hybrid left as upstream code, flagged in the manual checklist | docs/security/passkeys.md gap 7 |
-| Q2 | Vault unlock policy: passphrase each session, OS keyring, or both? | All three modes implemented; UI default is passphrase (safest, no OS dependency). Auto-lock idle = 5 min | `UnlockMode`, `VaultService({idleMs})` |
-| Q3 | Diagnostics retention size | 32 MiB, 50,000 events, 7 days, whichever hits first | `DEFAULT_RETENTION` (types.ts), `Retention` (ring_buffer.h) |
-| Q4 | Argon2id cost | m=64 MiB, t=3, p=1 | `DEFAULT_KDF` (vault.ts) |
-| Q5 | Which "two major sites" for passkey acceptance? | none chosen | passkeys-manual.md |
-| Q6 | Should export redaction default to ON? | ON (privacy-safe) | `HubModel.redact` |
-| Q7 | Dependencies: noble-hashes/ciphers/curves (MIT), typescript+@types/node (Apache-2.0/MIT, dev only). OK? | used | docs/notes/phase-2-dependencies.md |
+| Q1 / CR-5 | Hybrid tunnel host | APPROVED option A: use the existing Google/Apple-operated relays, only when the user clicks "use your phone", never at idle. User setting to turn hybrid off. Warning shown before first use and in settings. See `hybrid-tunnel.md` | `hybrid-policy.ts` + `policy.test.ts`; strings `hybrid.*` in `ui/pages/diagnostics/i18n/en.json` |
+| Q2 | Vault unlock | OS keyring (Secret Service / libsecret) is the default. Passphrase is an optional extra (`passphrase+keyring`) or the fallback when no keyring exists. No unprotected vault is ever created | `VaultService.defaultMode`, `policy.test.ts`, `VaultModel.create` |
+| Q3 | Diagnostics retention | 32 MiB, 50,000 events, 7 days: confirmed | `DEFAULT_RETENTION`, `Retention` |
+| Q4 | Argon2id | m=64 MiB, t=3, p=1: confirmed | `DEFAULT_KDF` |
+| Q5 | Passkey test sites | webauthn.io, Google (covers YouTube sign-in), GitHub | `tests/acceptance/phase-2/passkeys-manual.md` |
+| Q6 | Export redaction | ON by default (URLs, paths, IPs); user may turn it off after seeing the preview | `HubModel.redact = true`; exporter tests |
+| Q7 | Dependencies | noble libs (MIT), typescript/@types/node (dev): not objected to; see phase-2-dependencies.md | |
+
+Still open: Linux keyring availability fallback UX wording; whether auto-lock (5 min) should apply to keyring-only vaults.

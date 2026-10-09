@@ -39,9 +39,17 @@ export class VaultService {
   }
   private need(): Vault { if (!this.vault || this.vault.locked) throw new VaultError('locked', 'vault is locked'); this.touch(); return this.vault; }
 
-  async create(passphrase: string, o: { mode?: UnlockMode; kdf?: KdfParams } = {}) {
+  /** Decision 2026-10-09: OS keyring is the default unlock secret; passphrase is an optional extra
+   *  (passphrase+keyring) or the fallback when no keyring is available. */
+  get keyringAvailable(): boolean { return !!this.keyring; }
+  static defaultMode(keyring: boolean, hasPassphrase: boolean): UnlockMode {
+    return keyring ? (hasPassphrase ? 'passphrase+keyring' : 'keyring') : 'passphrase';
+  }
+
+  async create(passphrase?: string, o: { mode?: UnlockMode; kdf?: KdfParams } = {}) {
     if (this.exists) throw new VaultError('unsupported', 'vault already exists');
-    this.vault = await Vault.create({ passphrase, mode: o.mode, kdf: o.kdf, keyring: this.keyring });
+    const mode = o.mode ?? VaultService.defaultMode(!!this.keyring, !!passphrase);
+    this.vault = await Vault.create({ passphrase, mode, kdf: o.kdf, keyring: this.keyring });
     this.save(); this.touch();
   }
 
