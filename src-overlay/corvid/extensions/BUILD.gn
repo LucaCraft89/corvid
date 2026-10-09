@@ -1,0 +1,18 @@
+# UNVERIFIED: not evaluated by gn.
+source_set("extensions") {
+  sources = [
+    "ntp_override.cc",
+    "ntp_override.h",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "ntp_override_unittest.cc" ]
+  deps = [
+    ":extensions",
+    "//base",
+    "//testing/gtest",
+  ]
+}

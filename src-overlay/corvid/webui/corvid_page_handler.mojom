@@ -1,0 +1,42 @@
+// UNVERIFIED: not compiled. Data/actions for corvid:// pages (see ui/pages/shared/api.ts PageApi).
+// One handler per page process; every method is a thin wrapper over an existing Chromium service
+// (HistoryService, DownloadManager, ExtensionRegistry, BookmarkModel). Handler implementation is NOT written yet.
+module corvid.webui.mojom;
+
+struct HistoryVisit { string id; string url; string title; double time_ms; };
+struct DownloadItem {
+  string id; string file_name; string url; string state;
+  double received_bytes; double total_bytes; double bytes_per_sec; double started_at_ms; bool dangerous; string? error;
+};
+struct ExtensionInfo {
+  string id; string name; string version; string description; bool enabled; int32 manifest_version;
+  array<string> permissions; array<string> host_permissions; bool preinstalled; string icon_url;
+  bool overrides_newtab; bool allowed_in_incognito; array<string> warnings;
+};
+struct ErrorDetail {
+  string url; string error_name; int32 error_code; string? resolver; array<string>? dns_result; bool hsts;
+  string? tls_json; string? timings_json; string? retry_log_json;
+};
+
+interface PageHandler {
+  QueryHistory(string text, int32 limit) => (array<HistoryVisit> visits);
+  RemoveHistory(string id);
+  ClearHistory();
+
+  ListDownloads() => (array<DownloadItem> items);
+  DownloadAction(string id, string action);   // pause|resume|cancel|open|show|remove
+  ClearFinishedDownloads();
+
+  ListExtensions() => (array<ExtensionInfo> extensions);
+  SetExtensionEnabled(string id, bool enabled);
+  SetExtensionIncognito(string id, bool allowed);
+  RemoveExtension(string id);
+  GetNtpState() => (array<string> candidate_ids, string? picked);
+  SetNtpPick(string? id);                      // null = automatic, "corvid" = Corvid default
+
+  GetErrorDetail() => (ErrorDetail detail);
+  ErrorAction(string action);                  // retry|back|proceed-unsafe (proceed refused for HSTS/revoked/pinned)
+
+  GetGpuInfoJson() => (string json);           // shape: ui/pages/shared/api.ts GpuInfo
+  ResetLayout();
+};

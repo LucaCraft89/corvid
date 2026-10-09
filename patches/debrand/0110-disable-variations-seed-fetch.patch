@@ -1,0 +1,17 @@
+Purpose: Never fetch or apply a Chrome Variations seed; ship fixed feature defaults.
+Area: debrand
+Files: chrome/browser/metrics/chrome_feature_list_creator.cc; components/variations/service/variations_service.cc; components/variations/variations_url_constants.cc
+Rebase risk: medium
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- VariationsService: fetching disabled (no request scheduled, URL empty).
+- No seed is loaded from local state; field trial testing config stays disabled (GN disable_fieldtrial_testing_config=true).
+- Corvid feature defaults (hardware acceleration, WebRTC) come from build/args/linux-runtime-features.json, not from trials.
+
+Verify:
+- Idle capture: no connection to the variations host.
+- chrome://-equivalent feature list shows no trial-assigned features.

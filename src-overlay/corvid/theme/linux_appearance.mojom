@@ -1,0 +1,26 @@
+// UNVERIFIED: not compiled. Transport for theme/providers/linux/provider.ts (LinuxSources).
+// The parsing and precedence logic lives in TypeScript (tested against fixtures); this interface only moves raw values.
+module corvid.theme.mojom;
+
+// Portal value, as a variant-like union (xdg-desktop-portal org.freedesktop.appearance).
+union PortalValue {
+  uint32 u32;
+  array<double, 3> rgb;   // accent-color (ddd)
+};
+
+interface AppearanceObserver {
+  OnPortalSettingChanged(string key);   // "color-scheme" | "contrast" | "accent-color"
+  OnConfigFilesChanged();
+};
+
+interface LinuxAppearanceSource {
+  // Returns null if the portal or key is unavailable.
+  ReadPortalSetting(string key) => (PortalValue? value);
+  // path is one of the fixed allow-list (gtk-4.0/settings.ini, gtk-3.0/settings.ini, gtk-*/gtk.css, gtk-4.0/colors.css, kdeglobals),
+  // relative to XDG_CONFIG_HOME. Anything else is rejected and the renderer is killed (bad message).
+  ReadConfigFile(string relative_path) => (string? contents);
+  // GNOME gsettings fallback: key is "color-scheme" or "accent-color" in org.gnome.desktop.interface.
+  ReadGsettings(string key) => (string? output);
+  GetDesktop() => (string xdg_current_desktop);
+  Observe(pending_remote<AppearanceObserver> observer);
+};

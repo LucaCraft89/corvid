@@ -1,0 +1,18 @@
+# UNVERIFIED: not evaluated by gn.
+source_set("modules") {
+  sources = [
+    "module_permissions.cc",
+    "module_permissions.h",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "module_permissions_unittest.cc" ]
+  deps = [
+    ":modules",
+    "//base",
+    "//testing/gtest",
+  ]
+}

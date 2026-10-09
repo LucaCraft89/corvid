@@ -1,0 +1,15 @@
+Purpose: Resolve the new tab page through corvid::NtpOverride so extension overrides load without flash and fall back to corvid://newtab.
+Area: extensions
+Files: chrome/browser/extensions/extension_web_ui.cc (ExtensionWebUI::HandleChromeURLOverride); chrome/browser/search/search.cc (GetNewTabPageURL); chrome/browser/ui/browser_navigator.cc
+Rebase risk: medium
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- URL rewrite for corvid://newtab and chrome://newtab consults NtpOverride::Resolve(profile, incognito, force_default).
+- Mirrors ui/pages/shared/logic.ts resolveNewTab (tested in TS).
+
+Verify:
+- 08-newtab.mjs

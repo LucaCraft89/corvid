@@ -39,3 +39,9 @@ Goal: a daily-drivable Linux browser: zero Google, custom WebUI chrome, modular 
 - Default search engine list and extension store source (Chrome Web Store use from a non-Chrome browser has terms-of-service implications; offer configurable sources).
 - Proprietary codec policy.
 - uBO license decision.
+
+## Added acceptance checks (2026-10-09 user decisions)
+11. **Hardware acceleration:** on a machine with a VA-API GPU, `corvid://gpu` (Corvid's replacement for the stock GPU page) reports compositing, GPU rasterization, WebGL/WebGL2, WebGPU, video decode and encode as hardware accelerated; `vainfo` lists the codecs Corvid reports as hardware. Script: `tests/acceptance/phase-1/11-hw-accel.mjs`. GPU-less CI reports SKIP, never PASS.
+12. **WebRTC:** a loopback peer connection with a data channel works with the default policy; ICE candidates expose no private IPv4 literal (mDNS or none) and there are no server-reflexive candidates without a configured STUN server; no Google STUN host in the binary or in traffic. Script: `tests/acceptance/phase-1/12-webrtc.mjs`, plus the binary grep in 01b.
+13. **Codecs (CR-3):** H.264/HEVC/AAC playback works; distribution remains gated on the pre-release legal check (CR-10).
+

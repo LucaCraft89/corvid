@@ -1,0 +1,16 @@
+# UNVERIFIED: not evaluated by gn. The WebUI controller (chrome_shell_ui.*) and ShellHandler implementation are
+# NOT written yet: they depend on Browser/TabStripModel APIs that must be read from the pinned tree.
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("mojom") {
+  sources = [ "chrome_shell.mojom" ]
+  webui_module_path = "/"
+}
+
+source_set("chrome_shell") {
+  sources = [
+    "layout_storage.cc",
+    "layout_storage.h",
+  ]
+  deps = [ "//base" ]
+}

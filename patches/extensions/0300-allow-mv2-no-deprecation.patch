@@ -1,0 +1,16 @@
+Purpose: Keep Manifest V2 enabled: remove deprecation flags, auto-disable and warning UI.
+Area: extensions
+Files: extensions/common/manifest_handlers/*; chrome/browser/extensions/mv2_experiment_stage.cc; chrome/browser/extensions/manifest_v2_experiment_manager.cc; extensions/common/extension_features.cc; extensions/browser/extension_registrar.cc
+Rebase risk: high: MV2 gates move every release (see skills/mv2-maintenance)
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Record exact gate locations in docs/notes/mv2-gates.md after applying.
+- ManifestV2 experiment stage forced to 'unsupported -> never'; kExtensionManifestV2Unsupported / Disabled features off by default; no disable/warning UI.
+- If upstream deleted MV2 code outright, restore from the last version that had it into src-overlay/corvid/extensions_mv2/.
+
+Verify:
+- MV2 fixture loads and persists; no deprecation text (06).
