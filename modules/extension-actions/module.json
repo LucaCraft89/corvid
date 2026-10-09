@@ -1,0 +1,32 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.extension-actions",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.extension-actions.name",
+  "description": "i18n:module.extension-actions.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-extension-actions",
+      "title": "i18n:module.extension-actions.name",
+      "movable": true,
+      "resizable": false,
+      "hideable": true,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom",
+        "window.left",
+        "window.right"
+      ]
+    }
+  ],
+  "permissions": [
+    "internal.extensions"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

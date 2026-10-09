@@ -1,0 +1,41 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.bookmarksbar",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.bookmarksbar.name",
+  "description": "i18n:module.bookmarksbar.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-bookmarksbar",
+      "title": "i18n:module.bookmarksbar.name",
+      "movable": true,
+      "resizable": false,
+      "hideable": true,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom",
+        "window.left",
+        "window.right"
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "bookmarksbar.showFavicons",
+      "type": "boolean",
+      "default": true,
+      "label": "i18n:setting.bookmarksbar.showFavicons"
+    }
+  ],
+  "permissions": [
+    "bookmarks.read",
+    "bookmarks.manage"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

@@ -1,0 +1,19 @@
+[ColorEffects:Disabled]
+Color=56,56,56
+
+[Colors:Selection]
+BackgroundNormal=61,174,233
+ForegroundNormal=252,252,252
+
+[Colors:Window]
+BackgroundAlternate=49,54,59
+BackgroundNormal=35,38,41
+ForegroundNormal=252,252,252
+
+[General]
+AccentColor=146,81,175
+ColorScheme=BreezeDark
+Name=Breeze Dark
+
+[KDE]
+contrast=4

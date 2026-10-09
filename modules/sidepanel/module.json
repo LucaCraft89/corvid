@@ -1,0 +1,41 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.sidepanel",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.sidepanel.name",
+  "description": "i18n:module.sidepanel.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.right",
+      "component": "corvid-sidepanel",
+      "title": "i18n:module.sidepanel.name",
+      "movable": true,
+      "resizable": true,
+      "hideable": true,
+      "allowedSlots": [
+        "window.left",
+        "window.right"
+      ],
+      "minSize": 16,
+      "maxSize": 48,
+      "defaultSize": 22
+    }
+  ],
+  "settings": [
+    {
+      "key": "sidepanel.openByDefault",
+      "type": "boolean",
+      "default": false,
+      "label": "i18n:setting.sidepanel.openByDefault"
+    }
+  ],
+  "permissions": [
+    "layout.read"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

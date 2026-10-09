@@ -1,0 +1,37 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.layout",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.layout.name",
+  "description": "i18n:module.layout.description",
+  "kind": "builtin",
+  "settings": [
+    {
+      "key": "layout.activePreset",
+      "type": "enum",
+      "default": "desktop-classic",
+      "label": "i18n:setting.layout.activePreset",
+      "values": [
+        "desktop-classic",
+        "desktop-vertical-tabs",
+        "compact",
+        "mobile"
+      ]
+    },
+    {
+      "key": "layout.autosaveDelayMs",
+      "type": "number",
+      "default": 400,
+      "label": "i18n:setting.layout.autosaveDelayMs",
+      "min": 0,
+      "max": 5000
+    }
+  ],
+  "permissions": [
+    "layout.read",
+    "layout.write",
+    "internal.shell"
+  ],
+  "entry": "dist/index.js"
+}

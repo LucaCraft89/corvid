@@ -1,0 +1,57 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.tabstrip",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.tabstrip.name",
+  "description": "i18n:module.tabstrip.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-tabstrip",
+      "title": "i18n:module.tabstrip.name",
+      "role": "tabs",
+      "movable": true,
+      "resizable": true,
+      "hideable": false,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom",
+        "window.left",
+        "window.right"
+      ],
+      "minSize": 10,
+      "maxSize": 30,
+      "defaultSize": 14
+    }
+  ],
+  "settings": [
+    {
+      "key": "tabstrip.position",
+      "type": "enum",
+      "default": "top",
+      "label": "i18n:setting.tabstrip.position",
+      "values": [
+        "top",
+        "left",
+        "right",
+        "bottom"
+      ]
+    },
+    {
+      "key": "tabstrip.closeOnHover",
+      "type": "boolean",
+      "default": true,
+      "label": "i18n:setting.tabstrip.closeOnHover"
+    }
+  ],
+  "permissions": [
+    "tabs.read",
+    "tabs.manage"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}
