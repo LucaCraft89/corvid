@@ -18,8 +18,14 @@ No upstream code or patches have been copied into this repo. The rows below reco
 - Per-patch provenance inside ungoogled-chromium and Helium (which patches originate from Debian, Inox, Bromite, Iridium) was not audited. Each of those has its own license; audit at the time a specific patch is proposed.
 - This is an engineering review, not legal advice. CR-1 to CR-6 remain open.
 
-## Reuse policy (proposed, pending user confirmation)
+## Reuse policy (approved 2026-10-09)
 
 1. Default: write fresh, informed by behaviour descriptions only.
 2. BSD/MIT/Apache sources may be adapted with an entry per patch in this table and the original notice preserved.
 3. GPL/MPL sources: no code, no patch text; ask the user first.
+
+## Decisions recorded
+
+| Date | Decision |
+|---|---|
+| 2026-10-09 | Reuse policy above APPROVED by the user as proposed. The user favors open source, but this is not a blanket approval to relicense: Corvid stays BSD-3-Clause (locked decision), and each GPL/MPL item (Helium, Brave, uBlock Origin) still needs its own explicit ask. |

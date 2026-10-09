@@ -45,3 +45,41 @@ Windows and Android hosts are out of scope for Phase 0 (see `build-windows`, `bu
 
 - `scripts/DEPOT_TOOLS_REV` is unset, so depot_tools is not pinned yet (reproducibility risk named in the Phase 0 spec). Pin it on the first host that can reach googlesource.
 - The `gn` args in `scripts/build.sh` are a reasonable starting set, not validated against the pinned release.
+
+## Runner topology (decided 2026-10-09)
+
+The user is open to GitHub-hosted runners, a cloud container, or their own machine. Decision: split.
+
+| Work | Where | Why |
+|---|---|---|
+| Script lint, fixture tests, patch-apply check (sparse/patch-only clone) | GitHub-hosted `ubuntu-latest`, every PR | Cheap; needs only the files the series touches |
+| Full Chromium fetch + build, Phase 0 acceptance on real tree | Self-hosted runner, label `corvid-builder`, on the user's PC | Standard hosted runners are assumed to lack the disk and job time for a full Chromium build. **UNVERIFIED:** current hosted-runner disk, RAM and job-time limits were not checked (docs.github.com was unreachable from the authoring sandbox). Check them before stating numbers. |
+| Weekly Chromium bump | GitHub-hosted, patch-only mode | Only needs patch application |
+
+`nightly-build.yml` runs only when the repository variable `CORVID_BUILDER_ENABLED` is `true`; otherwise the job is skipped cleanly (not failed). Set it after the runner below is registered and online. If it is set while the PC is off, the job waits in the queue and GitHub eventually cancels it; turn the variable off when the PC is unavailable.
+
+### Register your PC as the `corvid-builder` runner
+
+1. In GitHub: repo Settings > Actions > Runners > New self-hosted runner > Linux x64. Run the download and `./config.sh --url ... --token ...` commands shown there. When prompted for labels, add `corvid-builder`.
+2. Create the directory the workflow expects: `sudo mkdir -p /srv/corvid && sudo chown "$USER" /srv/corvid`.
+3. Install the prerequisites from "Procedure" above (plus `sccache`).
+4. Start it: `./run.sh` (foreground) or `sudo ./svc.sh install && sudo ./svc.sh start` (service).
+5. Repo Settings > Secrets and variables > Actions > Variables: add `CORVID_BUILDER_ENABLED` = `true`.
+6. Security: a self-hosted runner executes workflow code on your machine. Keep the repo private or never run it for fork PRs (the nightly job uses only `schedule` and `workflow_dispatch`, never `pull_request`).
+
+## Run this on your PC (Phase 0 acceptance, real Chromium)
+
+Prereqs: Linux x86_64; at least 32 GB RAM (64 GB better); at least 150 GB free SSD on the filesystem holding `~/chromium` (300 GB+ is comfortable); 8+ cores; internet; sudo. Packages: git, python3 (3.11+), curl, shellcheck, optionally sccache. Expect the first run to take hours and download tens of GB.
+
+```
+git clone <this repo> corvid && cd corvid
+git checkout worktree-agent-a004ca365e955b77e      # or the merged branch
+export CORVID_SRC=$HOME/chromium/src               # basename must be "src"
+scripts/fetch.sh                                   # depot_tools + Chromium at the pinned tag
+( cd "$CORVID_SRC" && build/install-build-deps.sh )   # once; needs sudo
+CORVID_ALLOW_BUILD=1 scripts/verify.sh --phase 0 --platform linux
+```
+
+If RAM is short, `export CORVID_JOBS=8` (or lower) before the last command. If the pinned tag does not exist, report that; do not edit the pin.
+
+Send back: the single file `docs/reports/phase-0-linux-<date>-run.md` (host info, result table, log tails). Also note wall-clock times of `fetch.sh` and the build so the TODO table above can be filled. Do not trim failures from the report.

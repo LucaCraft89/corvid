@@ -22,6 +22,10 @@ concurrency:
 
 jobs:
   build:
+    # Skipped cleanly (not failed) unless the repo variable CORVID_BUILDER_ENABLED is "true".
+    # Set it only while the self-hosted runner on the user's PC is registered and online
+    # (setup steps: docs/build-host.md).
+    if: ${{ vars.CORVID_BUILDER_ENABLED == 'true' }}
     runs-on: [self-hosted, linux, x64, corvid-builder]
     timeout-minutes: 600
     env:
@@ -35,7 +39,7 @@ jobs:
       - name: Build (fetch, apply, gn, ninja, smoke)
         run: scripts/build.sh linux debug
       - name: Phase 0 acceptance (real)
-        run: mkdir -p reports && scripts/verify.sh --phase 0 --platform linux --report reports/phase-0-linux.md
+        run: mkdir -p reports && scripts/verify.sh --phase 0 --platform linux --report "$PWD/reports/phase-0-linux.md"
       - name: sccache stats
         if: always()
         run: sccache --show-stats || true
