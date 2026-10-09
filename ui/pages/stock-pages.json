@@ -1,0 +1,617 @@
+{
+ "_comment": "Source of truth for stock chrome:// handling. UNVERIFIED host list: reconstructed from memory of chrome://chrome-urls; tests/acceptance/phase-1/02-no-stock-screens.mjs enumerates the real list from the built browser and fails on any host missing here.",
+ "schemes": [
+  "chrome",
+  "chrome-untrusted",
+  "chrome-search",
+  "chrome-error"
+ ],
+ "pages": [
+  {
+   "host": "newtab",
+   "action": "replaced",
+   "target": "newtab",
+   "note": ""
+  },
+  {
+   "host": "new-tab-page",
+   "action": "replaced",
+   "target": "newtab",
+   "note": ""
+  },
+  {
+   "host": "new-tab-page-third-party",
+   "action": "replaced",
+   "target": "newtab",
+   "note": ""
+  },
+  {
+   "host": "welcome",
+   "action": "replaced",
+   "target": "newtab",
+   "note": "first-run page is Phase 2+"
+  },
+  {
+   "host": "settings",
+   "action": "replaced",
+   "target": "settings",
+   "note": ""
+  },
+  {
+   "host": "extensions",
+   "action": "replaced",
+   "target": "extensions",
+   "note": ""
+  },
+  {
+   "host": "history",
+   "action": "replaced",
+   "target": "history",
+   "note": ""
+  },
+  {
+   "host": "downloads",
+   "action": "replaced",
+   "target": "downloads",
+   "note": ""
+  },
+  {
+   "host": "bookmarks",
+   "action": "replaced",
+   "target": "bookmarks",
+   "note": ""
+  },
+  {
+   "host": "version",
+   "action": "replaced",
+   "target": "about",
+   "note": ""
+  },
+  {
+   "host": "help",
+   "action": "replaced",
+   "target": "about",
+   "note": ""
+  },
+  {
+   "host": "about",
+   "action": "redirected",
+   "target": "about",
+   "note": "chrome://about index"
+  },
+  {
+   "host": "credits",
+   "action": "redirected",
+   "target": "about",
+   "note": "credits section"
+  },
+  {
+   "host": "terms",
+   "action": "redirected",
+   "target": "about",
+   "note": ""
+  },
+  {
+   "host": "attribution",
+   "action": "redirected",
+   "target": "about",
+   "note": ""
+  },
+  {
+   "host": "gpu",
+   "action": "replaced",
+   "target": "gpu",
+   "note": "hardware acceleration status"
+  },
+  {
+   "host": "network-error",
+   "action": "replaced",
+   "target": "error",
+   "note": ""
+  },
+  {
+   "host": "network-errors",
+   "action": "replaced",
+   "target": "error",
+   "note": ""
+  },
+  {
+   "host": "connection-help",
+   "action": "replaced",
+   "target": "error",
+   "note": ""
+  },
+  {
+   "host": "dino",
+   "action": "replaced",
+   "target": "error",
+   "note": "offline game removed"
+  },
+  {
+   "host": "crashes",
+   "action": "replaced",
+   "target": "crash",
+   "note": "local-only; Phase 2 diagnostics hub supersedes"
+  },
+  {
+   "host": "apps",
+   "action": "redirected",
+   "target": "extensions",
+   "note": ""
+  },
+  {
+   "host": "management",
+   "action": "redirected",
+   "target": "extensions",
+   "note": ""
+  },
+  {
+   "host": "extensions-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": ""
+  },
+  {
+   "host": "password-manager",
+   "action": "redirected",
+   "target": "settings",
+   "note": "passwords arrive with sync/passkeys phases"
+  },
+  {
+   "host": "certificate-manager",
+   "action": "redirected",
+   "target": "settings",
+   "note": ""
+  },
+  {
+   "host": "reset-password",
+   "action": "redirected",
+   "target": "blocked",
+   "note": ""
+  },
+  {
+   "host": "whats-new",
+   "action": "redirected",
+   "target": "about",
+   "note": ""
+  },
+  {
+   "host": "privacy-sandbox-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "Privacy Sandbox removed"
+  },
+  {
+   "host": "accessibility",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "app-service-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "autofill-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "blob-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "bluetooth-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "chrome-urls",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "components",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "connectors-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "device-log",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "discards",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "download-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "flags",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "gcm-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "histograms",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "history-clusters-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "indexeddb-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "inspect",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "interstitials",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "invalidations",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "local-state",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "media-engagement",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "media-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "memory-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "net-export",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "net-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "ntp-tiles-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "omnibox",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "password-manager-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "policy",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "predictors",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "prefs-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "process-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "quota-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "safe-browsing",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "segmentation-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "serviceworker-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "signin-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "site-engagement",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "suggestions",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "supervised-user-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "sync-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "system",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "thumbnails",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "tracing",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "translate-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "ukm",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "usb-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "user-actions",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "webrtc-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "webrtc-logs",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "webui-gallery",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "sandbox",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "signin-error",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "profile-picker",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "sync-confirmation",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "intro",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "enterprise-profile-welcome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "managed-user-profile-notice",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "browser-switch",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "cast-feedback",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "read-later.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "tab-search.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "side-panel.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "bookmarks-side-panel.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "customize-chrome-side-panel.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "emoji-picker",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "family-link-user-internals",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "chrome-signin",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "inline-login",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "nacl",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "tab-strip.top-chrome",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  },
+  {
+   "host": "image-editor",
+   "action": "blocked",
+   "target": "blocked",
+   "note": "diagnostics/dev page; Phase 2 diagnostics hub replaces where useful"
+  }
+ ]
+}

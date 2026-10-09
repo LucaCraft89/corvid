@@ -1,0 +1,43 @@
+# UNVERIFIED: not evaluated by gn until the first CI run. Small independent targets so they build incrementally.
+import("//mojo/public/tools/bindings/mojom.gni")
+
+source_set("layout_json") {
+  sources = [
+    "layout_json.cc",
+    "layout_json.h",
+  ]
+  deps = [
+    "//base",
+    "//corvid:base_compat",
+  ]
+}
+
+source_set("layout_storage") {
+  sources = [
+    "layout_storage.cc",
+    "layout_storage.h",
+  ]
+  deps = [
+    ":layout_json",
+    "//base",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "layout_storage_unittest.cc" ]
+  deps = [
+    ":layout_json",
+    ":layout_storage",
+    "//base",
+    "//base/test:test_support",
+    "//testing/gtest",
+  ]
+}
+
+# Mojo surface for the chrome shell page. The ShellHandler implementation (tabs/navigation via Browser and
+# TabStripModel) is NOT written: it needs APIs that must be read from the pinned tree.
+mojom("mojom") {
+  sources = [ "chrome_shell.mojom" ]
+  webui_module_path = "/"
+}

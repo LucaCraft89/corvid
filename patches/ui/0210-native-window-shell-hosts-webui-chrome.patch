@@ -1,0 +1,16 @@
+Purpose: Replace the views toolbar/tab strip with a native window that hosts the corvid://chrome-shell WebUI and the content WebContents view.
+Area: ui
+Files: chrome/browser/ui/views/frame/browser_view.cc; chrome/browser/ui/views/frame/browser_view_layout.cc; chrome/browser/ui/browser_window_factory.cc
+Rebase risk: high: the largest UI patch; keep it as small as a delegate swap
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Prefer adding a CorvidBrowserView subclass in src-overlay and a minimal factory hook patch.
+- Content area view is parented into #content-frame-host reported by the shell page via Mojo (src-overlay/corvid/chrome_shell).
+- Window caption/resize/native menus stay native.
+
+Verify:
+- Window opens with Corvid chrome; layout acceptance (03) passes.

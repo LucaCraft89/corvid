@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schema/module.schema.json",
+  "id": "example.sample-panel",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "Sample panel",
+  "description": "Example UI mod: a side panel listing open tabs.",
+  "kind": "ui-mod",
+  "author": "Corvid Project",
+  "license": "BSD-3-Clause",
+  "slots": [
+    {
+      "slot": "window.right",
+      "component": "sample-panel",
+      "title": "Sample panel",
+      "movable": true,
+      "resizable": true,
+      "hideable": true,
+      "allowedSlots": [
+        "window.left",
+        "window.right"
+      ],
+      "minSize": 14,
+      "maxSize": 40,
+      "defaultSize": 20
+    }
+  ],
+  "settings": [
+    {
+      "key": "samplePanel.showUrls",
+      "type": "boolean",
+      "default": true,
+      "label": "Show URLs"
+    }
+  ],
+  "permissions": [
+    "tabs.read"
+  ],
+  "optionalPermissions": [
+    "bookmarks.read"
+  ],
+  "entry": "index.js"
+}

@@ -1,0 +1,5 @@
+/* user override, libadwaita style */
+@define-color blue_3 #3584e4;
+@define-color accent_bg_color @blue_3;
+@define-color accent_color rgb(26, 95, 180);
+@define-color window_bg_color shade(@blue_3, 0.5);

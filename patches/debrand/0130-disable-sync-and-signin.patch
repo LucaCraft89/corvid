@@ -1,0 +1,17 @@
+Purpose: Disable Google sign-in, account consistency (Mirror/Dice) and the Chrome Sync client.
+Area: debrand
+Files: chrome/browser/signin/*; components/signin/*; components/sync/*; chrome/browser/sync/*
+Rebase risk: high: deeply interconnected
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Prefer a policy-style default: signin.allowed=false, sync disabled; do not delete the sync code (rebase cost).
+- Corvid sync (Phase 4) is a separate self-hosted client.
+- Remove sign-in entry points from any remaining native UI.
+
+Verify:
+- No accounts.google.com / clients*.google.com connections.
+- Settings page has no sign-in section.

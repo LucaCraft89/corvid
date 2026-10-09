@@ -1,0 +1,15 @@
+Purpose: Disable Translate service and spellcheck dictionary downloads.
+Area: debrand
+Files: components/translate/core/browser/translate_url_util.cc; chrome/browser/spellchecker/*; components/spellcheck/browser/spellcheck_hunspell_dictionary.cc
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Translate script/language list URLs empty; feature off by default.
+- Dictionary download URL empty; bundled dictionaries only (optional local installs).
+
+Verify:
+- No translate.googleapis.com / redirector requests.

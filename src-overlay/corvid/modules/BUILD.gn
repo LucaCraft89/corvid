@@ -1,0 +1,47 @@
+# UNVERIFIED: not evaluated by gn until the first CI run.
+source_set("module_permissions") {
+  sources = [
+    "module_permissions.cc",
+    "module_permissions.h",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("module_manifest") {
+  sources = [
+    "module_manifest.cc",
+    "module_manifest.h",
+  ]
+  public_deps = [
+    ":module_permissions",
+    "//corvid:base_compat",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("module_host_service") {
+  sources = [
+    "module_host_service.cc",
+    "module_host_service.h",
+  ]
+  public_deps = [
+    ":module_manifest",
+    ":module_permissions",
+  ]
+  deps = [ "//base" ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [
+    "module_host_service_unittest.cc",
+    "module_permissions_unittest.cc",
+  ]
+  deps = [
+    ":module_host_service",
+    ":module_manifest",
+    ":module_permissions",
+    "//base",
+    "//testing/gtest",
+  ]
+}

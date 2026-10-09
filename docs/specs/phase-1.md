@@ -34,8 +34,18 @@ Goal: a daily-drivable Linux browser: zero Google, custom WebUI chrome, modular 
 9. **Compat:** top-100 extension list run recorded; pass rate >= target set by the user (ask; propose 85%).
 10. **Install:** `.deb`/`.rpm`/AppImage install and launch on Fedora and Debian/Ubuntu VMs, X11 and Wayland.
 
-## Ask the user at these points
+## Decisions taken (2026-10-09)
+- uBlock Origin may be bundled unmodified (CR-1). Extension sources are configurable: Chrome Web Store and Microsoft Edge Add-ons by default, user-added Chromium store URLs, manual CRX/ZIP/unpacked install (CR-2). Top-100 target 85% (CR-6). Default search DuckDuckGo; default layout `desktop-vertical-tabs`. DevTools stays. Widevine required but legally open (CR-11). Address bar movable top/bottom.
+- Acceptance 9 target is therefore 85%; acceptance 7 may run on release builds.
+
+## Ask the user at these points (historical; answered above)
 - Default layout choice and tab placement default.
 - Default search engine list and extension store source (Chrome Web Store use from a non-Chrome browser has terms-of-service implications; offer configurable sources).
 - Proprietary codec policy.
 - uBO license decision.
+
+## Added acceptance checks (2026-10-09 user decisions)
+11. **Hardware acceleration:** on a machine with a VA-API GPU, `corvid://gpu` (Corvid's replacement for the stock GPU page) reports compositing, GPU rasterization, WebGL/WebGL2, WebGPU, video decode and encode as hardware accelerated; `vainfo` lists the codecs Corvid reports as hardware. Script: `tests/acceptance/phase-1/11-hw-accel.mjs`. GPU-less CI reports SKIP, never PASS.
+12. **WebRTC:** a loopback peer connection with a data channel works with the default policy; ICE candidates expose no private IPv4 literal (mDNS or none) and there are no server-reflexive candidates without a configured STUN server; no Google STUN host in the binary or in traffic. Script: `tests/acceptance/phase-1/12-webrtc.mjs`, plus the binary grep in 01b.
+13. **Codecs (CR-3):** H.264/HEVC/AAC playback works; distribution remains gated on the pre-release legal check (CR-10).
+

@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 .scratch/
 docs/reports/*-run*.md
+node_modules/

@@ -1,0 +1,49 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.layoutmenu",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.layoutmenu.name",
+  "description": "i18n:module.layoutmenu.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-layout-menu",
+      "title": "i18n:module.layoutmenu.name",
+      "role": "layout-menu",
+      "movable": true,
+      "resizable": false,
+      "hideable": false,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom",
+        "window.left",
+        "window.right"
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "layoutmenu.editShortcut",
+      "type": "string",
+      "default": "Ctrl+Shift+L",
+      "label": "i18n:setting.layoutmenu.editShortcut"
+    },
+    {
+      "key": "layoutmenu.resetShortcut",
+      "type": "string",
+      "default": "Ctrl+Alt+Shift+L",
+      "label": "i18n:setting.layoutmenu.resetShortcut"
+    }
+  ],
+  "permissions": [
+    "layout.read",
+    "layout.write",
+    "internal.shell"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

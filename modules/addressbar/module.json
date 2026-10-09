@@ -1,0 +1,57 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.addressbar",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.addressbar.name",
+  "description": "i18n:module.addressbar.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-addressbar",
+      "title": "i18n:module.addressbar.name",
+      "role": "addressbar",
+      "movable": true,
+      "resizable": false,
+      "hideable": false,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom"
+      ]
+    }
+  ],
+  "settings": [
+    {
+      "key": "addressbar.position",
+      "type": "enum",
+      "default": "top",
+      "label": "i18n:setting.addressbar.position",
+      "values": [
+        "top",
+        "bottom"
+      ]
+    },
+    {
+      "key": "addressbar.suggestions",
+      "type": "boolean",
+      "default": false,
+      "label": "i18n:setting.addressbar.suggestions"
+    },
+    {
+      "key": "addressbar.defaultSearchEngine",
+      "type": "string",
+      "default": "duckduckgo",
+      "label": "i18n:setting.addressbar.defaultSearchEngine"
+    }
+  ],
+  "permissions": [
+    "tabs.read",
+    "tabs.manage",
+    "bookmarks.read"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

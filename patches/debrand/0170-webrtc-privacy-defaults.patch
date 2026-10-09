@@ -1,0 +1,17 @@
+Purpose: Default WebRTC IP handling policy to default_public_interface_only, mDNS host candidates on, no built-in STUN.
+Area: debrand
+Files: chrome/browser/media/webrtc/webrtc_event_log_*; content/public/common/webrtc_ip_handling_policy.h; chrome/browser/profiles/profile_impl_io_data or prefs registration for webrtc.ip_handling_policy
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Register the pref default for webrtc.ip_handling_policy as default_public_interface_only (the enum value, not a custom one).
+- Wire corvid.privacy settings (privacy.webrtcIpHandling, privacy.webrtcMdnsCandidates, privacy.webrtcStunServers) to the pref / WebRtcHideLocalIpsWithMdns feature.
+- Confirm no code path injects stun.l.google.com (grep the tree and the built binary); extra STUN only from the user setting.
+
+Verify:
+- tests/acceptance/phase-1/12-webrtc.mjs
+- 01b binary grep finds no stun.l.google.com.

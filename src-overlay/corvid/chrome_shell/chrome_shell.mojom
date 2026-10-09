@@ -1,0 +1,48 @@
+// UNVERIFIED: not compiled. Mojo surface for corvid://chrome-shell (see ui/chrome/shell.ts ShellServices).
+// Module capabilities (tabs.*, bookmarks.*, ...) are separate interfaces bound only after a permission grant
+// (src-overlay/corvid/modules/module_permissions.*).
+module corvid.chrome_shell.mojom;
+
+struct TabInfo {
+  int32 id;
+  string title;
+  string url;
+  bool active;
+  bool loading;
+  bool pinned;
+};
+
+struct NavState {
+  string url;
+  bool can_go_back;
+  bool can_go_forward;
+  bool loading;
+};
+
+interface TabsObserver {
+  OnTabsChanged();
+};
+
+interface ShellHandler {
+  // Tabs and navigation for builtin chrome components.
+  ListTabs() => (array<TabInfo> tabs);
+  ActivateTab(int32 id);
+  CloseTab(int32 id);
+  CreateTab(string? url);
+  GetNavState() => (NavState state);
+  Navigate(string url);
+  GoBack();
+  GoForward();
+  Reload();
+  ObserveTabs(pending_remote<TabsObserver> observer);
+
+  // Layout persistence: one JSON document per profile (<profile>/Corvid/layout.json), atomic writes.
+  ReadLayout() => (string? json);
+  WriteLayout(string json) => (bool ok);
+  BackupCorruptLayout(string json);
+
+  // Content area geometry: the WebContents view is parented to the element the shell reports.
+  SetContentBounds(float x, float y, float width, float height);
+
+  OpenSettings(string section);
+};

@@ -1,0 +1,74 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.theme",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.theme.name",
+  "description": "i18n:module.theme.description",
+  "kind": "builtin",
+  "settings": [
+    {
+      "key": "theme.mode",
+      "type": "enum",
+      "default": "auto",
+      "label": "i18n:setting.theme.mode",
+      "values": [
+        "auto",
+        "light",
+        "dark"
+      ]
+    },
+    {
+      "key": "theme.followSystemAccent",
+      "type": "boolean",
+      "default": true,
+      "label": "i18n:setting.theme.followSystemAccent"
+    },
+    {
+      "key": "theme.useCustomSeed",
+      "type": "boolean",
+      "default": false,
+      "label": "i18n:setting.theme.useCustomSeed"
+    },
+    {
+      "key": "theme.seed",
+      "type": "color",
+      "default": "#6750a4",
+      "label": "i18n:setting.theme.seed"
+    },
+    {
+      "key": "theme.contrast",
+      "type": "enum",
+      "default": "system",
+      "label": "i18n:setting.theme.contrast",
+      "values": [
+        "system",
+        "standard",
+        "medium",
+        "high"
+      ]
+    },
+    {
+      "key": "theme.variant",
+      "type": "enum",
+      "default": "tonal-spot",
+      "label": "i18n:setting.theme.variant",
+      "values": [
+        "tonal-spot",
+        "expressive",
+        "vibrant",
+        "neutral",
+        "content",
+        "fidelity",
+        "fruit-salad",
+        "rainbow",
+        "monochrome"
+      ]
+    }
+  ],
+  "permissions": [
+    "theme.read",
+    "internal.settings"
+  ],
+  "entry": "dist/index.js"
+}

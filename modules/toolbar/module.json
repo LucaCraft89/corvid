@@ -1,0 +1,33 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.toolbar",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.toolbar.name",
+  "description": "i18n:module.toolbar.description",
+  "kind": "builtin",
+  "slots": [
+    {
+      "slot": "window.top",
+      "component": "corvid-toolbar",
+      "title": "i18n:module.toolbar.name",
+      "movable": true,
+      "resizable": false,
+      "hideable": true,
+      "allowedSlots": [
+        "window.top",
+        "window.bottom",
+        "window.left",
+        "window.right"
+      ]
+    }
+  ],
+  "permissions": [
+    "tabs.read",
+    "tabs.manage"
+  ],
+  "requires": [
+    "corvid.layout"
+  ],
+  "entry": "dist/index.js"
+}

@@ -1,0 +1,17 @@
+Purpose: Remove Google defaults from network time, geolocation, DoH provider list and pre-resolve hosts.
+Area: debrand
+Files: components/network_time/network_time_tracker.cc; services/device/geolocation/network_location_provider.cc; chrome/browser/net/secure_dns_config.cc + dns over https provider list; chrome/browser/ui/webui/ntp or search preconnect lists
+Rebase risk: medium
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Network time query URL empty.
+- Network geolocation URL empty (OS/GPS location only).
+- Default DoH provider entries pointing to Google removed; DoH stays off unless configured.
+- Hard-coded Google preconnect hosts removed.
+
+Verify:
+- Idle capture clean; geolocation API reports unavailable when no OS provider.

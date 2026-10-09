@@ -1,0 +1,23 @@
+# UNVERIFIED: not evaluated by gn. Targets are added to the build by patches/ui/0200-*.patch.
+source_set("webui") {
+  sources = [
+    "stock_page_policy.cc",
+    "stock_page_policy.h",
+    "stock_page_table.inc",
+  ]
+  deps = [
+    "//base",
+    "//url",
+  ]
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "stock_page_policy_unittest.cc" ]
+  deps = [
+    ":webui",
+    "//base",
+    "//testing/gtest",
+    "//url",
+  ]
+}

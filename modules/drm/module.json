@@ -1,0 +1,26 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.drm",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.drm.name",
+  "description": "i18n:module.drm.description",
+  "kind": "builtin",
+  "settings": [
+    {
+      "key": "drm.widevine",
+      "type": "enum",
+      "default": "ask",
+      "label": "i18n:setting.drm.widevine",
+      "values": [
+        "off",
+        "ask",
+        "on"
+      ]
+    }
+  ],
+  "permissions": [
+    "internal.settings"
+  ],
+  "entry": "dist/index.js"
+}

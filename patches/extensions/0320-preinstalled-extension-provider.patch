@@ -1,0 +1,15 @@
+Purpose: Install extensions listed in extensions/preinstalled.toml via an external-provider-style loader (user-removable, removal sticky).
+Area: extensions
+Files: chrome/browser/extensions/external_provider_impl.cc; chrome/browser/extensions/external_loader.h
+Rebase risk: medium
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
+        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
+        the real diff with scripts/refresh-patches.sh.
+
+Change:
+- Add corvid::PreinstalledExtensionsLoader (overlay) as an ExternalLoader; hook it in ExternalProviderImpl::CreateExternalProviders.
+- Honor the profile's 'uninstalled external extensions' list so removal sticks.
+
+Verify:
+- 07-ubo.mjs
