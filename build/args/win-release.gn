@@ -1,0 +1,30 @@
+# Corvid Windows x64 release GN args.
+# UNVERIFIED: not run through `gn gen` here. Before first build run `gn args --list out\Release`
+# and delete or fix any arg the pinned Chromium no longer declares (gn errors on unknown args).
+# Keep in step with build/args/linux-release.gn (Phase 0/1) for all shared, Google-service-off args.
+target_os = "win"
+target_cpu = "x64"          # arm64 is an open question (docs/reports); do not add without user decision.
+
+is_debug = false
+is_component_build = false
+is_official_build = true     # slow; use win-debug.gn for iteration. Check RAM before enabling LTO/PGO.
+symbol_level = 1
+dcheck_always_on = false
+
+# Branding comes from the overlay/patch 0001; keep the stock Chrome branding OFF.
+is_chrome_branded = false
+
+# Legal: left at upstream defaults (no proprietary codecs) until the user decides (CR-3).
+# proprietary_codecs / ffmpeg_branding intentionally NOT set.
+
+# Google services off (mirror of debrand-and-degoogle). Empty keys: no Google API calls possible.
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+safe_browsing_mode = 0
+
+# No Google Update. Updater is Corvid's own (docs/specs/updater.md).
+# (Installer/updater build flags are introduced by patches/windows/0002; add here once they exist.)
+
+use_goma = false
+use_remoteexec = false       # set true on a remote-exec/RBE builder (see docs/build-host.md)

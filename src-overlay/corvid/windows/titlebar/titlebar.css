@@ -1,0 +1,36 @@
+/* Title bar styles (UNVERIFIED visually). Tokens come from theme-m3e; fallbacks keep it usable standalone. */
+corvid-titlebar {
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  height: var(--cv-caption-height, 32px);
+  padding-inline: var(--cv-caption-inset-left, 0) var(--cv-caption-inset-right, 138px);
+  background: var(--md-sys-color-surface-container, Canvas);
+  color: var(--md-sys-color-on-surface, CanvasText);
+  opacity: var(--cv-titlebar-opacity, 1);
+  user-select: none;
+  /* Native hit-testing decides drag; this is only the hint for Window Controls Overlay builds. */
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+corvid-titlebar :is(button, input, [role='tab'], [data-interactive]) {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+/* High contrast (Windows contrast themes): forced-colors removes our palette, so draw real borders. */
+@media (forced-colors: active) {
+  corvid-titlebar {
+    background: Canvas;
+    color: CanvasText;
+    border-block-end: 1px solid CanvasText;
+    forced-color-adjust: auto;
+  }
+  corvid-titlebar :is(button, [role='tab']):hover { background: Highlight; color: HighlightText; }
+  corvid-titlebar :is(button, [role='tab']):focus-visible { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+/* Render at 100/125/150/200%: use DIP-based sizes only, borders via 1px device-independent hairline. */
+@media (min-resolution: 2dppx) {
+  corvid-titlebar { border-block-end-width: 0.5px; }
+}

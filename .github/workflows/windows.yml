@@ -1,0 +1,79 @@
+name: windows
+
+# UNVERIFIED: workflow YAML is syntax-checked only; it has never run. A full Chromium build needs a
+# large self-hosted/remote runner (GitHub-hosted runners are too small/slow): label it `corvid-win-x64`.
+on:
+  pull_request:
+    paths:
+      - 'scripts/*.ps1'
+      - 'build/args/win-*.gn'
+      - 'patches/series.phase3'
+      - 'patches/windows/**'
+      - 'src-overlay/corvid/windows/**'
+      - 'theme/providers/windows/**'
+      - '.github/workflows/windows*.yml'
+  workflow_dispatch:
+    inputs:
+      full_build:
+        description: 'Run the full Chromium build (self-hosted runner only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  lint-and-unit:
+    # Cheap checks on a hosted runner: PowerShell lint, JS/TS unit tests for updater + accent provider.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $r = Invoke-ScriptAnalyzer -Path scripts -Recurse -Severity Error,Warning -ExcludeRule PSAvoidUsingWriteHost
+          $r | Format-Table -AutoSize
+          if ($r | Where-Object Severity -eq 'Error') { exit 1 }
+      - name: Parse-check scripts
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem scripts, tests/acceptance/phase-3 -Filter *.ps1 -Recurse) {
+            $e = $null; [void][System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$e)
+            if ($e) { $e | ForEach-Object { Write-Error "$($f.Name): $_" }; exit 1 }
+          }
+      - name: Updater manifest tests
+        run: node --test "src-overlay/corvid/windows/updater/*.test.mjs"
+      - name: Title bar tests
+        run: node --experimental-strip-types --test "src-overlay/corvid/windows/titlebar/*.test.ts"
+      - name: Accent provider tests
+        run: node --experimental-strip-types --test "theme/providers/windows/*.test.ts"
+
+  build:
+    if: github.event_name == 'workflow_dispatch' && inputs.full_build
+    runs-on: [self-hosted, corvid-win-x64]
+    timeout-minutes: 720
+    env:
+      DEPOT_TOOLS_WIN_TOOLCHAIN: '0'
+      CORVID_CHROMIUM_SRC: D:\chromium\src
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned Chromium
+        shell: pwsh
+        run: ./scripts/fetch.ps1
+      - name: Apply patches and overlay
+        shell: pwsh
+        run: ./scripts/apply-patches.ps1
+      - name: Build chrome and mini_installer
+        shell: pwsh
+        run: ./scripts/build.ps1 -Config release -Targets chrome,mini_installer
+      - name: Package (UNSIGNED)
+        shell: pwsh
+        run: ./scripts/package.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corvid-windows-x64-UNSIGNED
+          path: release/**
