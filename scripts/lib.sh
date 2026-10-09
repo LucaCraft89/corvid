@@ -40,7 +40,7 @@ src_git() {
 }
 
 require_tree() {
-  [ -d "$CORVID_SRC/.git" ] || die "no checkout at CORVID_SRC=$CORVID_SRC (run scripts/fetch.sh)"
+  [ -e "$CORVID_SRC/.git" ] || die "no checkout at CORVID_SRC=$CORVID_SRC (run scripts/fetch.sh)"
 }
 
 require_tag() {

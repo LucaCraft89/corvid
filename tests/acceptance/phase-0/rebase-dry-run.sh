@@ -3,8 +3,7 @@
 # Acceptance 4: run rebase.sh to the next available stable tag in a scratch tree; a report is
 # produced even if conflicts exist. The real pin file is never touched (script runs from a copy).
 #
-# Real mode: set CORVID_REBASE_TARGET=<tag>, or leave unset to use --latest-stable.
-# CORVID_SRC is switched to a scratch branch, so point it at a throwaway checkout.
+# Real mode: runs in a scratch git worktree of CORVID_SRC; CORVID_REBASE_TARGET=<tag> overrides the auto-picked target.
 set -euo pipefail
 # shellcheck source=tests/acceptance/phase-0/lib/common.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
@@ -16,8 +15,24 @@ if [ "$FIXTURE" = 1 ]; then
   target="100.0.0.2"
   arg=("$target")
 else
+  # Never vacuous: target must differ from the pin. Default = newest tag on the same
+  # major.minor.build line as the pin that is not the pin itself (else CORVID_REBASE_TARGET).
+  pin="$(grep -Ev '^[[:space:]]*(#|$)' "$T_ROOT/scripts/CHROMIUM_VERSION" | head -n1 | tr -d '[:space:]')"
   target="${CORVID_REBASE_TARGET:-}"
-  if [ -n "$target" ]; then arg=("$target"); else arg=(--latest-stable); fi
+  if [ -z "$target" ]; then
+    target="$(git ls-remote --tags https://chromium.googlesource.com/chromium/src.git "refs/tags/${pin%.*}.*" |
+      sed 's|.*refs/tags/||' | grep -Ex '[0-9]+(\.[0-9]+){3}' | grep -vx "$pin" | sort -V | tail -n1)"
+  fi
+  [ -n "$target" ] && [ "$target" != "$pin" ] || fail "no rebase target different from pin $pin"
+  # Scratch worktree so the real checkout (and its build state) is never reset.
+  git -C "$CORVID_SRC" fetch -q origin --no-tags "refs/tags/$target:refs/tags/$target"
+  scratch="$WORK/src"
+  git -C "$CORVID_SRC" worktree add -q --detach "$scratch" "refs/tags/$pin"
+  real_src="$CORVID_SRC"
+  trap 'git -C "$real_src" worktree remove --force "$scratch" >/dev/null 2>&1 || true; cleanup' EXIT
+  export CORVID_SRC="$scratch" CORVID_SKIP_FETCH=1
+  say "rebase $pin -> $target in scratch worktree $scratch"
+  arg=("$target")
 fi
 
 set +e

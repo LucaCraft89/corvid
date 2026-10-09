@@ -13,6 +13,8 @@
 # UNVERIFIED: the full mode needs network access to chromium.googlesource.com and ~100+ GB;
 # it has not been run in the authoring sandbox.
 set -euo pipefail
+# gclient warns that distro git is older than depot_tools recommends (Ubuntu 24.04 ships 2.43); the warning is noise.
+export GCLIENT_SUPPRESS_GIT_VERSION_WARNING=1
 # shellcheck source=scripts/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
