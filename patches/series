@@ -1,0 +1,3 @@
+# Ordered patch series, applied top to bottom by scripts/apply-patches.sh.
+# One path per line, relative to patches/. Format: <area>/<NNNN>-<slug>.patch
+# Maintained by scripts/refresh-patches.sh. Phase 0 has no patches yet.

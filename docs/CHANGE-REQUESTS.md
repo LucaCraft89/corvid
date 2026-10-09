@@ -17,3 +17,5 @@ Agents: propose changes to locked decisions here; do not act on them until the u
 |---|---|
 | 2026-10-09 | Gecko/Firefox dual-engine dropped; Chromium only |
 | 2026-10-09 | macOS / Phase 6 dropped: user has no Apple Developer account. Scaffold kept on unmerged branch `worktree-agent-ad344f3a0e7004929`. |
+| 2026-10-09 | CI topology: GitHub-hosted runners for lint and patch-apply (sparse mode) on every PR; full Chromium builds on a self-hosted `corvid-builder` runner on the user's PC; nightly build skips when `CORVID_BUILDER_ENABLED` is not `true`. User will run `CORVID_ALLOW_BUILD=1 scripts/verify.sh --phase 0 --platform linux` on their PC (checklist in `docs/build-host.md`). |
+| 2026-10-09 | Patch reuse policy approved as proposed in `docs/PATCH-PROVENANCE.md` (write fresh; BSD/MIT/Apache with per-patch entry; ask before any GPL/MPL). Not a blanket relicensing approval; project stays BSD-3. CR-1..CR-6 remain open. |

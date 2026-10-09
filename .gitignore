@@ -1,0 +1,7 @@
+out/
+*.rej
+*.orig
+__pycache__/
+*.pyc
+.scratch/
+docs/reports/*-run*.md
