@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=@@NAME@@
+GenericName=Web Browser
+Exec=@@SHORT_NAME@@ %U
+Terminal=false
+Type=Application
+Icon=@@LINUX_DESKTOP_ID@@
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;x-scheme-handler/@@URL_SCHEME@@;

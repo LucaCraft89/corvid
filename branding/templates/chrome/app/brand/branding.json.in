@@ -1,0 +1,16 @@
+{
+  "name": "@@NAME@@",
+  "short_name": "@@SHORT_NAME@@",
+  "vendor": "@@VENDOR@@",
+  "version": "@@VERSION@@",
+  "user_agent_product_token": "@@PRODUCT_TOKEN@@",
+  "url_scheme": "@@URL_SCHEME@@",
+  "ids": {
+    "linux_desktop_id": "@@LINUX_DESKTOP_ID@@",
+    "windows_app_id": "@@WINDOWS_APP_ID@@",
+    "android_package": "@@ANDROID_PACKAGE@@",
+    "mac_bundle_id": "@@MAC_BUNDLE_ID@@"
+  },
+  "homepage": "@@HOMEPAGE@@",
+  "update_server": "@@UPDATE_SERVER@@"
+}
