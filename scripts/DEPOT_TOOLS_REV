@@ -1,4 +1,3 @@
 # Pinned depot_tools commit (full SHA). First non-comment line is the pin.
-# TODO: pin on a machine that can reach chromium.googlesource.com, e.g.
-#   rev-parse HEAD of a known-good ~/depot_tools checkout.
-# While unset, scripts/fetch.sh warns and uses depot_tools main (NOT reproducible).
+# Used for the M0 fetch (2026-10-09, DEPOT_TOOLS_UPDATE=0).
+50cc30f5dbb8d56b4b45fe3223c572ef01d38198
