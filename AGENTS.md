@@ -10,7 +10,7 @@ Read this file first. Then read `docs/ROADMAP.md` for the current phase. Load a 
 |---|---|
 | Engine | Chromium only. No Gecko/Firefox backend, no per-tab engine switching. |
 | Foundation | Patch series on top of upstream Chromium stable (Brave/Helium style). Never commit a modified Chromium tree; commit patches + scripts. |
-| Platforms | Order: Linux -> Windows -> Android -> macOS. No iOS. |
+| Platforms | Order: Linux -> Windows -> Android. macOS dropped (2026-10-09, no Apple Developer account); parked, revisit via `docs/CHANGE-REQUESTS.md`. No iOS. |
 | Browser UI | WebUI-based chrome (toolbar, tabs, sidebars, panels) with a layout engine; everything movable and reorganizable. Native window shell only. |
 | Modularity | Internal module system: every feature is a module with a manifest. Public UI-mod API so users install layouts/themes/panels without rebuilding. |
 | Theming | Material You 3 Expressive. One shared tonal-palette engine fed by: Android dynamic color, Linux GTK/libadwaita accent + scheme (GTK 3/4, GNOME + KDE), Windows system accent. User override via seed color or wallpaper. |

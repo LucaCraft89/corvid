@@ -49,12 +49,13 @@ Each phase ends with acceptance checks run by the `verify-phase` skill. Do not s
 - 5.4 Native blocker fallback if uBO performance on Android is insufficient (measure first).
 - **Accept:** uBO installs and blocks on Android; top-100 extension pass rate recorded for Android; passkeys work on a reference site.
 
-## Phase 6: macOS
+## Phase 6: macOS (DROPPED 2026-10-09; parked, not scheduled)
+Dropped by the user: no Apple Developer account. Prior scaffold lives on branch `worktree-agent-ad344f3a0e7004929` (unmerged). Revisit only via `docs/CHANGE-REQUESTS.md`.
 - 6.1 `build-mac` pipeline, system accent provider, Touch ID passkeys.
 - **Accept:** Phase 1 and 2 checks pass on macOS.
 
 ## Out of scope
-iOS. Gecko/Firefox engine and per-tab engine switching. (Revisit only via `docs/CHANGE-REQUESTS.md`.)
+iOS. macOS (for now). Gecko/Firefox engine and per-tab engine switching. (Revisit only via `docs/CHANGE-REQUESTS.md`.)
 
 ## Standing risks
 - Chromium rebase cost grows with every patch to an existing file; prefer `src-overlay/`.
