@@ -1,0 +1,32 @@
+name: sync-phase4
+# Phase 4 (sync): acceptance tests + license gate. NOT yet run on GitHub (written and run locally only).
+on:
+  push:
+    paths: ['server/sync/**', 'src-overlay/corvid/sync/**', 'ui/pages/sync/**', 'tests/acceptance/phase-4/**', '.github/workflows/sync-phase4.yml']
+  pull_request:
+    paths: ['server/sync/**', 'src-overlay/corvid/sync/**', 'ui/pages/sync/**', 'tests/acceptance/phase-4/**']
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: FUZZTIME=30s tests/acceptance/phase-4/run.sh
+  licenses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version: '1.26'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      # allowlist MIT, Apache-2.0, BSD-2/3-Clause, ISC; anything else fails (see license-exceptions.txt for human-reviewed ones)
+      - run: tests/acceptance/phase-4/license-check.sh
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t corvid-sync server/sync
