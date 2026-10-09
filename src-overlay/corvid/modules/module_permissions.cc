@@ -1,6 +1,8 @@
 // UNVERIFIED: not compiled.
 #include "corvid/modules/module_permissions.h"
 
+#include <iterator>
+
 namespace corvid {
 
 namespace {
