@@ -16,14 +16,27 @@ source_set("config_file_reader") {
   deps = [ "//base" ]
 }
 
+# Transport-agnostic implementation of the mojom interface (portal values from a snapshot, allow-listed files).
+source_set("linux_appearance_source") {
+  sources = [
+    "linux_appearance_source.cc",
+    "linux_appearance_source.h",
+  ]
+  public_deps = [ ":appearance_snapshot" ]
+  deps = [
+    ":config_file_reader",
+    "//base",
+  ]
+}
+
 # Needs //ui/native_theme (heavier). Kept separate so the pure parts above compile and test on their own.
 source_set("native_theme_appearance_observer") {
   sources = [
     "native_theme_appearance_observer.cc",
     "native_theme_appearance_observer.h",
   ]
+  public_deps = [ ":appearance_snapshot" ]
   deps = [
-    ":appearance_snapshot",
     "//base",
     "//skia",
     "//ui/native_theme",
@@ -37,11 +50,19 @@ mojom("mojom") {
 
 source_set("unit_tests") {
   testonly = true
-  sources = [ "theme_unittest.cc" ]
+  sources = [
+    "linux_appearance_source_unittest.cc",
+    "native_theme_appearance_observer_unittest.cc",
+    "theme_unittest.cc",
+  ]
   deps = [
     ":appearance_snapshot",
     ":config_file_reader",
+    ":linux_appearance_source",
+    ":native_theme_appearance_observer",
     "//base",
+    "//skia",
     "//testing/gtest",
+    "//ui/native_theme:test_support",
   ]
 }
