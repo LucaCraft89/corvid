@@ -8,7 +8,7 @@ import { ModuleHost, type HostBackend, type KeyValueStore, type CodeLoader, type
 import { LayoutStore } from '../layout/store.ts';
 import { LayoutPersistence, layoutNameForWidth, type LayoutStorage } from '../layout/persistence.ts';
 import { presetCopy } from '../layout/defaults.ts';
-import { moveSlot, resizeSlot, setTabPosition, setVisible } from '../layout/ops.ts';
+import { moveSlot, resizeSlot, setAddressBarPosition, setTabPosition, setVisible } from '../layout/ops.ts';
 import type { CvLayoutHost } from '../layout/layout-host.ts';
 import { setBridge, type ChromeBridge } from './bridge.ts';
 
@@ -78,6 +78,7 @@ export async function startShell(root: HTMLElement, svc: ShellServices): Promise
     (globalThis as Record<string, unknown>)['__corvidTest'] = {
       layout: () => JSON.parse(JSON.stringify(store.layout)),
       tabsTo: (pos: 'top' | 'left' | 'right' | 'bottom') => store.apply((l, c) => setTabPosition(l, c, pos)),
+      addressBarTo: (pos: 'top' | 'bottom') => store.apply((l, c) => setAddressBarPosition(l, c, pos)),
       move: (id: string, region: 'top' | 'bottom' | 'left' | 'right' | 'floating', index: number) => store.apply((l, c) => moveSlot(l, c, id, region, index)),
       setVisible: (id: string, v: boolean) => store.apply((l, c) => setVisible(l, c, id, v)),
       resize: (id: string, rem: number) => store.apply((l, c) => resizeSlot(l, c, id, { unit: 'rem', value: rem })),

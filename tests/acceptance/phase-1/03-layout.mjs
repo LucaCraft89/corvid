@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Acceptance 3: move tab strip top->left, hide bookmarks bar, resize side panel, restart: layout restored.
+// Acceptance 3 (default layout is now vertical tabs, so the edit is left->top): move tab strip left->top, address bar to bottom, hide bookmarks bar, resize side panel, restart: layout restored.
 // Then corrupt the layout file: browser starts with the default; "Reset layout" restores default from a corrupt file.
 // Uses the --corvid-test-hooks contract (window.__corvidTest, see ui/chrome/shell.ts). REQUIRES CORVID_BIN. UNVERIFIED.
 import { mkdtempSync, readdirSync, writeFileSync, readFileSync } from 'node:fs';
@@ -17,13 +17,15 @@ let b = await launch({ bin, profile });
 let p = await b.attach(SHELL) ?? await b.open(SHELL);
 await p.waitFor(`!!window.__corvidTest`, 8000);
 const before = await p.eval(T('layout()'));
-await p.eval(T('tabsTo("left")'));
+await p.eval(T('tabsTo("top")'));
+await p.eval(T('addressBarTo("bottom")'));
 await p.eval(T('setVisible("bookmarksbar", false)'));
 await p.eval(T('setVisible("sidepanel", true)'));
 await p.eval(T('resize("sidepanel", 30)'));
 await p.eval(T('flush()'));
 const edited = await p.eval(T('layout()'));
-c.ok(edited.regions.left.slots.some((s) => s.component === 'corvid-tabstrip'), 'tab strip is in the left region after edit');
+c.ok(edited.regions.top.slots.some((s) => s.component === 'corvid-tabstrip'), 'tab strip is in the top region after edit');
+c.ok(edited.regions.bottom.slots.some((s) => s.component === 'corvid-addressbar'), 'address bar is in the bottom bar after edit');
 await b.close({ keepProfile: true });
 
 b = await launch({ bin, profile });
@@ -43,12 +45,13 @@ b = await launch({ bin, profile });
 p = await b.attach(SHELL) ?? await b.open(SHELL);
 await p.waitFor(`!!window.__corvidTest`, 8000);
 const fallback = await p.eval(T('layout()'));
-c.ok(fallback.name === 'desktop-classic' && fallback.regions.top.slots.some((s) => s.component === 'corvid-tabstrip'), 'corrupt file -> default layout');
-await p.eval(T('tabsTo("left")'));
+c.ok(fallback.name === 'desktop-vertical-tabs' && fallback.regions.left.slots.some((s) => s.component === 'corvid-tabstrip'), 'corrupt file -> default layout');
+await p.eval(T('tabsTo("top")'));
+await p.eval(T('addressBarTo("bottom")'));
 await p.eval(T('reset()'));
 await p.eval(T('flush()'));
 const reset = await p.eval(T('layout()'));
-c.ok(reset.regions.top.slots.some((s) => s.component === 'corvid-tabstrip'), 'Reset layout restores tab strip to top');
+c.ok(reset.regions.left.slots.some((s) => s.component === 'corvid-tabstrip') && reset.regions.top.slots.some((s) => s.component === 'corvid-addressbar'), 'Reset layout restores tab strip (left) and address bar (top)');
 const settings = await b.open('corvid://settings/layout#reset');
 await sleepMs(500);
 c.ok(await settings.eval(`document.querySelector('corvid-settings') !== null`), 'corvid://settings/layout#reset reachable');

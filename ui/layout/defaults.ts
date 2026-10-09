@@ -103,7 +103,7 @@ export const PRESETS: Readonly<Record<string, Layout>> = {
   compact: COMPACT,
   mobile: MOBILE,
 };
-export const DEFAULT_PRESET = 'desktop-classic';
+export const DEFAULT_PRESET = 'desktop-vertical-tabs';
 
 export function presetCopy(name: string): Layout {
   const p = PRESETS[name] ?? PRESETS[DEFAULT_PRESET]!;

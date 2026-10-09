@@ -59,6 +59,8 @@ export class CorvidExtensions extends CvPage {
         </select></label>
       <h2>${this.t('extensions.sources.title')}</h2>
       <p class="muted">${this.t('extensions.sources.help')}</p>
+      <p class="muted">${this.t('extensions.sources.terms')}</p>
+      <p class="muted">${this.t('extensions.sources.manual')}</p>
       <ul class="plain">${this.sources.map((s) => html`<li class="row"><span class="grow">${s.name} <span class="muted">${s.updateUrl}</span></span><span>${s.enabled ? this.t('common.on') : this.t('common.off')}</span></li>`)}</ul>`;
   }
 }

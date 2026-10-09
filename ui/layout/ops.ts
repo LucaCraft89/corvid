@@ -113,12 +113,30 @@ export function removeSlot(layout: Layout, cat: Catalog, slotId: string): OpResu
   return finish(l, cat);
 }
 
+function setRolePosition(layout: Layout, cat: Catalog, role: 'tabs' | 'addressbar', position: RegionId): OpResult {
+  const found = allSlots(layout).find(({ slot }) => cat.get(slot.component)?.role === role);
+  if (!found) return fail(`no ${role} component in layout`);
+  // Leads its bar: index 0, own row.
+  return moveSlot(layout, cat, found.slot.id, position, 0, { newRow: position === 'top' || position === 'bottom' });
+}
+
 /** Convenience for the `tabstrip.position` setting: move the tabs component to a region. */
 export function setTabPosition(layout: Layout, cat: Catalog, position: 'top' | 'left' | 'right' | 'bottom'): OpResult {
-  const tabs = allSlots(layout).find(({ slot }) => cat.get(slot.component)?.role === 'tabs');
-  if (!tabs) return fail('no tabs component in layout');
-  // Tabs lead their bar: index 0, own row.
-  return moveSlot(layout, cat, tabs.slot.id, position, 0, { newRow: position === 'top' || position === 'bottom' });
+  return setRolePosition(layout, cat, 'tabs', position);
+}
+
+/**
+ * `addressbar.position` setting: the address bar lives in the top or bottom bar (desktop and Android).
+ * Other regions are refused by the manifest's allowedSlots; the component can never be hidden or removed.
+ */
+export function setAddressBarPosition(layout: Layout, cat: Catalog, position: 'top' | 'bottom'): OpResult {
+  return setRolePosition(layout, cat, 'addressbar', position);
+}
+
+/** Current address bar side, for the settings page / Android wiring. */
+export function addressBarPosition(layout: Layout, cat: Catalog): 'top' | 'bottom' | undefined {
+  const f = allSlots(layout).find(({ slot }) => cat.get(slot.component)?.role === 'addressbar');
+  return f && (f.region === 'top' || f.region === 'bottom') ? f.region : undefined;
 }
 
 /** Keyboard reordering: move one position earlier/later within the slot's region. */

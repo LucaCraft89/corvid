@@ -12,7 +12,7 @@ let hostRef: ModuleHost | undefined;
 export function setSettingsHost(h: ModuleHost): void { hostRef = h; }
 
 const MODULE_SECTION: Record<string, SectionId> = {
-  'corvid.theme': 'appearance', 'corvid.layout': 'layout', 'corvid.privacy': 'privacy',
+  'corvid.theme': 'appearance', 'corvid.layout': 'layout', 'corvid.privacy': 'privacy', 'corvid.drm': 'privacy',
 };
 
 export class CorvidSettings extends CvPage {
@@ -81,7 +81,7 @@ export class CorvidSettings extends CvPage {
         <p class="muted">${this.t('settings.layout.shortcuts')}</p></div>`
       : secId === 'search' ? html`<ul class="plain">${DEFAULT_ENGINES.map((e) => html`<li class="card">${e.name} <span class="muted">${e.url}</span></li>`)}</ul>`
       : secId === 'extensions' ? html`<p><a href="corvid://extensions">${this.t('settings.extensions.open')}</a></p>`
-      : secId === 'privacy' ? html`<p class="muted">${this.t('settings.privacy.webrtcHelp')}</p>` : '';
+      : secId === 'privacy' ? html`<p class="muted">${this.t('settings.privacy.webrtcHelp')}</p><p class="muted">${this.t('settings.drm.help')}</p>` : '';
     return html`${secs.map((s) => html`<section class="card" aria-label=${resolveRef(s.titleRef)}><h2>${resolveRef(s.titleRef)}</h2>${s.fields.map((f) => this.control(f))}</section>`)}${extra}`;
   }
 

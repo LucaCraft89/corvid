@@ -34,7 +34,11 @@ Goal: a daily-drivable Linux browser: zero Google, custom WebUI chrome, modular 
 9. **Compat:** top-100 extension list run recorded; pass rate >= target set by the user (ask; propose 85%).
 10. **Install:** `.deb`/`.rpm`/AppImage install and launch on Fedora and Debian/Ubuntu VMs, X11 and Wayland.
 
-## Ask the user at these points
+## Decisions taken (2026-10-09)
+- uBlock Origin may be bundled unmodified (CR-1). Extension sources are configurable: Chrome Web Store and Microsoft Edge Add-ons by default, user-added Chromium store URLs, manual CRX/ZIP/unpacked install (CR-2). Top-100 target 85% (CR-6). Default search DuckDuckGo; default layout `desktop-vertical-tabs`. DevTools stays. Widevine required but legally open (CR-11). Address bar movable top/bottom.
+- Acceptance 9 target is therefore 85%; acceptance 7 may run on release builds.
+
+## Ask the user at these points (historical; answered above)
 - Default layout choice and tab placement default.
 - Default search engine list and extension store source (Chrome Web Store use from a non-Chrome browser has terms-of-service implications; offer configurable sources).
 - Proprietary codec policy.

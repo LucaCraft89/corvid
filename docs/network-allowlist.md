@@ -18,6 +18,18 @@ Google hostnames that may appear in the built binary/resources (for example a se
 # (none yet)
 ```
 
+## User-initiated exceptions
+
+Hosts that may be contacted **only as the direct result of an explicit user action** (never in the idle capture, which must stay empty). Parsed by the acceptance scripts that exercise those actions.
+
+```user-initiated
+# Widevine CDM component, only after the user accepts the Corvid DRM prompt (CR-11 open; see docs/notes/widevine.md).
+# Hostnames are NOT verified: confirm against the pinned Chromium's component updater URL constants before use.
+# (none confirmed yet)
+```
+
+Extension sources the user has configured (Chrome Web Store, Microsoft Edge Add-ons by default, plus any added store) are contacted only to install from them or to update an extension installed from them. See docs/extension-sources.md.
+
 ## Change process
 
 Adding a host requires a reason, the feature it belongs to, and whether it is contacted only after explicit user opt-in. Anything contacted without opt-in at idle needs the user's approval (privacy is a locked decision).

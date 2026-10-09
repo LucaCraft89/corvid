@@ -2,19 +2,21 @@
 # Consumed by scripts/ (phase-1 build step, TODO) which emits the JSON read by
 # src-overlay/corvid/extensions/preinstalled_extensions.cc.
 #
-# PINNING STATUS: NOT PINNED. The sandbox that produced this file could not download release assets
-# or compute checksums (GitHub API/asset hosts returned 403 through the agent proxy). A page fetch of
-# https://github.com/gorhill/uBlock/releases reported "1.75.0" as the latest release with a
-# "uBlock0_1.75.0.chromium.crx" asset, but that came through a summarizing fetch with no checksum and
-# is NOT a verified pin. Fill the TODO fields from the real release, verifying the sha256 yourself.
+# PINNING STATUS: pinned to 1.75.0 on 2026-10-09 by scripts/pin-ubo.sh. The sha256 was computed from the real
+# release asset downloaded from https://github.com/gorhill/uBlock/releases (manifest checked: MV2, "uBlock Origin", 1.75.0).
+# uBO publishes no checksum file, so this is trust-on-first-use: re-run `scripts/pin-ubo.sh --verify` on another
+# network (the user's PC or CI) before a release. Re-pin with `scripts/pin-ubo.sh [version]`.
+# Whether 1.75.0 is the newest release was not independently confirmed (API was blocked); run the script without
+# an argument to pin the latest.
 
 [policy]
-# CR-1 (uBlock Origin is GPL-3.0; bundling unmodified as a separate extension) is OPEN.
-# Until the user decides, release builds must not bundle it. Dev/test builds may.
-release_bundling_allowed = false
+# CR-1 RESOLVED 2026-10-09: the user approved bundling uBlock Origin (GPL-3.0) unmodified as a separate extension.
+# Obligations: ship the GPL-3.0 text and a notice with a link to the exact corresponding source (the tag/commit of the
+# pinned release) in the About/credits data; never modify uBO inside the Corvid tree.
+release_bundling_allowed = true
 cr_reference = "CR-1"
 # Extension updates never use Google endpoints. Source is user-configurable in corvid://extensions.
-default_update_source = "none"          # none | github-releases | custom (CR-2 is open)
+default_update_source = "none"          # none | github-releases | custom; sources are user-configurable (CR-2)
 first_run_network_fetches = false       # uBO ships its bundled filter lists; list updates need opt-in
 
 [[extension]]
@@ -23,10 +25,11 @@ slug = "ublock-origin"
 manifest_version = 2                     # full (MV2, blocking webRequest) build, not uBO Lite
 license = "GPL-3.0-only"
 upstream = "https://github.com/gorhill/uBlock"
-version = "TODO"                         # e.g. the 1.75.0 seen on the releases page; verify
-asset = "TODO"                           # e.g. uBlock0_<version>.chromium.zip or .crx from the GitHub release
-sha256 = "TODO"                          # compute from the downloaded asset; commit only if verified
-extension_id = "TODO"                    # id derived from the signing key of the pinned CRX/zip build
+version = "1.75.0"
+asset = "uBlock0_1.75.0.chromium.zip"
+sha256 = "393cf95709d1074d4022970e9014e434395c53a822387f1e25f43be97cf4b582"
+extension_id = "derived"                 # Corvid packages the pinned zip into a CRX with its own signing key; the id comes from that key
+source_url = "https://github.com/gorhill/uBlock/tree/1.75.0"   # corresponding source for the GPL notice
 enabled_by_default = true
 user_removable = true                    # removal must persist across updates
 allowed_in_incognito = "ask-at-first-run"  # default: on for normal windows

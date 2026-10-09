@@ -7,7 +7,7 @@ import { buildCatalog } from '../modules/catalog.ts';
 import type { ModuleManifest } from '../modules/manifest.ts';
 import { DEFAULT_PRESET, PRESETS, presetCopy } from './defaults.ts';
 import { allSlots, findSlot, type Layout } from './model.ts';
-import { addComponent, moveSlot, nudgeSlot, removeSlot, resizeRegion, resizeSlot, setTabPosition, setVisible, moveFloating } from './ops.ts';
+import { addComponent, addressBarPosition, setAddressBarPosition, moveSlot, nudgeSlot, removeSlot, resizeRegion, resizeSlot, setTabPosition, setVisible, moveFloating } from './ops.ts';
 import { LayoutStore } from './store.ts';
 import { LayoutPersistence, exportLayout, importLayout, layoutNameForWidth, type LayoutStorage, type Scheduler } from './persistence.ts';
 import { checkGuardRails, checkSemantics, loadLayout, sanitize, validateStructure } from './validate.ts';
@@ -182,7 +182,8 @@ test('ACCEPTANCE-3 logic: edit, autosave, restart, restore; reset from corrupt f
   const { s, storage } = memStorage();
   const fs = fakeScheduler();
   let { store } = await boot(storage, fs.sch);
-  store.apply((l, c) => moveSlot(l, c, 'tabstrip', 'left', 0));
+  assert.equal(region(store.layout, 'corvid-tabstrip'), 'left', 'default preset is vertical tabs');
+  store.apply((l, c) => setTabPosition(l, c, 'top'));
   store.apply((l, c) => setVisible(l, c, 'bookmarksbar', false));
   store.apply((l, c) => resizeSlot(l, c, 'sidepanel', { unit: 'rem', value: 30 }));
   store.apply((l, c) => setVisible(l, c, 'sidepanel', true));
@@ -197,7 +198,7 @@ test('ACCEPTANCE-3 logic: edit, autosave, restart, restore; reset from corrupt f
   const second = await boot(storage, fakeScheduler().sch);
   assert.equal(second.restored.source, 'saved');
   assert.equal(JSON.stringify(second.restored.layout), before);
-  assert.equal(region(second.restored.layout, 'corvid-tabstrip'), 'left');
+  assert.equal(region(second.restored.layout, 'corvid-tabstrip'), 'top');
   assert.equal(findSlot(second.restored.layout, 'bookmarksbar')!.slot.visible, false);
   assert.equal(findSlot(second.restored.layout, 'sidepanel')!.slot.size!.value, 30);
 
@@ -216,7 +217,7 @@ test('ACCEPTANCE-3 logic: edit, autosave, restart, restore; reset from corrupt f
   // Reset layout from a good-but-edited state restores defaults and persists them
   const fs4 = fakeScheduler();
   const fourth = await boot({ read: async () => good, write: storage.write }, fs4.sch);
-  assert.equal(region(fourth.store.layout, 'corvid-tabstrip'), 'left');
+  assert.equal(region(fourth.store.layout, 'corvid-tabstrip'), 'top');
   fourth.store.reset();
   assert.equal(JSON.stringify(fourth.store.layout), JSON.stringify(PRESETS[DEFAULT_PRESET]));
   fs4.run(); await new Promise((r) => setImmediate(r));
@@ -285,8 +286,8 @@ test('persistence: library keeps per-name layouts, switchActive, breakpoints', a
   fs.run(); await new Promise((r) => setImmediate(r));
   const saved = JSON.parse(s.data!);
   assert.equal(saved.active, 'compact');
-  assert.deepEqual(Object.keys(saved.layouts).sort(), ['compact', 'desktop-classic']);
-  assert.equal(saved.layouts['desktop-classic'].regions.top.slots.find((x: { id: string }) => x.id === 'bookmarksbar').visible, false);
+  assert.deepEqual(Object.keys(saved.layouts).sort(), ['compact', DEFAULT_PRESET].sort());
+  assert.equal(Object.values(saved.layouts[DEFAULT_PRESET].regions as Record<string, { slots: Array<{ id: string; visible: boolean }> }>).flatMap((r) => r.slots).find((x) => x.id === 'bookmarksbar')!.visible, false);
   assert.deepEqual(p.list().sort(), ['compact', 'desktop-classic', 'desktop-vertical-tabs', 'mobile']);
 });
 
@@ -345,4 +346,52 @@ test('dropTarget feeds moveSlot end to end', () => {
   const r = moveSlot(l, catalog, 'tabstrip', t.region, t.index, { newRow: t.newRow });
   assert.ok(r.ok);
   if (r.ok) assert.equal(region(r.layout, 'corvid-tabstrip'), 'left');
+});
+
+test('address bar can be moved to the bottom or top in every preset (desktop and mobile), never elsewhere, never removed', () => {
+  for (const name of Object.keys(PRESETS)) {
+    let l = presetCopy(name);
+    const start = addressBarPosition(l, catalog);
+    assert.ok(start === 'top' || start === 'bottom', `${name} starts in a bar`);
+    for (const pos of ['bottom', 'top', 'bottom'] as const) {
+      const r = setAddressBarPosition(l, catalog, pos); ok(r); if (r.ok) l = r.layout;
+      assert.equal(addressBarPosition(l, catalog), pos, `${name} -> ${pos}`);
+      assert.equal(findSlot(l, 'addressbar')!.slot.visible, true);
+      assert.deepEqual(checkSemantics(l, catalog), [], name);
+      assert.deepEqual(checkGuardRails(l, catalog), [], name);
+    }
+    for (const bad of ['left', 'right', 'floating'] as const) assert.equal(moveSlot(l, catalog, 'addressbar', bad, 0).ok, false, `${name}: address bar refused in ${bad}`);
+    assert.equal(removeSlot(l, catalog, 'addressbar').ok, false);
+    assert.equal(setVisible(l, catalog, 'addressbar', false).ok, false);
+  }
+});
+
+test('address bar position persists across restart and survives reset semantics', async () => {
+  const { s, storage } = memStorage();
+  const fs = fakeScheduler();
+  const first = await boot(storage, fs.sch);
+  first.store.apply((l, c) => setAddressBarPosition(l, c, 'bottom'));
+  fs.run(); await new Promise((r) => setImmediate(r));
+  const second = await boot(storage, fakeScheduler().sch);
+  assert.equal(addressBarPosition(second.restored.layout, catalog), 'bottom');
+  second.store.reset();
+  assert.equal(addressBarPosition(second.store.layout, catalog), addressBarPosition(PRESETS[DEFAULT_PRESET]!, catalog));
+  assert.ok(s.writes >= 1);
+});
+
+test('drag and drop of the address bar onto the bottom bar works end to end', () => {
+  const l = presetCopy('desktop-classic');
+  const input = dnd({ x: 500, y: 820 }, 'addressbar');
+  const t = dropTarget(input)!;
+  assert.equal(t.region, 'bottom');
+  const r = moveSlot(l, catalog, 'addressbar', t.region, t.index, { newRow: t.newRow });
+  assert.ok(r.ok);
+  if (r.ok) assert.equal(addressBarPosition(r.layout, catalog), 'bottom');
+});
+
+test('setting addressbar.position exists in the manifest with top/bottom only', () => {
+  const m = manifests.find((x) => x.id === 'corvid.addressbar')!;
+  const s = m.settings!.find((x) => x.key === 'addressbar.position')!;
+  assert.deepEqual(s.values, ['top', 'bottom']);
+  assert.equal(s.default, 'top');
 });

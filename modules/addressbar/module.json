@@ -23,6 +23,16 @@
   ],
   "settings": [
     {
+      "key": "addressbar.position",
+      "type": "enum",
+      "default": "top",
+      "label": "i18n:setting.addressbar.position",
+      "values": [
+        "top",
+        "bottom"
+      ]
+    },
+    {
       "key": "addressbar.suggestions",
       "type": "boolean",
       "default": false,

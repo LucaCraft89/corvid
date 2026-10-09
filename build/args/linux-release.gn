@@ -21,7 +21,10 @@ enable_nacl = false
 enable_remoting_host = false
 enable_media_router = false     # Cast / Google-hosted component fetches
 enable_service_discovery = false
-enable_widevine = false         # Widevine CDM is fetched from Google by the component updater. OPEN QUESTION: DRM video (Netflix etc.)
+enable_widevine = true          # glue only (CR-11 open: do not distribute release builds until resolved, docs/notes/widevine.md)
+bundle_widevine_cdm = false     # no CDM binary is shipped; it is only obtained after an explicit user prompt
+enable_widevine_cdm_host_verification = false  # needs Widevine signing certs; enable only under a license agreement
+ignore_missing_widevine_signing_cert = true
 disable_fieldtrial_testing_config = true
 
 # --- codecs: user decision 2026-10-09 "enable all"; legal check required before public release (CR-3) ---

@@ -30,7 +30,7 @@
     {
       "key": "tabstrip.position",
       "type": "enum",
-      "default": "top",
+      "default": "left",
       "label": "i18n:setting.tabstrip.position",
       "values": [
         "top",

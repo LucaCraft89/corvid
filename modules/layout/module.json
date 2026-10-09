@@ -10,7 +10,7 @@
     {
       "key": "layout.activePreset",
       "type": "enum",
-      "default": "desktop-classic",
+      "default": "desktop-vertical-tabs",
       "label": "i18n:setting.layout.activePreset",
       "values": [
         "desktop-classic",
