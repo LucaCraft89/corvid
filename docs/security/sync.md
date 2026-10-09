@@ -1,6 +1,6 @@
 # Corvid Sync: threat model and protocol (Phase 4.1)
 
-> **STATUS: DRAFT - awaiting user sign-off.** (Revised 2026-10-09 after the user confirmed the decisions in section 0; the user has NOT yet read or signed off the revised document.)
+> **STATUS: Approved by user 2026-10-09 (residual risks 1-5 accepted).** The user read the revised document and the five residual risks below and replied "all ok for me". Further protocol changes need a new review.
 > The `sync-server` skill requires the user to review this document before the crypto and server are treated as final. The implementation in `server/sync/` and `src-overlay/corvid/sync/` was written against this draft so the work is not blocked; it is isolated (own Go modules, no patches to Chromium) and can be changed freely if the review changes a decision. Open questions are in section 11.
 
 ## 0. Decisions confirmed by the user on 2026-10-09
@@ -10,6 +10,13 @@
 4. **Client engine placement: C++ in-process.** The Go engine is the reference oracle; shared vectors in `src-overlay/corvid/sync/testvectors/`; OPAQUE-in-C++ risk analysis in `docs/notes/sync-cpp-opaque.md`.
 5. **Optional server admin UI**, metadata only, off by default, cannot approve devices (section 6a).
 6. **Automated license gate** (allowlist MIT/Apache-2.0/BSD/ISC), run in CI and locally.
+
+### Accepted residual risks (user-reviewed 2026-10-09)
+1. Losing every trusted device AND the recovery key makes the data unrecoverable by anyone.
+2. The server still sees account and device names, collection sizes and timing, and IP addresses.
+3. The OPAQUE library is unaudited; the C++ route (Rust `opaque-ke` or a P-256 suite) is undecided.
+4. The server can drop or roll back data. Clients detect a rollback but not selective withholding.
+5. Revoking a device doesn't cut it off from what it already holds, and the admin UI's device block does not rotate keys.
 
 ## 1. Goals and non-goals
 
@@ -200,6 +207,6 @@ See `tests/acceptance/phase-4/`: convergence (offline edits), DB dump plaintext 
 - History merges as a union of visit times (capped at 50 per URL); everything else is per-record LWW.
 
 ## 11. Open items for the user
-1. Read and sign off this revised document (status stays DRAFT until then).
+1. (Done 2026-10-09) Sign-off received.
 2. Choose the C++ OPAQUE route after the spike (Rust `opaque-ke`, or P-256 suite with a C++ state machine), see `docs/notes/sync-cpp-opaque.md`.
 3. Replace NaCl sealed boxes with HPKE (RFC 9180) before the C++ port, to avoid a bespoke construction in C++.

@@ -1,6 +1,6 @@
 # Self-hosting Corvid Sync
 
-Status: DRAFT (threat model awaiting sign-off, see `docs/security/sync.md`). Verified locally: the server binary runs and passes the acceptance suite; the LXC install script works into a staging root. NOT verified: the container image build, the compose stack, a real systemd/LXC start.
+Status: threat model approved by the user 2026-10-09 (`docs/security/sync.md`); implementation not yet production-verified. Verified locally: the server binary runs and passes the acceptance suite; the LXC install script works into a staging root. NOT verified: the container image build, the compose stack, a real systemd/LXC start.
 
 The server stores only ciphertext. It never sees your passphrase, recovery key, URLs, titles, passwords or passkeys. It does see: your account name, device names, how many records you have per collection, their rough sizes and when they change, and your IP address.
 
