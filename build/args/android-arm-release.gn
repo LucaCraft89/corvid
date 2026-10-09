@@ -1,0 +1,24 @@
+# Corvid Android armhf (armeabi-v7a) release. SHIPS (CR-A2, 2026-10-09).
+# UNVERIFIED: never built. minSdk floor 26, target Android 12+ (CR-A1).
+target_os = "android"
+target_cpu = "arm"
+
+is_debug = false
+is_official_build = true
+is_component_build = false
+symbol_level = 1
+use_thin_lto = true
+
+use_official_google_api_keys = false
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+safe_browsing_mode = 0
+enable_reporting = false
+enable_vr = false
+enable_arcore = false
+enable_cardboard = false
+enable_openxr = false
+
+enable_desktop_android_extensions = true   # UNVERIFIED name
+corvid_android_extensions = true

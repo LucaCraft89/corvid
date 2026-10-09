@@ -29,3 +29,9 @@ Agents: propose changes to locked decisions here; do not act on them until the u
 
 | 2026-10-09 | Phase 4 (user-confirmed, see `docs/security/sync.md` section 0; threat-model doc approved by the user 2026-10-09 with residual risks 1-5 accepted): (1) strict E2EE device admission, no passphrase-wrapped key copy, approval only by trusted-device hand-off with comparison code or recovery key; (2) self-host on Docker AND Proxmox LXC/bare metal with one static binary, SQLite default, Postgres later, registration default `token`, no public reference instance; (3) sync set = bookmarks, passwords, passkeys, settings, themes, layouts/modules, extensions (list+settings), history (default on); open tabs optional/off; cookies never sync; (4) sync engine in C++ in-process, Go engine kept as oracle with shared vectors; (5) optional metadata-only server admin UI that cannot approve devices; (6) automated license gate (BSD/MIT/Apache/ISC allowlist) in CI |
 | 2026-10-09 | `docs/security/sync.md` approved by the user ("all ok for me"), including the five residual risks listed in it |
+| 2026-10-09 | Phase 5 CR-A1: minSdk 26 floor, supported/target Android 12+ (API 31), dynamic color 31+, seed fallback below; user may tighten floor to 31 (wording ambiguous) |
+| 2026-10-09 | Phase 5 CR-A2: ship arm64 + armhf; x86_64 emulator-only |
+| 2026-10-09 | Phase 5 CR-A3: distribute via GitHub Releases APK now; F-Droid-style repo and Play later/maybe; signing-key plan still open (proposal in docs/specs/phase-5-budgets.md) |
+| 2026-10-09 | Phase 5 CR-A4/A5: budgets and 80% Android top-100 target delegated to agent (docs/specs/phase-5-budgets.md); new-tab overrides, password managers, ad blockers are mandatory pass categories |
+| 2026-10-09 | Phase 5 CR-A6: MV2 background pages may use a foreground service with guardrails |
+| 2026-10-09 | Phase 5 CR-A7: passkeys must work; Play services only if the Track C spike proves required, isolated and optional |
