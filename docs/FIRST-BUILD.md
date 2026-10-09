@@ -2,6 +2,8 @@
 
 Decided 2026-10-09: scope = everything in Phase 1 (docs/specs/phase-1.md); builds and patch-writing happen on the user's PC with Claude Code running next to the Chromium checkout.
 
+The full step-by-step plan for Claude Code is `docs/CLAUDE-CODE-PLAN.md` (start there).
+
 Why this is needed: the 19 patches in `patches/` are intent-only (no hunks), the C++ in `src-overlay/` has never been compiled, and the GN args have never been run through `gn gen`. All of that needs a real tree. The authoring sandbox cannot fetch or build Chromium.
 
 ## PC prerequisites

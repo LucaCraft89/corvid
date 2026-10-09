@@ -73,7 +73,7 @@ Prereqs: Linux x86_64; at least 32 GB RAM (64 GB better); at least 150 GB free S
 
 ```
 git clone <this repo> corvid && cd corvid
-git checkout worktree-agent-a004ca365e955b77e      # or the merged branch
+git checkout claude/busy-rubin-t8bloc                  # merged branch with all phases
 export CORVID_SRC=$HOME/chromium/src               # basename must be "src"
 scripts/fetch.sh                                   # depot_tools + Chromium at the pinned tag
 ( cd "$CORVID_SRC" && build/install-build-deps.sh )   # once; needs sudo
