@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>corvid devtools fixture</title>
+<script>
+  console.debug('VERBOSE-level message');
+  console.info('INFO-level message');
+  console.warn('WARNING-level message');
+  function throwing() { throw new Error('ERROR-level thrown'); }
+  setTimeout(() => { try { throwing(); } catch (e) { console.error(e); } }, 100);
+  // Blocks the main thread ~300 ms to produce a long task for the perf overlay.
+  setTimeout(() => { const end = performance.now() + 300; while (performance.now() < end) {} }, 500);
+</script>

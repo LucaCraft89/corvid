@@ -1,0 +1,6 @@
+Purpose: Gate off Chrome's Google Password Manager enclave authenticator (Google dependency); code retained.
+Area: passkeys
+Files: device/fido/features.cc (default state of the enclave-related base::Feature(s)), chrome/browser/webauthn/enclave_manager* (not edited)
+Rebase risk: medium because feature names change between milestones
+Origin: original
+Status: UNVERIFIED SKETCH, no hunks. Find the enclave feature flags on the pinned tree (grep -i enclave device/fido/features.cc chrome/browser/webauthn/) and set FEATURE_DISABLED_BY_DEFAULT; additionally add the enclave service hostnames to the debrand allow-list check (scripts/check-hosts) so any residual contact fails the idle network capture. Verification: idle capture + a passkey create showing no request to Google hosts.

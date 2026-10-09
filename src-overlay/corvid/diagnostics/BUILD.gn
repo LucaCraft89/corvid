@@ -1,0 +1,23 @@
+# Copyright 2026 The Corvid Authors. BSD-3-Clause.
+# UNVERIFIED (not run through gn). event_bus.h/.cc, stack_sampler.*, net_collector.cc impl,
+# and the file-backed sink are NOT yet written: only the verified portable core exists.
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("mojom") {
+  sources = [ "diagnostics.mojom" ]
+}
+
+source_set("ring_buffer") {
+  sources = [ "ring_buffer.cc", "ring_buffer.h" ]
+}
+
+source_set("collectors") {
+  sources = [ "hang_collector.cc", "hang_collector.h", "net_collector.cc" ]
+  deps = [ ":mojom", ":ring_buffer", "//content/public/browser", "//net" ]
+}
+
+source_set("unittests") {
+  testonly = true
+  sources = [ "ring_buffer_unittest.cc" ]  # standalone main(); convert to gtest TEST() when wired
+  deps = [ ":ring_buffer" ]
+}

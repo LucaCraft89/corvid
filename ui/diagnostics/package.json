@@ -1,0 +1,9 @@
+{
+  "name": "corvid-diagnostics-core",
+  "version": "0.1.0",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "scripts": { "test": "node --test \"test/*.test.ts\"" },
+  "dependencies": { "@noble/hashes": "1.8.0" }
+}

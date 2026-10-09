@@ -1,0 +1,53 @@
+// Copyright 2026 The Corvid Authors. BSD-3-Clause.
+// UNVERIFIED: not compiled (no Chromium tree in sandbox). Mirror of ui/diagnostics/types.ts.
+module corvid.diagnostics.mojom;
+
+enum Severity { kDebug, kInfo, kWarning, kError, kFatal };
+enum Kind { kHang, kFreeze, kCrash, kNetError, kTls, kConsole, kMemory, kExtensionError, kServiceWorker };
+
+struct Event {
+  uint64 id;
+  int64 ts_ms;
+  int32 tab_id;          // -1 if none
+  int32 frame_id;        // -1 if none
+  string source;
+  Severity severity;
+  Kind kind;
+  string data_json;      // kind-specific payload, schema in types.ts (validated in the browser process)
+};
+
+struct Filter {
+  array<Kind> kinds;
+  Severity min_severity;
+  int32 tab_id;          // -1 = any
+  int64 since_ms;
+  string text;
+  uint32 limit;
+};
+
+struct RetentionConfig { uint64 max_bytes; uint32 max_events; int64 max_age_ms; };
+
+struct ExportPreview {
+  array<ExportFile> files;
+  array<string> excluded;
+  uint32 event_count;
+  bool redacted;
+};
+struct ExportFile { string name; uint64 bytes; string sha256; };
+
+// Browser-side service; only bound for corvid://diagnostics, corvid://error pages and DevTools host.
+interface DiagnosticsService {
+  Query(Filter filter) => (array<Event> events);
+  Subscribe(pending_remote<EventObserver> observer);
+  GetRetention() => (RetentionConfig config);
+  SetRetention(RetentionConfig config) => (bool ok);
+  Clear() => ();
+  // Export is two-step and user-initiated. The bundle contains exactly the previewed files.
+  PreviewExport(Filter filter, bool redact) => (ExportPreview preview, string token);
+  CommitExport(string token) => (bool ok, string saved_path);   // path chosen by native save dialog
+  CaptureFreezeStack(int32 tab_id) => (bool ok, string trace_path);
+  // Dev-only (guarded by --corvid-dev): used by tests/acceptance/phase-2
+  [EnableIf=corvid_dev] BlockRenderer(int32 tab_id, uint32 ms) => ();
+};
+
+interface EventObserver { OnEvent(Event event); };

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2023", "DOM"],
+    "strict": true, "noEmit": true, "allowImportingTsExtensions": true, "resolveJsonModule": true,
+    "skipLibCheck": true, "types": ["node"], "typeRoots": ["./node_modules/@types"]
+  },
+  "include": [
+    "../../../ui/diagnostics/*.ts", "../../../ui/devtools/*.ts", "../../../ui/pages/diagnostics/*.ts",
+    "../../../ui/pages/passkeys/*.ts", "../../../src-overlay/corvid/passkeys/reference/*.ts"
+  ]
+}

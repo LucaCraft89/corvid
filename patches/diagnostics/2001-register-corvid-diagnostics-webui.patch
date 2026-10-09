@@ -1,0 +1,11 @@
+Purpose: Register corvid://diagnostics and attach per-tab collectors (hang, crash, console).
+Area: diagnostics
+Files: chrome/browser/chrome_content_browser_client_parts / chrome/browser/ui/webui/chrome_web_ui_configs.cc (registry), chrome/browser/ui/tab_helpers.cc (attach HangCollector)
+Rebase risk: medium because tab_helpers.cc and the WebUI config registry change often
+Origin: original
+Status: UNVERIFIED SKETCH. File paths and hook points are from memory; confirm with a targeted grep on the pinned tree and record in docs/notes/chromium-hooks.md.
+
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ TabHelpers::AttachTabHelpers(content::WebContents* web_contents) @@
++  corvid::diagnostics::HangCollector::CreateForWebContents(web_contents);

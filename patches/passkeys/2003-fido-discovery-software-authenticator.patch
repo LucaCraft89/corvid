@@ -1,0 +1,14 @@
+Purpose: Register Corvid's software authenticator as the platform (internal) discovery on Linux.
+Area: passkeys
+Files: device/fido/fido_discovery_factory.cc (hook in Create for kInternal / platform path), device/fido/BUILD.gn (dep on //corvid/passkeys)
+Rebase risk: medium because FidoDiscoveryFactory API has been reshaped several times
+Origin: original
+Status: UNVERIFIED SKETCH.
+
+--- a/device/fido/fido_discovery_factory.cc
++++ b/device/fido/fido_discovery_factory.cc
+@@ std::unique_ptr<FidoDiscoveryBase> FidoDiscoveryFactory::Create(FidoTransportProtocol transport) @@
++#if BUILDFLAG(IS_LINUX)
++  if (transport == FidoTransportProtocol::kInternal)
++    return std::make_unique<corvid::passkeys::SoftwareDiscovery>();
++#endif
