@@ -1,0 +1,39 @@
+{
+  "$schema": "../schema/module.schema.json",
+  "id": "corvid.privacy",
+  "version": "0.1.0",
+  "apiVersion": 0,
+  "name": "i18n:module.privacy.name",
+  "description": "i18n:module.privacy.description",
+  "kind": "builtin",
+  "settings": [
+    {
+      "key": "privacy.webrtcIpHandling",
+      "type": "enum",
+      "default": "default_public_interface_only",
+      "label": "i18n:setting.privacy.webrtcIpHandling",
+      "values": [
+        "default",
+        "default_public_and_private_interfaces",
+        "default_public_interface_only",
+        "disable_non_proxied_udp"
+      ]
+    },
+    {
+      "key": "privacy.webrtcStunServers",
+      "type": "string",
+      "default": "",
+      "label": "i18n:setting.privacy.webrtcStunServers"
+    },
+    {
+      "key": "privacy.webrtcMdnsCandidates",
+      "type": "boolean",
+      "default": true,
+      "label": "i18n:setting.privacy.webrtcMdnsCandidates"
+    }
+  ],
+  "permissions": [
+    "internal.settings"
+  ],
+  "entry": "dist/index.js"
+}

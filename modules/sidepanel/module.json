@@ -16,7 +16,8 @@
       "hideable": true,
       "allowedSlots": [
         "window.left",
-        "window.right"
+        "window.right",
+        "window.floating"
       ],
       "minSize": 16,
       "maxSize": 48,
