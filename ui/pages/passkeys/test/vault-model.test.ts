@@ -55,10 +55,10 @@ test('list shows metadata only, sorted; rename; delete needs confirmation', asyn
   await model.create('long enough passphrase', 'long enough passphrase');
   await addCred(svc, 'b.example', 'zed'); await addCred(svc, 'a.example', 'amy');
   model.items = svc.list(); // refresh via public op
-  model.rename(model.items[0].id, '  Work  ');
+  model.rename(model.items[0]?.id ?? '', '  Work  ');
   assert.deepEqual(model.sorted().map(c => c.rpId), ['a.example', 'b.example']);
   assert.ok(!JSON.stringify(model.items).includes('privateKey'));
-  const id = model.items[0].id;
+  const id = model.items[0]?.id ?? '';
   assert.equal(model.delete(id, false), false); assert.equal(model.items.length, 2);
   assert.equal(model.delete(id, true), true); assert.equal(model.items.length, 1);
 });
@@ -75,7 +75,7 @@ test('keyring available: empty passphrase creates a keyring vault (decision 2026
 test('hybrid warning strings state operator visibility, E2E encryption, and the off-effect', async () => {
   const { catalog } = await import('../../diagnostics/i18n.ts');
   const w = catalog['hybrid.warning.body'];
-  for (const needle of ['IP address', 'end-to-end encrypted', 'turn this off']) assert.ok(w.includes(needle), needle);
+  for (const needle of ['IP address', 'end-to-end encrypted', 'turn this off']) assert.ok(w?.includes(needle), needle);
 });
 
 test('backup import: wrong passphrase gives error, right one merges', async () => {

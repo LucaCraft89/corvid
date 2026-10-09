@@ -39,7 +39,8 @@ export function viewForEvent(e: DiagEvent): ErrorView {
       rows.push({ label: t('detail.errorCode'), value: d.errorName });
       const prob = certProblem(d.errorName);
       if (prob) rows.push({ label: prob, value: d.hostname });
-      if (d.chain.length === 1 && d.chain[0].subject === d.chain[0].issuer) rows.push({ label: t('detail.cert.selfSigned'), value: d.chain[0].subject });
+      const only = d.chain.length === 1 ? d.chain[0] : undefined;
+      if (only && only.subject === only.issuer) rows.push({ label: t('detail.cert.selfSigned'), value: only.subject });
       d.chain.forEach((c, i) => rows.push({
         label: `${t('detail.chain')} [${i}]`,
         value: `${c.subject} | issuer ${c.issuer} | ${fmtDate(c.notBefore)} .. ${fmtDate(c.notAfter)} | sha256 ${c.sha256}`,

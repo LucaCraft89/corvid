@@ -98,9 +98,10 @@ export class SoftwareAuthenticator {
     }
     if (!cands.length) throw new CtapError('NO_CREDENTIALS');
     let chosen = cands[0];
+    if (!chosen) throw new CtapError('NO_CREDENTIALS');
     if (cands.length > 1 || req.pickCredential) {
       const meta = cands.map(({ privateKey: _p, ...r }) => r);
-      const id = req.pickCredential ? await req.pickCredential(meta) : cands[0].id;
+      const id = req.pickCredential ? await req.pickCredential(meta) : chosen.id;
       const found = cands.find(c => c.id === id);
       if (!found) throw new CtapError('OPERATION_DENIED');
       chosen = found;

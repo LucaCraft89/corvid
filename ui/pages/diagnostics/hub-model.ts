@@ -22,6 +22,7 @@ export function bucketize(events: DiagEvent[], fromTs: number, toTs: number, buc
   for (const e of events) {
     if (e.ts < fromTs || e.ts >= toTs) continue;
     const b = out[Math.floor((e.ts - fromTs) / bucketMs)];
+    if (!b) continue;
     b.counts[e.kind] = (b.counts[e.kind] ?? 0) + 1;
     if (!b.worst || order.indexOf(e.severity) > order.indexOf(b.worst)) b.worst = e.severity;
   }

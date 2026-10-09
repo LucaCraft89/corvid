@@ -61,8 +61,8 @@ test('hang view shows stack, or says none captured', () => {
   const b = rb();
   const mk = (cap: boolean): NewEvent<'hang'> => ({ ts: 1, source: 'renderer', severity: 'error', kind: 'hang',
     data: { durationMs: 5000, stackCaptured: cap, stack: cap ? [{ fn: 'busyLoop', file: 'app.js', line: 9 }] : [], recovered: false, renderPid: 1 } });
-  assert.ok(viewForEvent(b.add(mk(true))).detail[0].value.includes('busyLoop (app.js:9)'));
-  assert.equal(viewForEvent(b.add(mk(false))).detail[0].value, 'No stack could be captured.');
+  assert.ok(viewForEvent(b.add(mk(true))).detail[0]?.value.includes('busyLoop (app.js:9)'));
+  assert.equal(viewForEvent(b.add(mk(false))).detail[0]?.value, 'No stack could be captured.');
   assert.ok(viewForEvent(b.add(mk(true))).recovery.includes('wait'));
 });
 
@@ -84,8 +84,8 @@ test('bucketize and groupByTab', () => {
   const e3 = b.add({ ts: 2500, tabId: 1, source: 'renderer', severity: 'info', kind: 'console', data: { level: 'info', message: 'c' } });
   const bk = bucketize([e1, e2, e3], 1000, 3000, 1000);
   assert.equal(bk.length, 2);
-  assert.deepEqual(bk[0].counts, { console: 1, crash: 1 }); assert.equal(bk[0].worst, 'fatal');
-  assert.equal(bk[1].worst, 'info');
+  assert.deepEqual(bk[0]?.counts, { console: 1, crash: 1 }); assert.equal(bk[0]?.worst, 'fatal');
+  assert.equal(bk[1]?.worst, 'info');
   assert.equal(groupByTab([e1, e2, e3]).get(1)!.length, 2);
   assert.deepEqual(bucketize([], 5, 5, 10), []);
   assert.throws(() => bucketize([], 0, 1e9, 1));

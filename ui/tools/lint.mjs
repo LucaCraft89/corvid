@@ -22,6 +22,16 @@ function walk(dir, out = []) {
 
 const uiFiles = walk(join(root, 'ui')).filter((f) => /\.(ts|html|css)$/.test(f) && !/\.test\.ts$/.test(f) && !f.includes('/tools/'));
 const catalog = JSON.parse(readFileSync(join(root, 'ui/i18n/en.json'), 'utf8'));
+// Page-local catalogs (each phase shipped its own; merging them into ui/i18n/en.json is tracked separately).
+// A file's keys may resolve against the shared catalog or the local catalog that owns its directory.
+const LOCAL = [
+  ['ui/pages/sync/', 'ui/pages/sync/src/strings.en.json'],
+  ['ui/pages/diagnostics/', 'ui/pages/diagnostics/i18n/en.json'],
+  ['ui/pages/passkeys/', 'ui/pages/diagnostics/i18n/en.json'],
+  ['ui/devtools/', 'ui/pages/diagnostics/i18n/en.json'],
+  ['ui/diagnostics/', 'ui/pages/diagnostics/i18n/en.json'],
+].map(([dir, file]) => [dir, JSON.parse(readFileSync(join(root, file), 'utf8'))]);
+const localFor = (rel) => LOCAL.find(([dir]) => rel.startsWith(dir))?.[1];
 const used = new Set();
 const prefixes = new Set();
 
@@ -63,14 +73,17 @@ for (const f of uiFiles) {
       if (starts) inHtml = ticks % 2 === 1; else if (inHtml && ticks % 2 === 1) inHtml = false;
     }
   });
-  for (const m of text.matchAll(/\bt\(\s*(['"`])([^'"`]+)\1/g)) {
-    if (m[2].includes('${')) prefixes.add(m[2].slice(0, m[2].indexOf('${'))); else used.add(m[2]);
+  const local = localFor(rel);
+  for (const m of text.matchAll(/\bt\(\s*(['"`])([^'"`]+)\1(\s*\+)?/g)) {
+    if (m[3]) prefixes.add(m[2]); // t('prefix.' + dynamic)
+    else if (m[2].includes('${')) prefixes.add(m[2].slice(0, m[2].indexOf('${')));
+    else if (!(local && m[2] in local)) used.add(m[2]);
   }
   for (const m of text.matchAll(/\bt\(\s*`([^`]*\$\{[^`]*)`/g)) prefixes.add(m[1].slice(0, m[1].indexOf('${')));
   for (const m of text.matchAll(/(?:summaryKey|descriptionKey|hintKeys)[^\n]*?['"`]([a-z]+\.[A-Za-z.${}]+)['"`]/g)) {
     if (m[1].includes('${')) prefixes.add(m[1].slice(0, m[1].indexOf('${'))); else used.add(m[1]);
   }
-  for (const m of text.matchAll(/['"]((?:error|permission)\.[A-Za-z.]+)['"]/g)) used.add(m[1]);
+  for (const m of text.matchAll(/['"]((?:error|permission)\.[A-Za-z.]+)['"]/g)) if (!(local && m[1] in local)) used.add(m[1]);
 }
 
 // manifests
@@ -84,7 +97,7 @@ for (const f of walk(modDir).filter((p) => p.endsWith('module.json'))) {
 }
 
 for (const k of used) if (!(k in catalog)) errors.push(`i18n: missing key "${k}"`);
-for (const p of prefixes) if (!Object.keys(catalog).some((k) => k.startsWith(p))) errors.push(`i18n: no keys with prefix "${p}"`);
+for (const p of prefixes) if (![catalog, ...LOCAL.map(([, c]) => c)].some((c) => Object.keys(c).some((k) => k.startsWith(p)))) errors.push(`i18n: no keys with prefix "${p}"`);
 for (const k of Object.keys(catalog)) {
   const base = k.replace(/\.(one|other|few|many|zero|two)$/, '');
   if (!used.has(k) && !used.has(base) && ![...prefixes].some((p) => k.startsWith(p))) warnings.push(`i18n: unused key "${k}"`);
