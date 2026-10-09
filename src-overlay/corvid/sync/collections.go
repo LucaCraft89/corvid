@@ -162,3 +162,99 @@ type PasskeyItem struct {
 	PrivateKey   string `json:"private_key"`
 	Counter      uint32 `json:"counter"`
 }
+
+// ---------- extensions ----------
+
+// ExtensionEntry is the synced description of an installed extension (list + settings, never code or its storage).
+type ExtensionEntry struct {
+	ID       string          `json:"id"` // store/extension id
+	Version  string          `json:"version"`
+	Source   string          `json:"source"` // configured extension source name
+	Enabled  bool            `json:"enabled"`
+	Settings json.RawMessage `json:"settings,omitempty"`
+}
+
+// PutExtension records an installed extension.
+func (e *Engine) PutExtension(x ExtensionEntry) error { return e.Put(Extensions, x.ID, x) }
+
+// ExtensionList returns the synced extension list.
+func (e *Engine) ExtensionList() []ExtensionEntry {
+	var out []ExtensionEntry
+	for _, r := range e.List(Extensions) {
+		var x ExtensionEntry
+		if json.Unmarshal(r.Data, &x) == nil {
+			x.ID = r.ID
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// ---------- themes ----------
+
+// ThemeEntry is a theme definition (seed colour, scheme, custom tokens).
+type ThemeEntry struct {
+	Name   string            `json:"name"`
+	Seed   string            `json:"seed"`
+	Scheme string            `json:"scheme"` // light | dark | system
+	Tokens map[string]string `json:"tokens,omitempty"`
+}
+
+// PutTheme stores a theme.
+func (e *Engine) PutTheme(t ThemeEntry) error { return e.Put(Themes, t.Name, t) }
+
+// ---------- history (union merge) ----------
+
+const maxVisits = 50
+
+// HistoryItem is one URL with its recent visit times (ms). The record id is chosen by the caller (e.g. hash of URL).
+type HistoryItem struct {
+	URL    string  `json:"url"`
+	Title  string  `json:"title"`
+	Visits []int64 `json:"visits"`
+}
+
+// RecordVisit adds a visit to the URL's history record (merging with what is already known locally).
+func (e *Engine) RecordVisit(id, url, title string, atMs int64) error {
+	h := HistoryItem{URL: url, Title: title}
+	if r, ok := e.Get(History, id); ok {
+		_ = json.Unmarshal(r.Data, &h)
+		h.Title = title
+	}
+	h.Visits = append(h.Visits, atMs)
+	h.Visits = normVisits(h.Visits)
+	return e.Put(History, id, h)
+}
+
+func normVisits(v []int64) []int64 {
+	sort.Slice(v, func(i, j int) bool { return v[i] < v[j] })
+	out := v[:0]
+	for i, x := range v {
+		if i == 0 || x != v[i-1] {
+			out = append(out, x)
+		}
+	}
+	if len(out) > maxVisits {
+		out = out[len(out)-maxVisits:]
+	}
+	return out
+}
+
+// mergeHistory unions visit lists; remote's title wins ties (callers apply it only when the data differ).
+func mergeHistory(local, remote json.RawMessage) json.RawMessage {
+	var a, b HistoryItem
+	if json.Unmarshal(local, &a) != nil || json.Unmarshal(remote, &b) != nil {
+		return remote
+	}
+	m := b
+	m.Visits = normVisits(append(append([]int64(nil), a.Visits...), b.Visits...))
+	out, _ := json.Marshal(m)
+	// keep remote's exact bytes when nothing was added, so the caller sees "no change"
+	var bb HistoryItem
+	_ = json.Unmarshal(remote, &bb)
+	bb.Visits = normVisits(append([]int64(nil), bb.Visits...))
+	if eq, _ := json.Marshal(bb); string(eq) == string(out) {
+		return remote
+	}
+	return out
+}

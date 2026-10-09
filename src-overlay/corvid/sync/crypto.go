@@ -154,6 +154,11 @@ func unpad(p []byte) ([]byte, error) {
 
 // seal encrypts an envelope: nonce || ciphertext.
 func (k *Keybag) seal(username, collection, rid string, epoch int, plaintext []byte) ([]byte, error) {
+	return k.sealNonce(randBytes(chacha20poly1305.NonceSizeX), username, collection, rid, epoch, plaintext)
+}
+
+// sealNonce is seal with an explicit nonce (used only to generate deterministic test vectors).
+func (k *Keybag) sealNonce(nonce []byte, username, collection, rid string, epoch int, plaintext []byte) ([]byte, error) {
 	ck, err := k.collectionKey(epoch, collection)
 	if err != nil {
 		return nil, err
@@ -162,8 +167,7 @@ func (k *Keybag) seal(username, collection, rid string, epoch int, plaintext []b
 	if err != nil {
 		return nil, err
 	}
-	nonce := randBytes(a.NonceSize())
-	return a.Seal(nonce, nonce, pad(plaintext), aad(username, collection, rid, epoch)), nil
+	return append(append([]byte(nil), nonce...), a.Seal(nil, nonce, pad(plaintext), aad(username, collection, rid, epoch))...), nil
 }
 
 // open authenticates and decrypts. Any failure is ErrIntegrity (or ErrUnknownEpoch).
@@ -184,32 +188,6 @@ func (k *Keybag) open(username, collection, rid string, epoch int, blob []byte) 
 		return nil, ErrIntegrity
 	}
 	return unpad(pt)
-}
-
-// wrapWithPK encrypts the keybag under the passphrase-derived key (from the OPAQUE export key).
-func wrapWithPK(exportKey []byte, kb *Keybag) ([]byte, []byte) {
-	pk := hkdfKey(exportKey, "corvid-sync/v1/passphrase-wrap")
-	a, _ := chacha20poly1305.NewX(pk)
-	nonce := randBytes(a.NonceSize())
-	return pk, a.Seal(nonce, nonce, kb.marshal(), []byte("corvid-sync/v1/wrap_pass"))
-}
-
-func wrapWithRawPK(pk []byte, kb *Keybag) []byte {
-	a, _ := chacha20poly1305.NewX(pk)
-	nonce := randBytes(a.NonceSize())
-	return a.Seal(nonce, nonce, kb.marshal(), []byte("corvid-sync/v1/wrap_pass"))
-}
-
-func unwrapWithPK(pk, blob []byte) (*Keybag, error) {
-	a, err := chacha20poly1305.NewX(pk)
-	if err != nil || len(blob) < a.NonceSize() {
-		return nil, ErrWrongPassphrase
-	}
-	pt, err := a.Open(nil, blob[:a.NonceSize()], blob[a.NonceSize():], []byte("corvid-sync/v1/wrap_pass"))
-	if err != nil {
-		return nil, ErrWrongPassphrase
-	}
-	return unmarshalKeybag(pt)
 }
 
 // sealTo seals the keybag to an X25519 public key (NaCl anonymous sealed box).

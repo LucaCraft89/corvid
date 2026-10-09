@@ -1,6 +1,6 @@
 import {LitElement, html, css, nothing} from 'lit';
 import strings from './strings.en.json';
-import {MojoSyncProxy, NOT_YET, SYNCABLE, SyncError} from './proxy.js';
+import {MojoSyncProxy, OFF_BY_DEFAULT, SYNCABLE, SyncError} from './proxy.js';
 import type {CollectionId, DeviceRow, SyncBrowserProxy, SyncState} from './proxy.js';
 
 // All user-visible text goes through the i18n catalog (AGENTS.md rule 7).
@@ -153,6 +153,8 @@ export class CorvidSyncPage extends LitElement {
     const s = this.st!;
     if (s.pendingApproval) {
       return html`<section><h2>${t('status.pending')}</h2>
+        <p>${t('status.pendingCode', {code: s.approvalCode})}</p>
+        <p class="fp" id="approval-code">${s.approvalCode}</p>
         <p class="hint">${t('status.signedIn', {user: s.username, server: s.serverUrl})}</p>
         <div class="row"><button class="secondary" id="refresh" @click=${() => this.run(async () => {})}>${t('action.syncNow')}</button>
         <button class="secondary" id="signout" @click=${() => this.run(() => this.proxy.signOut())}>${t('action.signOut')}</button></div></section>`;
@@ -171,8 +173,8 @@ export class CorvidSyncPage extends LitElement {
         <ul>${pending.map((d) => html`<li class="dev"><span class="grow"><strong>${d.name}</strong><br><span class="fp">${t('devices.fingerprint', {fp: d.fingerprint})}</span></span>
           <button class="approve" ?disabled=${this.busy} @click=${() => this.run(() => this.proxy.approveDevice(d.id, d.fingerprint))}>${t('devices.approve')}</button>
           <button class="danger revoke-pending" ?disabled=${this.busy} @click=${() => this.run(() => this.proxy.revokeDevice(d.id, this.val('rev-pass')))}>${t('devices.revoke')}</button></li>`)}</ul></section>` : nothing}
-      <section aria-labelledby="col-h"><h2 id="col-h">${t('collections.title')}</h2>
-        ${SYNCABLE.map((c) => this.toggle(c, true))}${NOT_YET.map((c) => this.toggle(c, false))}</section>
+      <section aria-labelledby="col-h"><h2 id="col-h">${t('collections.title')}</h2><p class="hint">${t('collections.note')}</p>
+        ${SYNCABLE.map((c) => this.toggle(c, true))}</section>
       <section aria-labelledby="dev-h"><h2 id="dev-h">${t('devices.title')}</h2>
         <ul>${this.devices.filter((d) => d.state !== 'pending').map((d) => html`<li class="dev"><span class="grow"><strong>${d.name}</strong>${d.self ? html` (${t('devices.this')})` : nothing}<br>
           <span class="hint">${t(d.state === 'approved' ? 'devices.approved' : 'devices.revoked')} <span class="fp">${d.fingerprint}</span></span></span>
@@ -190,7 +192,7 @@ export class CorvidSyncPage extends LitElement {
   }
 
   private toggle(c: CollectionId, available: boolean) {
-    const on = available && (this.st!.enabled[c] ?? true);
+    const on = available && (this.st!.enabled[c] ?? !OFF_BY_DEFAULT.includes(c));
     return html`<label class="toggle"><input type="checkbox" class="col" data-col=${c} .checked=${on} ?disabled=${!available || this.busy}
       @change=${(e: Event) => this.run(() => this.proxy.setCollectionEnabled(c, (e.target as HTMLInputElement).checked))}> ${t(('collection.' + c) as Key)}</label>`;
   }

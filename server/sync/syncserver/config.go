@@ -16,7 +16,8 @@ type Config struct {
 	DBPath       string // SQLite file path. ":memory:" is not supported (multi-connection).
 	KeyFile      string // OPAQUE long-term key material (0600), created on first start.
 	Registration string // open | closed | token
-	RegToken     string // required when Registration == token
+	RegToken     string // required when Registration == token (unless AdminToken is set: invites)
+	AdminToken   string // enables the optional admin UI/API at /admin; empty = OFF
 
 	MaxBodyBytes   int64 // request body cap
 	MaxRecordBytes int   // single record blob cap

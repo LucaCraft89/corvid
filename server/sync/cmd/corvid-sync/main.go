@@ -47,7 +47,7 @@ func main() {
 	}
 	cfg := syncserver.Config{
 		DBPath: *data + "/sync.db", KeyFile: *data + "/server-keys.json",
-		Registration: *reg, RegToken: *token, TrustProxy: *proxy, QuotaBytes: *quota << 20,
+		Registration: *reg, RegToken: *token, AdminToken: os.Getenv("CORVID_SYNC_ADMIN_TOKEN"), TrustProxy: *proxy, QuotaBytes: *quota << 20,
 	}
 	srv, err := syncserver.New(cfg)
 	if err != nil {

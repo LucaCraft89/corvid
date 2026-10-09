@@ -10,6 +10,7 @@ services:
       CORVID_SYNC_REGISTRATION: token          # open | closed | token
       CORVID_SYNC_REG_TOKEN: ${CORVID_SYNC_REG_TOKEN:?set an invite token in .env}
       CORVID_SYNC_TRUST_PROXY: "1"             # only because Caddy is the sole way in
+      # CORVID_SYNC_ADMIN_TOKEN: ${CORVID_SYNC_ADMIN_TOKEN}   # uncomment to enable /admin (restrict it in the Caddyfile too)
     volumes:
       - sync-data:/data                        # sync.db + server-keys.json: BACK UP BOTH
     expose: ["8443"]

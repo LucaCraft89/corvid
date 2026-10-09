@@ -12,16 +12,38 @@ import (
 
 // Standard collections.
 const (
-	Bookmarks = "bookmarks"
-	Passwords = "passwords"
-	Passkeys  = "passkeys"
-	Settings  = "settings"
-	Layouts   = "layouts"
-	Modules   = "modules"
+	Bookmarks  = "bookmarks"
+	Passwords  = "passwords"
+	Passkeys   = "passkeys"
+	Settings   = "settings"
+	Layouts    = "layouts"
+	Modules    = "modules"
+	Extensions = "extensions" // installed extension list + per-extension settings
+	Themes     = "themes"
+	History    = "history"
+	Tabs       = "tabs" // open tabs: optional, OFF by default
 )
 
-// AllCollections are synced by default.
-var AllCollections = []string{Bookmarks, Passwords, Passkeys, Settings, Layouts, Modules}
+// AllCollections is the complete, closed set of syncable collections.
+// There is deliberately NO cookies collection: cookies never sync (enforced by
+// ValidCollection here, the server allowlist, and tests).
+var AllCollections = []string{Bookmarks, Passwords, Passkeys, Settings, Layouts, Modules, Extensions, Themes, History, Tabs}
+
+// OffByDefault lists collections the user must switch on.
+var OffByDefault = map[string]bool{Tabs: true}
+
+// ErrBadCollection is returned for a collection that is not syncable (e.g. "cookies").
+var ErrBadCollection = errors.New("syncclient: not a syncable collection")
+
+// ValidCollection reports whether c may be synced.
+func ValidCollection(c string) bool {
+	for _, x := range AllCollections {
+		if x == c {
+			return true
+		}
+	}
+	return false
+}
 
 // ---------- hybrid logical clock ----------
 
@@ -194,7 +216,7 @@ func NewEngine(acct *Account, store LocalStore, now func() time.Time) (*Engine, 
 	}
 	for _, c := range AllCollections {
 		if _, ok := e.s.Enabled[c]; !ok {
-			e.s.Enabled[c] = true
+			e.s.Enabled[c] = !OffByDefault[c]
 		}
 	}
 	e.clock = newClock(acct.St.DeviceID, now, e.s.Clock)
@@ -239,6 +261,9 @@ func (e *Engine) col(c string) map[string]*localRec {
 
 // Put creates or updates a record locally and queues it for upload.
 func (e *Engine) Put(collection, id string, data any) error {
+	if !ValidCollection(collection) {
+		return ErrBadCollection
+	}
 	b, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -258,6 +283,9 @@ func (e *Engine) Put(collection, id string, data any) error {
 
 // Delete tombstones a record locally and queues it for upload.
 func (e *Engine) Delete(collection, id string) error {
+	if !ValidCollection(collection) {
+		return ErrBadCollection
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	m := e.col(collection)
@@ -566,6 +594,14 @@ func (e *Engine) merge(collection string, wr wireRecord, rep *Report) (string, e
 		m[env.ID] = &localRec{Record: Record{Collection: collection, ID: env.ID, HLC: env.HLC, Deleted: env.Deleted, Data: env.Data}, Seq: wr.Seq}
 		rep.Applied++
 		return env.ID, nil
+	}
+	if collection == History && !l.Deleted && !env.Deleted && l.HLC != env.HLC {
+		// History is a union: visits recorded on different devices must not overwrite each other.
+		if merged := mergeHistory(l.Data, env.Data); string(merged) != string(env.Data) {
+			l.Record = Record{Collection: collection, ID: env.ID, HLC: e.clock.Tick(), Data: merged}
+			l.Seq, l.Dirty = wr.Seq, true
+			return env.ID, nil
+		}
 	}
 	switch {
 	case l.HLC == env.HLC: // same version (our own push echoed back, or already merged)

@@ -23,6 +23,7 @@ struct DeviceRow {
 struct SyncState {
   bool signed_in;
   bool pending_approval;
+  string approval_code;  // this device's comparison code while pending
   string server_url;
   string username;
   int64 last_sync_ms;

@@ -18,7 +18,7 @@ const tick = (w) => new Promise((r) => w.setTimeout(r, 30));
 function fakeProxy(over = {}) {
   const calls = [];
   const state = {signedIn: false, pendingApproval: false, serverUrl: '', username: '', lastSyncMs: 0, queued: 0,
-    enabled: {bookmarks: true, passwords: false}, integrityErrors: 0, unavailableModules: []};
+    enabled: {bookmarks: true, passwords: false}, integrityErrors: 0, unavailableModules: [], approvalCode: 'AB12-CD34'};
   const p = {calls, state, devices: [],
     getState: async () => ({...state}),
     listDevices: async () => p.devices,
@@ -73,8 +73,10 @@ test('signed in: toggles, devices, approve with fingerprint, revoke needs passph
   assert.match(q(el, '#integrity').textContent, /2 items failed/);
   assert.ok(q(el, '#unavailable-modules').textContent.includes('linux-gtk-theme'));
   assert.ok(q(el, '#pending-section').textContent.includes('CCCC-3333'), 'fingerprint must be shown for approval');
-  const hist = q(el, 'input[data-col="history"]');
-  assert.ok(hist.disabled && !hist.checked, 'history is not available yet');
+  assert.ok(!q(el, 'input[data-col="history"]').disabled && q(el, 'input[data-col="history"]').checked, 'history is syncable and on by default');
+  assert.ok(!q(el, 'input[data-col="tabs"]').checked, 'open tabs are off by default');
+  assert.equal(el.shadowRoot.querySelectorAll('input.col').length, 10);
+  assert.ok(!el.shadowRoot.innerHTML.toLowerCase().includes('data-col="cookies"'), 'no cookies toggle');
   q(el, 'input[data-col="passwords"]').click(); await tick(dom.window);
   assert.deepEqual(proxy.calls.at(-1), ['toggle', 'passwords', true]);
   q(el, '.approve').click(); await tick(dom.window);
@@ -97,4 +99,11 @@ test('errors are shown as an alert with catalog text, not raw codes', async () =
     assert.ok(!alert.includes(code), 'raw error code leaked into the UI');
     el.remove();
   }
+});
+
+test('pending device shows its own approval code to compare on the trusted device', async () => {
+  const dom = boot(); const proxy = fakeProxy();
+  Object.assign(proxy.state, {signedIn: true, pendingApproval: true, approvalCode: 'ZZ99-YY88'});
+  const el = await mount(dom, proxy);
+  assert.equal(q(el, '#approval-code').textContent, 'ZZ99-YY88');
 });

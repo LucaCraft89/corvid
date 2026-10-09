@@ -59,7 +59,7 @@ CREATE TABLE accounts (
   username TEXT NOT NULL UNIQUE,
   cred_id BLOB NOT NULL,
   opaque_record BLOB NOT NULL,
-  wrap_pass BLOB NOT NULL,
+  quota_bytes INTEGER NOT NULL DEFAULT 0,
   rec_sign_pub BLOB NOT NULL,
   rec_box_pub BLOB NOT NULL,
   rec_pkg BLOB NOT NULL,
@@ -86,6 +86,12 @@ CREATE TABLE sessions (
   account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   device_id TEXT NOT NULL,
   expires_at INTEGER NOT NULL
+);
+CREATE TABLE invites (
+  token_hash BLOB PRIMARY KEY,
+  label TEXT NOT NULL,
+  uses_left INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
 );
 CREATE INDEX sessions_acct ON sessions(account_id);
 CREATE TABLE records (

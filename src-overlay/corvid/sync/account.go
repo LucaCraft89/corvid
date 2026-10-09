@@ -208,10 +208,10 @@ func Register(ctx context.Context, serverURL, username, passphrase, regToken, de
 	if err != nil {
 		return nil, rk, err
 	}
-	_, wrap := wrapWithPK(ek, kb)
+	_ = ek // OPAQUE export key is intentionally unused: the passphrase never protects data keys
 	var lr loginResult
 	err = a.tr.do(ctx, "POST", "/v1/register/finish", nil, map[string]any{
-		"reg_id": regID, "record": record, "wrap_pass": wrap, "device": a.dev(),
+		"reg_id": regID, "record": record, "device": a.dev(),
 		"recovery": recoveryInfo{SignPub: rkeys.signPub, BoxPub: rkeys.boxPub, Pkg: pkg},
 	}, &lr)
 	if err != nil {
@@ -282,6 +282,10 @@ func (a *Account) mergeKeybag(kb *Keybag) {
 // RefreshKeys re-reads the sealed package for this device (after a rotation by another device).
 func (a *Account) RefreshKeys(ctx context.Context) error { return a.Poll(ctx) }
 
+// ApprovalCode is the short comparison code this device shows so the user can check it against
+// the one the approving device displays (guards against a server swapping the public key).
+func (a *Account) ApprovalCode() string { return Fingerprint(a.St.DevPub) }
+
 // Approved reports whether this device holds the keys.
 func (a *Account) Approved() bool { return a.St.Approved && a.St.Keybag != nil }
 
@@ -336,8 +340,7 @@ func (a *Account) reauth(ctx context.Context, passphrase string) ([]byte, error)
 // device cannot decrypt anything written afterwards. Requires the passphrase
 // (re-verified) to refresh the passphrase-wrapped copy of the keybag.
 func (a *Account) RevokeDevice(ctx context.Context, id, passphrase string) error {
-	ek, err := a.reauth(ctx, passphrase)
-	if err != nil {
+	if _, err := a.reauth(ctx, passphrase); err != nil {
 		return err
 	}
 	devs, err := a.Devices(ctx)
@@ -357,8 +360,6 @@ func (a *Account) RevokeDevice(ctx context.Context, id, passphrase string) error
 	kb := a.St.Keybag.clone()
 	if target.State == "approved" {
 		kb.Rotate()
-		pk, wrap := wrapWithPK(ek, kb)
-		_ = pk
 		recPkg, err := a.recoveryPkgFor(ctx, kb)
 		if err != nil {
 			return err
@@ -373,7 +374,7 @@ func (a *Account) RevokeDevice(ctx context.Context, id, passphrase string) error
 				pkgs[d.ID] = p
 			}
 		}
-		body = map[string]any{"epoch": kb.Latest(), "wrap_pass": wrap, "recovery_pkg": recPkg, "packages": pkgs}
+		body = map[string]any{"epoch": kb.Latest(), "recovery_pkg": recPkg, "packages": pkgs}
 	}
 	if err := a.tr.do(ctx, "POST", "/v1/devices/"+id+"/revoke", nil, body, nil); err != nil {
 		return err
@@ -394,8 +395,8 @@ func (a *Account) recoveryPkgFor(ctx context.Context, kb *Keybag) ([]byte, error
 	return sealTo(ks.Recovery.BoxPub, kb)
 }
 
-// ChangePassphrase re-registers the OPAQUE credential and re-wraps the keybag
-// under the new passphrase. No record is touched or re-uploaded.
+// ChangePassphrase re-registers the OPAQUE credential. The passphrase only authenticates;
+// it never protects data keys (strict model), so no key or record is touched or re-uploaded.
 func (a *Account) ChangePassphrase(ctx context.Context, oldPass, newPass string) error {
 	if _, err := a.reauth(ctx, oldPass); err != nil {
 		return err
@@ -404,12 +405,11 @@ func (a *Account) ChangePassphrase(ctx context.Context, oldPass, newPass string)
 }
 
 func (a *Account) setPassphrase(ctx context.Context, newPass string) error {
-	regID, record, ek, err := opaqueRegister(ctx, a.tr, "/v1/password/start", nil, newPass, a.St.Username)
+	regID, record, _, err := opaqueRegister(ctx, a.tr, "/v1/password/start", nil, newPass, a.St.Username)
 	if err != nil {
 		return err
 	}
-	_, wrap := wrapWithPK(ek, a.St.Keybag)
-	return a.tr.do(ctx, "POST", "/v1/password/finish", nil, map[string]any{"reg_id": regID, "record": record, "wrap_pass": wrap}, nil)
+	return a.tr.do(ctx, "POST", "/v1/password/finish", nil, map[string]any{"reg_id": regID, "record": record}, nil)
 }
 
 // RotateRecoveryKey issues a new recovery key (the old one stops working).
@@ -472,3 +472,6 @@ func (a *Account) DeleteAccount(ctx context.Context) error {
 }
 
 var _ = url.Values{}
+
+// SealKeybag seals a keybag to a device public key (what an approving device sends).
+func SealKeybag(pub []byte, kb *Keybag) ([]byte, error) { return sealTo(pub, kb) }

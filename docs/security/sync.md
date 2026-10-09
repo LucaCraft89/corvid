@@ -1,7 +1,15 @@
 # Corvid Sync: threat model and protocol (Phase 4.1)
 
-> **STATUS: DRAFT - awaiting user sign-off.**
+> **STATUS: DRAFT - awaiting user sign-off.** (Revised 2026-10-09 after the user confirmed the decisions in section 0; the user has NOT yet read or signed off the revised document.)
 > The `sync-server` skill requires the user to review this document before the crypto and server are treated as final. The implementation in `server/sync/` and `src-overlay/corvid/sync/` was written against this draft so the work is not blocked; it is isolated (own Go modules, no patches to Chromium) and can be changed freely if the review changes a decision. Open questions are in section 11.
+
+## 0. Decisions confirmed by the user on 2026-10-09
+1. **Strict device admission (closes former residual risk R3).** There is no passphrase-wrapped copy of the data keys. A new device gets the keys only by (a) a cryptographic hand-off from an already trusted device, with a short comparison code shown on both devices, or (b) the recovery key. The passphrase is authentication only.
+2. **Hosting.** Same static binary on Docker and on Proxmox LXC/bare metal (systemd unit + install script). SQLite default, Postgres later. Registration default stays `token`. No public reference instance.
+3. **Sync set.** Bookmarks, passwords, passkeys, settings, themes, layouts/customizations/modules, extensions (installed list + settings), history (per-collection toggle, default ON). Open tabs optional, default OFF. **Cookies never sync** (not a registrable collection, enforced on client and server, tested).
+4. **Client engine placement: C++ in-process.** The Go engine is the reference oracle; shared vectors in `src-overlay/corvid/sync/testvectors/`; OPAQUE-in-C++ risk analysis in `docs/notes/sync-cpp-opaque.md`.
+5. **Optional server admin UI**, metadata only, off by default, cannot approve devices (section 6a).
+6. **Automated license gate** (allowlist MIT/Apache-2.0/BSD/ISC), run in CI and locally.
 
 ## 1. Goals and non-goals
 
@@ -17,7 +25,7 @@ Non-goals (stated so nobody assumes otherwise)
 - Protecting against malware or a physical attacker on an unlocked, enrolled device.
 - Protecting against a malicious server that withholds or rolls back data (it is detected only partially, see 7).
 - Anonymity (Tor use is possible but not designed for).
-- History and open-tabs sync (not implemented; user decision pending, section 11).
+- Syncing cookies (never), or the contents of extensions' own storage/code (only the installed list and settings sync).
 
 ## 2. Actors and trust
 
@@ -66,8 +74,7 @@ Why OPAQUE: the server never learns the passphrase or anything it could verify g
 EK_n (random 32 bytes, one per epoch n; epoch 0 created on account creation)
   collection key  CK_n,c = HKDF-SHA256(EK_n, info="corvid-sync/v1/collection/"+c)
   record id key   IDK    = HKDF-SHA256(EK_0, info="corvid-sync/v1/id")     (stable across epochs)
-OPAQUE export_key (from login/registration, client-only)
-  PK = HKDF-SHA256(export_key, info="corvid-sync/v1/passphrase-wrap")
+OPAQUE export_key: deliberately UNUSED. The passphrase never protects data keys.
 RK (random 32 bytes, shown as base32 groups)
   recovery signing seed  = HKDF(RK, "corvid-sync/v1/recovery-sign")  -> Ed25519
   recovery box seed      = HKDF(RK, "corvid-sync/v1/recovery-box")   -> X25519
@@ -76,23 +83,23 @@ Device: X25519 keypair generated on the device, private key never leaves.
 
 ### 5.3 Account creation (first device)
 1. Client generates `EK_0`, `RK`, device keypair, `device_id`.
-2. OPAQUE registration (RFC 9807) of `username`/passphrase. Client obtains `export_key` and derives `PK`.
-3. Client uploads: OPAQUE record, `wrap_pass = XChaCha20-Poly1305(PK, keybag)` where `keybag` is the list of `(epoch, EK)`, the recovery public keys (Ed25519 signing key, X25519 box key), a `recovery_pkg = SealedBox(recovery_box_pub, keybag)`, and the device record (`device_id`, X25519 public key, name). The first device is auto-approved.
+2. OPAQUE registration (RFC 9807) of `username`/passphrase.
+3. Client uploads: OPAQUE record, the recovery public keys (Ed25519 signing key, X25519 box key), a `recovery_pkg = SealedBox(recovery_box_pub, keybag)` where `keybag` is the list of `(epoch, EK)`, and the device record (`device_id`, X25519 public key, name). The first device is auto-approved.
 4. Client shows RK once and requires the user to confirm they saved it.
 
 ### 5.4 Login and device enrollment
 1. OPAQUE login (KE1/KE2/KE3). Success yields a bearer session token (random 256 bit, stored hashed server-side, 30 day expiry so devices need not re-prompt for the passphrase, bound to the device; revoked on device revoke and on passphrase change for all other devices). Failure responses are indistinguishable for unknown user vs wrong passphrase (fake record, constant-shape response), and failures are rate limited per username and per IP.
-2. A device unknown to the account is created `pending`. A pending token can only: read its own status, and nothing else (cannot pull records, cannot fetch `wrap_pass`).
-3. An already approved device lists pending devices, shows name + public-key fingerprint (short code), and on user confirmation calls approve with `SealedBox(new_device_pub, keybag)`. The server marks the device `approved`.
-4. The new device fetches the sealed package, opens it with its private key, and now holds the keybag. It may also fetch `wrap_pass` (same keybag) as a consistency check.
+2. A device unknown to the account is created `pending`. A pending token can only: read its own status, and nothing else (cannot pull records, has no keys).
+3. The new device shows its own short comparison code (first 4 bytes of SHA-256 of its public key). An already approved device lists pending devices, shows name + the code computed from the public key the SERVER supplied; the user approves only if both codes match (defeats a server swapping the key). On confirmation the approver calls approve with `SealedBox(new_device_pub, keybag)`. The server marks the device `approved`.
+4. The new device fetches the sealed package, opens it with its private key, and now holds the keybag. The server cannot produce a valid package: it does not hold the keybag. A package with attacker-chosen keys opens but decrypts nothing (every real record then fails authentication). A device the server merely marks `approved` stays keyless.
 5. The device then pulls all collections.
 
-Approval is enforced cryptographically for the sealed package and server-side for `wrap_pass` (see residual risk R3).
+Approval is therefore enforced cryptographically, not by server policy (test: `TestStrict_PassphraseHolderControllingServerCannotAddDevice`).
 
 ### 5.5 Revocation and key rotation
 Any approved device can revoke another (or itself).
 1. Server marks the device `revoked`, deletes its sessions, deletes its sealed packages.
-2. The revoking client generates `EK_{n+1}`, appends it to the keybag, and uploads in one request: a new `wrap_pass` (needs `PK`, kept in the device key store), a new `recovery_pkg`, and a sealed package per remaining approved device (it fetches their public keys).
+2. The revoking client generates `EK_{n+1}`, appends it to the keybag, and uploads in one request: a new `recovery_pkg`, and a sealed package per remaining approved device (it fetches their public keys).
 3. New writes use epoch `n+1`; old records stay readable under their old epoch and are lazily re-encrypted on next edit.
 4. A revoked device holds only `EK_0..n`: it cannot authenticate (so cannot pull), and even if it obtained new ciphertext (malicious server, disk theft), it cannot decrypt epoch `n+1` data. It can still decrypt anything it already could (old epochs); that cannot be undone and is stated plainly in the UI.
 
@@ -102,9 +109,9 @@ Any approved device can revoke another (or itself).
 3. Client opens `recovery_pkg` with the derived X25519 key, obtaining the keybag.
 4. Client then sets a new passphrase (5.7) and may rotate the recovery key.
 
-### 5.7 Passphrase change (rewrap, no data re-upload)
-1. Authenticated device performs a fresh OPAQUE registration for the same account with the new passphrase and gets a new `export_key` -> `PK'`.
-2. Client uploads the new OPAQUE record and `wrap_pass' = AEAD(PK', keybag)` in one request. The server replaces both atomically and revokes all other sessions.
+### 5.7 Passphrase change (credential only, no keys or data touched)
+1. Authenticated device re-verifies the old passphrase (full OPAQUE login) and performs a fresh OPAQUE registration with the new passphrase.
+2. Client uploads the new OPAQUE record in one request. The server replaces it and revokes all other sessions. The key bag is unchanged, since nothing was wrapped by the passphrase.
 3. No record is touched or re-uploaded. Other devices keep their local keybag and simply need the new passphrase at next login. (Verified by test: zero record writes during change.)
 
 ### 5.8 Records
@@ -132,6 +139,9 @@ Wire record: `{id, epoch, blob = nonce||ciphertext, deleted, base_seq}`. Plainte
 6. Sessions: opaque random tokens, stored as SHA-256 hash, expire, revoked on device revoke / passphrase change.
 7. Record sizes are padded (5.8), so only coarse size classes leak.
 
+### 6a. Optional admin UI (off by default)
+Enabled only when `CORVID_SYNC_ADMIN_TOKEN` is set; otherwise `/admin*` answers 404. Bearer token, constant-time compare, auth-route rate limit, strict CSP (no inline script, no external resources), values rendered with `textContent`. It shows **metadata only**: health, user list (name, sizes, quota, device counts), per-user device list (name, state, last seen), invite tokens (created, listed by label, only a hash is stored, plaintext shown once). Actions: create/delete invites, set a user's quota, delete a user, block (revoke) a device at the server. It has no route that reads records, keys or packages and **no route that approves a device** (approval is the cryptographic hand-off in 5.4). A server-side block by the admin does not rotate keys (the server has none); the user should revoke from a trusted device to rotate. Bind it to LAN or put it behind your proxy's own auth; the admin token is a full-power secret for metadata, so do not expose `/admin` to the internet if you can avoid it.
+
 ## 7. Threats and mitigations
 
 | # | Threat | Mitigation | Residual |
@@ -141,7 +151,7 @@ Wire record: `{id, epoch, blob = nonce||ciphertext, deleted, base_seq}`. Plainte
 | T3 | Network attacker | TLS (operator-provided); OPAQUE and AEAD mean even no-TLS does not leak plaintext or the passphrase. | Session tokens are bearer tokens; use TLS. |
 | T4 | Active malicious server tampers with ciphertext | AEAD + AAD binding; client reports `integrity_error`, quarantines the record, never applies it. | |
 | T5 | Server drops or rolls back records | Client keeps highest seen `seq`; a decrease is reported. | Withholding / targeted staleness not fully detectable without a signed log (future). |
-| T6 | Online passphrase guessing | Rate limits, per-username backoff, OPAQUE | Distributed guessing slowly; mitigated by approval step R3. |
+| T6 | Online passphrase guessing | Rate limits, per-(user,IP) backoff, OPAQUE | Distributed guessing slowly; a guessed passphrase alone yields no keys and no data (device approval is cryptographic). |
 | T7 | Stolen device | Revoke from another device -> epoch rotation. Local key store should be OS-protected. | Data already on the device. |
 | T8 | Stolen session token | Short expiry, revoke-on-change, device binding. | Valid until expiry unless revoked. |
 | T9 | Username enumeration | Fake OPAQUE records; uniform errors. Registration endpoint can still reveal "taken" (inherent). | Registration confirms existence. |
@@ -153,7 +163,7 @@ Wire record: `{id, epoch, blob = nonce||ciphertext, deleted, base_seq}`. Plainte
 Residual risks, explicit
 - R1 Metadata, as listed.
 - R2 Library maturity: OPAQUE implementation unaudited (section 4).
-- R3 `wrap_pass` is released only to approved devices by the server's policy. An actively malicious server that also knows the passphrase could skip approval and unwrap the keybag. Stricter option (decision pending): drop `wrap_pass` so that new devices are admitted only via a sealed package from an existing device or the RK. Tradeoff: forgetting that you have no device left AND no RK means loss. Default in this draft: keep `wrap_pass`.
+- R3 (CLOSED 2026-10-09, strict model): there is no passphrase-wrapped key copy. Consequence accepted by the user: losing every trusted device AND the recovery key means the data is unrecoverable by anyone. A passphrase-only attacker who controls the server gets metadata and ciphertext, never keys.
 - R4 `username` and device names are plaintext on the server.
 - R5 Device names are chosen by the user and visible to the server; the UI warns.
 - R6 No forward secrecy for data at rest across epochs, other than rotation on revoke.
@@ -171,29 +181,25 @@ Residual risks, explicit
 | `POST /v1/devices/{id}/approve` | approved | approve with sealed package |
 | `POST /v1/devices/{id}/revoke` | approved | revoke + rotation upload |
 | `GET /v1/devices/self` | any session | status + sealed package |
-| `GET /v1/keys` | approved | `wrap_pass`, recovery pkg, epoch |
-| `POST /v1/password/start`, `/v1/password/finish` | approved | passphrase change (rewrap) |
+| `GET /v1/keys` | approved | recovery public keys + package, epoch |
+| `POST /v1/password/start`, `/v1/password/finish` | approved | passphrase change (credential only) |
 | `POST /v1/recovery/rotate` | approved | replace recovery keys + package |
 | `POST /v1/records/push` | approved | batch write |
 | `GET /v1/records/pull?collection=&since=` | approved | batch read |
 | `DELETE /v1/account` | approved | delete everything |
 
 ## 9. Tests that map to this document
-See `tests/acceptance/phase-4/`: convergence (offline edits), DB dump plaintext scan, revoked device, tamper / wrong passphrase, recovery key, passphrase rewrap with zero record writes, fuzzing + rate limits, layout/module list with unavailable modules.
+See `tests/acceptance/phase-4/`: convergence (offline edits), DB dump plaintext scan, revoked device, tamper / wrong passphrase, recovery key, passphrase change with zero record writes and no key wrap, strict-model device-admission attack, cookies-not-registrable, admin UI, fuzzing + rate limits, layout/module list with unavailable modules.
 
 ## 10. Implementation status vs this draft
-- Server (`server/sync/`, Go 1.26, SQLite via modernc, OPAQUE via bytemare/opaque): implemented as specified, except: Postgres adapter not written; session state for in-flight OPAQUE logins is in memory (single instance only); `history`/`tabs` collection names are accepted by the server but no client feature exists.
-- Client engine (`src-overlay/corvid/sync/`, Go reference implementation): implemented and tested. Integration into the Chromium tree (C++ port or Go sidecar, Mojo bridge) is not done.
+- Server (`server/sync/`, Go 1.26, SQLite via modernc, OPAQUE via bytemare/opaque): strict model, sync set incl. extensions/themes/history/tabs (no cookies), invites + quotas + optional admin UI implemented and tested. Not done: Postgres adapter; in-flight OPAQUE login state is in memory (single instance only).
+- Client engine (`src-overlay/corvid/sync/`, Go reference engine / oracle): implemented and tested; shared vectors exported. The C++ in-process port is NOT started; first task is the OPAQUE spike in `docs/notes/sync-cpp-opaque.md`.
 - `corvid://sync` page (`ui/pages/sync/`): implemented against a proxy interface and tested in jsdom; the Mojo bridge is a stub.
-- Windows + Linux real-client convergence is UNVERIFIED (the acceptance test simulates two devices on one machine).
-- Residual that testing exposed: a client that is offline longer than the tombstone retention window is told to resync (HTTP 410) and reconciles by dropping clean local records absent from the full listing; its unsynced local edits are kept and re-pushed.
+- Windows + Linux real-client convergence is UNVERIFIED.
+- A client offline longer than the tombstone retention window is told to resync (HTTP 410); it reconciles by dropping clean local records absent from the full listing and re-pushing unsynced edits.
+- History merges as a union of visit times (capped at 50 per URL); everything else is per-record LWW.
 
-## 11. Questions for the user (sign-off checklist)
-1. Approve this threat model and protocol (or list changes)?
-2. Server language: Go chosen (toolchain present, single static binary). OK?
-3. Database: SQLite default, Postgres optional (Postgres adapter is NOT implemented yet; the store is behind an interface). OK?
-4. Auth protocol: OPAQUE via an unaudited MIT library vs alternatives (section 4). OK?
-5. R3: keep `wrap_pass` (default) or go strict (no passphrase-only enrollment)?
-6. Should history and open tabs sync (privacy tradeoff)? Not implemented.
-7. Public reference instance hosting plan, if any?
-8. Registration default: closed / invite token / open?
+## 11. Open items for the user
+1. Read and sign off this revised document (status stays DRAFT until then).
+2. Choose the C++ OPAQUE route after the spike (Rust `opaque-ke`, or P-256 suite with a C++ state machine), see `docs/notes/sync-cpp-opaque.md`.
+3. Replace NaCl sealed boxes with HPKE (RFC 9180) before the C++ port, to avoid a bespoke construction in C++.

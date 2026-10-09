@@ -3,10 +3,12 @@
 // engine. Draft: the Mojo binding is not generated/wired yet (no Chromium tree in this
 // workspace), so MojoSyncProxy throws and tests use a fake.
 
-export type CollectionId = 'bookmarks' | 'passwords' | 'passkeys' | 'settings' | 'layouts' | 'modules' | 'history' | 'tabs';
+export type CollectionId = 'bookmarks' | 'passwords' | 'passkeys' | 'settings' | 'layouts' | 'modules' | 'extensions' | 'themes' | 'history' | 'tabs';
 
-export const SYNCABLE: CollectionId[] = ['bookmarks', 'passwords', 'passkeys', 'settings', 'layouts', 'modules'];
-export const NOT_YET: CollectionId[] = ['history', 'tabs'];
+// Cookies are deliberately absent and can never be added: they never sync.
+export const SYNCABLE: CollectionId[] = ['bookmarks', 'passwords', 'passkeys', 'settings', 'layouts', 'modules', 'extensions', 'themes', 'history', 'tabs'];
+// Off until the user turns them on.
+export const OFF_BY_DEFAULT: CollectionId[] = ['tabs'];
 
 export interface DeviceRow {
   id: string;
@@ -20,6 +22,7 @@ export interface DeviceRow {
 export interface SyncState {
   signedIn: boolean;
   pendingApproval: boolean;
+  approvalCode: string; // short comparison code of THIS device, shown while waiting for approval
   serverUrl: string;
   username: string;
   lastSyncMs: number;

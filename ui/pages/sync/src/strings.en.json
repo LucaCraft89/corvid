@@ -33,8 +33,8 @@
   "collection.settings": "Settings",
   "collection.layouts": "Interface layouts",
   "collection.modules": "Installed modules",
-  "collection.history": "History (not available yet)",
-  "collection.tabs": "Open tabs (not available yet)",
+  "collection.history": "History",
+  "collection.tabs": "Open tabs (off by default)",
   "devices.title": "Devices",
   "devices.this": "This device",
   "devices.pending": "Waiting for approval",
@@ -60,5 +60,9 @@
   "error.wrongPassphrase": "Wrong passphrase, or the server could not be verified.",
   "error.rateLimited": "Too many attempts. Wait a moment and try again.",
   "error.rollback": "The server's data went backwards. Stop syncing and check your server.",
-  "busy": "Working..."
+  "busy": "Working...",
+  "collection.extensions": "Extensions (list and settings)",
+  "collection.themes": "Themes",
+  "status.pendingCode": "On a device you already trust, approve this device only if it shows the same code:",
+  "collections.note": "Cookies are never synced."
 }

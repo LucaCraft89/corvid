@@ -39,7 +39,8 @@ const (
 // Collections the server accepts. Names are visible to the server (metadata).
 var collections = map[string]bool{
 	"bookmarks": true, "passwords": true, "passkeys": true, "settings": true,
-	"layouts": true, "modules": true, "history": true, "tabs": true,
+	"layouts": true, "modules": true, "extensions": true, "themes": true, "history": true, "tabs": true,
+	// NOTE: there is deliberately no "cookies" collection. Cookies never sync.
 }
 
 var (
@@ -69,11 +70,12 @@ type Server struct {
 }
 
 type pendingReg struct {
-	user string
-	cred []byte
-	exp  time.Time
-	pw   bool  // password change rather than registration
-	acct int64 // for password change
+	user   string
+	cred   []byte
+	exp    time.Time
+	pw     bool   // password change rather than registration
+	acct   int64  // for password change
+	invite []byte // hash of the invite consumed on registration
 }
 type pendingLogin struct {
 	user string
@@ -89,8 +91,8 @@ type pendingNonce struct {
 // New opens the store, loads or creates key material, and builds the handler.
 func New(cfg Config) (*Server, error) {
 	cfg.Normalize()
-	if cfg.Registration == RegToken && cfg.RegToken == "" {
-		return nil, errors.New("registration=token requires a registration token")
+	if cfg.Registration == RegToken && cfg.RegToken == "" && cfg.AdminToken == "" {
+		return nil, errors.New("registration=token requires a registration token (or the admin UI to create invites)")
 	}
 	st, err := OpenStore(cfg.DBPath)
 	if err != nil {
@@ -308,6 +310,9 @@ func (s *Server) routes() {
 	m.HandleFunc("GET /v1/records/pull", s.session(true, s.hPull))
 	m.HandleFunc("DELETE /v1/account", s.session(true, s.hDeleteAccount))
 	m.HandleFunc("GET /v1/stats", s.session(true, s.hStats))
+	if s.cfg.AdminToken != "" {
+		s.adminRoutes(m)
+	}
 	m.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { writeErr(w, 404, "not_found") })
 	s.mux = m
 }
@@ -373,7 +378,7 @@ func (s *Server) hInfo(w http.ResponseWriter, r *http.Request) {
 			"max_record_bytes": s.cfg.MaxRecordBytes, "max_batch": s.cfg.MaxBatch,
 			"quota_bytes": s.cfg.QuotaBytes, "max_body_bytes": s.cfg.MaxBodyBytes,
 		},
-		"collections": []string{"bookmarks", "passwords", "passkeys", "settings", "layouts", "modules", "history", "tabs"},
+		"collections": collectionNames(),
 	})
 }
 
@@ -409,14 +414,18 @@ func (s *Server) hRegisterStart(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in) {
 		return
 	}
+	var inv []byte
 	switch s.cfg.Registration {
 	case RegClosed:
 		writeErr(w, 403, "registration_closed")
 		return
 	case RegToken:
-		if subtle.ConstantTimeCompare([]byte(in.Token), []byte(s.cfg.RegToken)) != 1 {
-			writeErr(w, 403, "bad_registration_token")
-			return
+		master := s.cfg.RegToken != "" && subtle.ConstantTimeCompare([]byte(in.Token), []byte(s.cfg.RegToken)) == 1
+		if !master {
+			if inv = s.inviteHash(in.Token); inv == nil {
+				writeErr(w, 403, "bad_registration_token")
+				return
+			}
 		}
 	}
 	if !reUser.MatchString(in.Username) {
@@ -448,7 +457,7 @@ func (s *Server) hRegisterStart(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 429, "busy")
 		return
 	}
-	s.regs[id] = &pendingReg{user: in.Username, cred: cred, exp: s.now().Add(2 * time.Minute)}
+	s.regs[id] = &pendingReg{user: in.Username, cred: cred, exp: s.now().Add(2 * time.Minute), invite: inv}
 	s.mu.Unlock()
 	writeJSON(w, 200, map[string]any{"reg_id": id, "response": resp.Serialize()})
 }
@@ -468,7 +477,6 @@ func (s *Server) hRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		RegID    string       `json:"reg_id"`
 		Record   []byte       `json:"record"`
-		WrapPass []byte       `json:"wrap_pass"`
 		Recovery RecoveryInfo `json:"recovery"`
 		Device   DeviceInfo   `json:"device"`
 	}
@@ -480,7 +488,7 @@ func (s *Server) hRegisterFinish(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 400, "bad_registration")
 		return
 	}
-	if !in.Device.valid() || !in.Recovery.valid() || len(in.WrapPass) == 0 || len(in.WrapPass) > 16<<10 {
+	if !in.Device.valid() || !in.Recovery.valid() {
 		writeErr(w, 400, "bad_request")
 		return
 	}
@@ -497,13 +505,20 @@ func (s *Server) hRegisterFinish(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	now := s.now().Unix()
-	res, err := tx.Exec(`INSERT INTO accounts(username,cred_id,opaque_record,wrap_pass,rec_sign_pub,rec_box_pub,rec_pkg,created_at)
-VALUES(?,?,?,?,?,?,?,?)`, p.user, p.cred, in.Record, in.WrapPass, in.Recovery.SignPub, in.Recovery.BoxPub, in.Recovery.Pkg, now)
+	res, err := tx.Exec(`INSERT INTO accounts(username,cred_id,opaque_record,rec_sign_pub,rec_box_pub,rec_pkg,created_at)
+VALUES(?,?,?,?,?,?,?)`, p.user, p.cred, in.Record, in.Recovery.SignPub, in.Recovery.BoxPub, in.Recovery.Pkg, now)
 	if err != nil {
 		writeErr(w, 409, "username_unavailable")
 		return
 	}
 	acct, _ := res.LastInsertId()
+	if p.invite != nil {
+		r2, err := tx.Exec(`UPDATE invites SET uses_left=uses_left-1 WHERE token_hash=? AND uses_left>0`, p.invite)
+		if n, _ := r2.RowsAffected(); err != nil || n == 0 {
+			writeErr(w, 403, "bad_registration_token")
+			return
+		}
+	}
 	if _, err := tx.Exec(`INSERT INTO devices(account_id,id,name,pub,state,created_at,last_seen) VALUES(?,?,?,?,?,?,?)`,
 		acct, in.Device.ID, in.Device.Name, in.Device.Pub, stateApproved, now, now); err != nil {
 		writeErr(w, 500, "internal")
@@ -841,7 +856,6 @@ func (s *Server) hRevoke(w http.ResponseWriter, r *http.Request, se sess) {
 	id := r.PathValue("id")
 	var in struct {
 		Epoch    int               `json:"epoch"`
-		WrapPass []byte            `json:"wrap_pass"`
 		Recovery []byte            `json:"recovery_pkg"`
 		Packages map[string][]byte `json:"packages"`
 	}
@@ -871,7 +885,7 @@ func (s *Server) hRevoke(w http.ResponseWriter, r *http.Request, se sess) {
 		// Approved devices hold keys: require a rotation covering every remaining approved device.
 		var cur int
 		_ = tx.QueryRow(`SELECT epoch FROM accounts WHERE id=?`, se.acct).Scan(&cur)
-		if in.Epoch != cur+1 || len(in.WrapPass) == 0 || len(in.Recovery) == 0 {
+		if in.Epoch != cur+1 || len(in.Recovery) == 0 {
 			writeErr(w, 400, "rotation_required")
 			return
 		}
@@ -903,7 +917,7 @@ func (s *Server) hRevoke(w http.ResponseWriter, r *http.Request, se sess) {
 				return
 			}
 		}
-		if _, err := tx.Exec(`UPDATE accounts SET epoch=?, wrap_pass=?, rec_pkg=? WHERE id=?`, in.Epoch, in.WrapPass, in.Recovery, se.acct); err != nil {
+		if _, err := tx.Exec(`UPDATE accounts SET epoch=?, rec_pkg=? WHERE id=?`, in.Epoch, in.Recovery, se.acct); err != nil {
 			writeErr(w, 500, "internal")
 			return
 		}
@@ -926,16 +940,16 @@ func (s *Server) hRevoke(w http.ResponseWriter, r *http.Request, se sess) {
 // ---------- keys, password, recovery ----------
 
 func (s *Server) hKeys(w http.ResponseWriter, r *http.Request, se sess) {
-	var wp, rp, rs, rb []byte
+	var rp, rs, rb []byte
 	var epoch int
-	err := s.st.db.QueryRow(`SELECT wrap_pass,rec_pkg,rec_sign_pub,rec_box_pub,epoch FROM accounts WHERE id=?`, se.acct).Scan(&wp, &rp, &rs, &rb, &epoch)
+	err := s.st.db.QueryRow(`SELECT rec_pkg,rec_sign_pub,rec_box_pub,epoch FROM accounts WHERE id=?`, se.acct).Scan(&rp, &rs, &rb, &epoch)
 	if err != nil {
 		writeErr(w, 500, "internal")
 		return
 	}
 	var pkg []byte
 	_ = s.st.db.QueryRow(`SELECT pkg FROM devices WHERE account_id=? AND id=?`, se.acct, se.device).Scan(&pkg)
-	writeJSON(w, 200, map[string]any{"wrap_pass": wp, "recovery": RecoveryInfo{SignPub: rs, BoxPub: rb, Pkg: rp}, "epoch": epoch, "pkg": pkg})
+	writeJSON(w, 200, map[string]any{"recovery": RecoveryInfo{SignPub: rs, BoxPub: rb, Pkg: rp}, "epoch": epoch, "pkg": pkg})
 }
 
 func (s *Server) hPasswordStart(w http.ResponseWriter, r *http.Request, se sess) {
@@ -971,15 +985,14 @@ func (s *Server) hPasswordStart(w http.ResponseWriter, r *http.Request, se sess)
 
 func (s *Server) hPasswordFinish(w http.ResponseWriter, r *http.Request, se sess) {
 	var in struct {
-		RegID    string `json:"reg_id"`
-		Record   []byte `json:"record"`
-		WrapPass []byte `json:"wrap_pass"`
+		RegID  string `json:"reg_id"`
+		Record []byte `json:"record"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	p := s.takeReg(in.RegID, true)
-	if p == nil || p.acct != se.acct || len(in.WrapPass) == 0 || len(in.WrapPass) > 16<<10 {
+	if p == nil || p.acct != se.acct {
 		writeErr(w, 400, "bad_request")
 		return
 	}
@@ -994,7 +1007,7 @@ func (s *Server) hPasswordFinish(w http.ResponseWriter, r *http.Request, se sess
 	}
 	defer tx.Rollback()
 	// Replace credential + wrap in one transaction; drop every other session.
-	if _, err := tx.Exec(`UPDATE accounts SET cred_id=?, opaque_record=?, wrap_pass=? WHERE id=?`, p.cred, in.Record, in.WrapPass, se.acct); err != nil {
+	if _, err := tx.Exec(`UPDATE accounts SET cred_id=?, opaque_record=? WHERE id=?`, p.cred, in.Record, se.acct); err != nil {
 		writeErr(w, 500, "internal")
 		return
 	}
@@ -1037,7 +1050,7 @@ func (s *Server) hStats(w http.ResponseWriter, r *http.Request, se sess) {
 	var used int64
 	var cnt, seq int
 	_ = s.st.db.QueryRow(`SELECT used_bytes,rec_count,seq FROM accounts WHERE id=?`, se.acct).Scan(&used, &cnt, &seq)
-	writeJSON(w, 200, map[string]any{"used_bytes": used, "quota_bytes": s.cfg.QuotaBytes, "records": cnt, "head_seq": seq})
+	writeJSON(w, 200, map[string]any{"used_bytes": used, "quota_bytes": s.quotaFor(se.acct), "records": cnt, "head_seq": seq})
 }
 
 // ---------- records ----------
@@ -1078,11 +1091,14 @@ func (s *Server) hPush(w http.ResponseWriter, r *http.Request, se sess) {
 		return
 	}
 	defer tx.Rollback()
-	var seq, used int64
+	var seq, used, quota int64
 	var cnt, epoch int
-	if err := tx.QueryRow(`SELECT seq,used_bytes,rec_count,epoch FROM accounts WHERE id=?`, se.acct).Scan(&seq, &used, &cnt, &epoch); err != nil {
+	if err := tx.QueryRow(`SELECT seq,used_bytes,rec_count,epoch,quota_bytes FROM accounts WHERE id=?`, se.acct).Scan(&seq, &used, &cnt, &epoch, &quota); err != nil {
 		writeErr(w, 500, "internal")
 		return
+	}
+	if quota == 0 {
+		quota = s.cfg.QuotaBytes
 	}
 	now := s.now().Unix()
 	results := make([]pushResult, 0, len(in.Records))
@@ -1128,7 +1144,7 @@ func (s *Server) hPush(w http.ResponseWriter, r *http.Request, se sess) {
 				continue
 			}
 		}
-		if used+delta > s.cfg.QuotaBytes {
+		if used+delta > quota {
 			rej("quota")
 			continue
 		}

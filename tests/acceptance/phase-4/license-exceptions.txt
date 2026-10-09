@@ -1,0 +1,10 @@
+# Packages go-licenses cannot classify or flags, each read by a human. Re-verify on version bumps.
+# One package-path prefix per line; '#' starts a comment.
+# Our own code (BSD-3-Clause per AGENTS.md; no per-module LICENSE file yet, root LICENSE will cover it)
+corvid/syncserver
+corvid/syncclient
+# fiat-crypto generated field arithmetic inside filippo.io/nistec. Its license text (see internal/fiat/README) is a
+# permissive BSD-style notice that go-licenses labels LicenseRef-uthash (BSD-1-Clause-like). Permissive, attribution only.
+filippo.io/nistec/internal/fiat
+# modernc.org/mathutil has a plain BSD-3 LICENSE but a non-standard layout the classifier misses sometimes
+modernc.org/mathutil

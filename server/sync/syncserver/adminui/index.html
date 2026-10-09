@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corvid Sync admin</title>
+<link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+<main>
+  <h1>Corvid Sync admin</h1>
+  <p class="note">Metadata only. This page cannot read your users' data or keys, and cannot approve devices.</p>
+  <form id="login"><label for="tok">Admin token</label><input id="tok" type="password" autocomplete="off"><button type="submit">Connect</button></form>
+  <p id="err" role="alert"></p>
+  <section id="app" hidden>
+    <h2>Health</h2><pre id="health"></pre>
+    <h2>Invite tokens</h2>
+    <form id="newinv"><label for="ilabel">Label</label><input id="ilabel" type="text"><label for="iuses">Uses</label><input id="iuses" type="number" value="1" min="1"><button type="submit">Create</button></form>
+    <p id="newtok" role="status"></p>
+    <table id="invites"><thead><tr><th>Label</th><th>Uses left</th><th></th></tr></thead><tbody></tbody></table>
+    <h2>Users</h2>
+    <table id="users"><thead><tr><th>User</th><th>Used</th><th>Quota (MiB)</th><th>Devices</th><th></th></tr></thead><tbody></tbody></table>
+    <h2 id="dh">Devices</h2>
+    <table id="devices"><thead><tr><th>Name</th><th>State</th><th>Last seen</th><th></th></tr></thead><tbody></tbody></table>
+  </section>
+</main>
+<script src="/admin/app.js"></script>
+</body>
+</html>

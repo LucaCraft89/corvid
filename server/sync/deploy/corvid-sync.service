@@ -1,0 +1,39 @@
+[Unit]
+Description=Corvid sync server (end-to-end encrypted, self-hosted)
+Documentation=https://example.invalid/docs/selfhost-sync.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=corvid-sync
+Group=corvid-sync
+EnvironmentFile=/etc/corvid-sync/env
+Environment=CORVID_SYNC_DATA=/var/lib/corvid-sync
+ExecStart=/usr/local/bin/corvid-sync
+Restart=on-failure
+RestartSec=3
+
+# Hardening: works in an unprivileged Proxmox LXC (no capabilities, no devices needed).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/corvid-sync
+StateDirectory=corvid-sync
+StateDirectoryMode=0700
+UMask=0077
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
