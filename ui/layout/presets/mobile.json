@@ -1,0 +1,105 @@
+{
+  "$comment": "Corvid default 'mobile' layout preset. SELF-DESCRIBING: ui/layout/layout.schema.json does not exist in this base (Phase 1 owns it), so this file could not be schema-validated. Field names are a PROPOSAL and must be reconciled with the schema when it lands; tests/acceptance/phase-5/validate-layout.py validates automatically if the schema file appears. UNVERIFIED on device.",
+  "$schema": "../layout.schema.json",
+  "schemaStatus": "unvalidated-schema-missing",
+  "version": 1,
+  "id": "mobile",
+  "name": "Mobile",
+  "targets": ["android"],
+  "units": "dp",
+  "minTouchTargetDp": 48,
+  "breakpoints": {
+    "compact": { "maxWidthDp": 599, "note": "phones, folded foldables" },
+    "medium": { "minWidthDp": 600, "maxWidthDp": 839, "note": "small tablets, unfolded foldables" },
+    "expanded": { "minWidthDp": 840, "note": "tablets, desktop-class windows" }
+  },
+  "required": ["address-bar", "tab-switcher", "layout-reset"],
+  "variants": {
+    "compact": {
+      "regions": {
+        "top": { "slots": [] },
+        "bottom": {
+          "slots": [
+            { "id": "toolbar", "component": "corvid.toolbar.bottom", "size": { "heightDp": 56 }, "visible": true,
+              "children": [
+                { "component": "corvid.nav.back" },
+                { "component": "corvid.nav.forward" },
+                { "component": "corvid.address-bar.compact", "grow": 1, "tapAction": "expand-address-sheet" },
+                { "component": "corvid.tab-switcher.button" },
+                { "component": "corvid.menu.overflow" }
+              ] }
+          ]
+        },
+        "left": { "slots": [] },
+        "right": { "slots": [] },
+        "floating": {
+          "slots": [
+            { "id": "extension-actions", "component": "corvid.extensions.actions", "presentation": "bottom-sheet", "visible": true },
+            { "id": "side-panel", "component": "corvid.panel.host", "presentation": "bottom-sheet", "visible": true }
+          ]
+        }
+      },
+      "behaviors": { "hideToolbarOnScroll": true, "tabSwitcher": "grid-fullscreen" }
+    },
+    "medium": {
+      "regions": {
+        "top": {
+          "slots": [
+            { "id": "tabs", "component": "corvid.tabstrip.horizontal", "size": { "heightDp": 48 }, "visible": true }
+          ]
+        },
+        "bottom": {
+          "slots": [
+            { "id": "toolbar", "component": "corvid.toolbar.bottom", "size": { "heightDp": 56 }, "visible": true,
+              "children": [
+                { "component": "corvid.nav.back" },
+                { "component": "corvid.nav.forward" },
+                { "component": "corvid.address-bar", "grow": 1 },
+                { "component": "corvid.extensions.button" },
+                { "component": "corvid.menu.overflow" }
+              ] }
+          ]
+        },
+        "left": { "slots": [] },
+        "right": { "slots": [] },
+        "floating": {
+          "slots": [
+            { "id": "extension-actions", "component": "corvid.extensions.actions", "presentation": "popover", "visible": true },
+            { "id": "side-panel", "component": "corvid.panel.host", "presentation": "side-sheet", "visible": true }
+          ]
+        }
+      },
+      "behaviors": { "hideToolbarOnScroll": false, "tabSwitcher": "strip-plus-grid" }
+    },
+    "expanded": {
+      "regions": {
+        "top": {
+          "slots": [
+            { "id": "tabs", "component": "corvid.tabstrip.horizontal", "size": { "heightDp": 48 }, "visible": true },
+            { "id": "toolbar", "component": "corvid.toolbar.top", "size": { "heightDp": 56 }, "visible": true,
+              "children": [
+                { "component": "corvid.nav.back" },
+                { "component": "corvid.nav.forward" },
+                { "component": "corvid.nav.reload" },
+                { "component": "corvid.address-bar", "grow": 1 },
+                { "component": "corvid.extensions.button" },
+                { "component": "corvid.menu.overflow" }
+              ] }
+          ]
+        },
+        "bottom": { "slots": [] },
+        "left": { "slots": [] },
+        "right": { "slots": [ { "id": "side-panel", "component": "corvid.panel.host", "presentation": "docked", "size": { "widthDp": 360 }, "visible": false } ] },
+        "floating": { "slots": [ { "id": "extension-actions", "component": "corvid.extensions.actions", "presentation": "popover", "visible": true } ] }
+      },
+      "behaviors": { "hideToolbarOnScroll": false, "tabSwitcher": "strip" }
+    }
+  },
+  "editing": {
+    "enabled": true,
+    "gesture": "long-press-toolbar",
+    "reset": { "entry": ["menu > Reset layout", "corvid://settings/layout?reset"], "alwaysReachable": true },
+    "dragHandleMinDp": 48
+  },
+  "foldables": { "relayoutOnPostureChange": true, "avoidHinge": true, "preserveContentFrames": true }
+}

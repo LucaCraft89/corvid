@@ -1,0 +1,17 @@
+# Phase 5 (Android) patch series. Applied after the main series (patches/series) when target_os=android.
+# Format: one patch path per line, relative to patches/. Currently EMPTY: no patch can be authored without a Chromium
+# checkout (sandbox cannot fetch it). Planned groups (see docs/notes/android-ext-baseline.md and docs/specs/phase-5.md):
+#
+# -- Track A: app/UI/debrand --
+# android/0001-debrand-android-strings-and-package.patch
+# android/0002-degoogle-android-play-services-gates.patch
+# android/0003-android-host-webui-chrome-shell-hook.patch
+# android/0004-android-dynamic-color-provider-hook.patch
+# -- Track B: extensions (isolated; keep last, behind corvid_android_extensions) --
+# android/ext-0001-enable-extensions-core-android-build.patch
+# android/ext-0002-android-mv2-carry.patch
+# android/ext-0003-android-extension-keepalive.patch
+# android/ext-0004-android-preinstall-provider.patch
+# android/ext-0005-android-ntp-override-hook.patch
+# -- Track C: passkeys --
+# android/0010-webauthn-credential-manager-no-gms.patch

@@ -1,0 +1,90 @@
+# Corvid Android CI. UNVERIFIED: never run. Depends on Phase 0 scripts (scripts/fetch.sh, apply-patches.sh), which do not
+# exist in this base; step names assume the Phase 0 interfaces and must be reconciled when it lands.
+# No signing, no secrets: artifacts are unsigned/debug-signed only (distribution is undecided, CR-A3).
+name: android
+
+on:
+  pull_request:
+    paths:
+      - "patches/android/**"
+      - "patches/series.phase5"
+      - "src-overlay/corvid/android/**"
+      - "build/args/android-*.gn"
+      - "theme/providers/android/**"
+      - "ui/layout/presets/mobile.json"
+      - ".github/workflows/android*.yml"
+  workflow_dispatch:
+    inputs:
+      full_build:
+        description: "Run the full Chromium Android build (needs a large self-hosted runner)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-static:
+    # Cheap checks that run on hosted runners without a Chromium checkout.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate mobile layout preset JSON
+        run: |
+          python3 -m json.tool ui/layout/presets/mobile.json > /dev/null
+          if [ -f ui/layout/layout.schema.json ]; then
+            pip install jsonschema
+            python3 tests/acceptance/phase-5/validate-layout.py
+          else
+            echo "layout.schema.json not present in this base; JSON syntax check only"
+          fi
+      - name: Check patch headers
+        run: python3 tests/acceptance/phase-5/check-patch-headers.py
+      - name: Check build args parse
+        run: |
+          for f in build/args/android-*.gn; do
+            grep -q '^target_os = "android"' "$f" || { echo "bad $f"; exit 1; }
+          done
+
+  patch-apply:
+    # Needs the pinned Chromium checkout; runs on a self-hosted runner labelled corvid-android.
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.CORVID_ANDROID_RUNNER == 'true' }}
+    runs-on: [self-hosted, linux, corvid-android]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned Chromium (android) and apply series
+        run: |
+          scripts/fetch.sh --target-os android
+          scripts/apply-patches.sh --series patches/series --series patches/series.phase5 --check
+
+  build:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_build }}
+    needs: patch-apply
+    runs-on: [self-hosted, linux, corvid-android]
+    timeout-minutes: 600
+    strategy:
+      fail-fast: false
+      matrix:
+        args: [android-arm64-release, android-arm64-debug, android-x86_64-debug]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          cd src
+          mkdir -p out/${{ matrix.args }}
+          cp ../build/args/${{ matrix.args }}.gn out/${{ matrix.args }}/args.gn
+          gn gen out/${{ matrix.args }}
+      - name: Build APK (target name must be verified in chrome/android/BUILD.gn)
+        run: cd src && autoninja -C out/${{ matrix.args }} chrome_public_apk
+      - name: Build AAB (release only)
+        if: ${{ endsWith(matrix.args, 'release') }}
+        run: cd src && autoninja -C out/${{ matrix.args }} chrome_public_bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corvid-${{ matrix.args }}
+          path: |
+            src/out/${{ matrix.args }}/apks/*.apk
+            src/out/${{ matrix.args }}/apks/*.aab
+          if-no-files-found: warn
