@@ -1,0 +1,77 @@
+name: overlay-tests
+
+# UNVERIFIED: never run. Builds ONLY the src-overlay/corvid GN targets (not chrome) in the checkout on the
+# self-hosted runner labelled "corvid-builder" (docs/build-host.md) and runs corvid_phase1_unittests.
+# Expect the first run to find compile errors: all overlay C++ was written without a Chromium tree.
+#
+# Skips cleanly (job skipped, not failed) unless the repo variable CORVID_BUILDER_ENABLED is "true".
+# Never runs on pull_request (a self-hosted runner executes workflow code on the owner's machine).
+
+on:
+  push:
+    paths:
+      - 'src-overlay/corvid/**'
+      - 'ui/pages/stock-pages.json'
+      - 'scripts/overlay-tests.sh'
+      - 'scripts/ci-report.sh'
+      - '.github/workflows/overlay-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overlay-tests
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    # Cheap, hosted: the checks that need no Chromium (TypeScript, lint, manifests, node tests, stand-in C++ logic check).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Portable report
+        run: scripts/ci-report.sh --portable-only --out reports/portable.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portable-report
+          path: reports/
+
+  overlay:
+    if: ${{ vars.CORVID_BUILDER_ENABLED == 'true' }}
+    runs-on: [self-hosted, linux, x64, corvid-builder]
+    timeout-minutes: 240
+    env:
+      CORVID_SRC: /srv/corvid/chromium/src
+      DEPOT_TOOLS: /srv/corvid/depot_tools
+      SCCACHE_DIR: /srv/corvid/sccache
+      SCCACHE_CACHE_SIZE: 100G
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build overlay targets and run unit tests
+        id: overlay
+        run: |
+          set +e
+          scripts/overlay-tests.sh
+          rc=$?
+          if [ "$rc" -eq 77 ]; then
+            echo "::notice::overlay tests SKIPPED (no Chromium checkout or gn on this runner); this is not a pass"
+            exit 0
+          fi
+          exit "$rc"
+      - name: One pasteable report
+        if: always()
+        run: scripts/ci-report.sh --out reports/ci-report.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: overlay-report
+          path: |
+            reports/
+            !reports/**/*.o

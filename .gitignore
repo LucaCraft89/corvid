@@ -6,3 +6,4 @@ __pycache__/
 .scratch/
 docs/reports/*-run*.md
 node_modules/
+reports/
