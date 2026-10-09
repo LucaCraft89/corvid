@@ -1,0 +1,6 @@
+out/
+*.rej
+*.orig
+__pycache__/
+*.pyc
+.scratch/

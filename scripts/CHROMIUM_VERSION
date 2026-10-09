@@ -1,0 +1,7 @@
+# Pinned upstream Chromium version (exact tag name). First non-comment line is the pin.
+# Written by scripts/rebase.sh; do not edit by hand except to bump deliberately.
+# 155.0.8059.39 was the newest Linux stable entry returned by
+# https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions
+# on 2026-10-09. UNVERIFIED: that this exact tag exists in chromium/src
+# (chromium.googlesource.com was unreachable from the authoring sandbox).
+155.0.8059.39
