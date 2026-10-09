@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,7 +31,17 @@ func main() {
 		proxy = flag.Bool("trust-proxy", env("CORVID_SYNC_TRUST_PROXY", "") == "1", "trust X-Forwarded-For (only behind your reverse proxy)")
 		quota = flag.Int64("quota-mb", 100, "per-account quota in MiB")
 	)
+	hc := flag.Bool("healthcheck", false, "probe /healthz on the local listener and exit (container HEALTHCHECK)")
 	flag.Parse()
+	if *hc {
+		c := &http.Client{Timeout: 2 * time.Second}
+		port := (*addr)[strings.LastIndex(*addr, ":"):]
+		resp, err := c.Get("http://127.0.0.1" + port + "/healthz")
+		if err != nil || resp.StatusCode != 200 {
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
 	if err := os.MkdirAll(*data, 0o700); err != nil {
 		log.Fatal(err)
 	}

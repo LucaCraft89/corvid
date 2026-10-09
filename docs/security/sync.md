@@ -81,7 +81,7 @@ Device: X25519 keypair generated on the device, private key never leaves.
 4. Client shows RK once and requires the user to confirm they saved it.
 
 ### 5.4 Login and device enrollment
-1. OPAQUE login (KE1/KE2/KE3). Success yields a bearer session token (random 256 bit, stored hashed server-side, 24 h expiry, bound to the device). Failure responses are indistinguishable for unknown user vs wrong passphrase (fake record, constant-shape response), and failures are rate limited per username and per IP.
+1. OPAQUE login (KE1/KE2/KE3). Success yields a bearer session token (random 256 bit, stored hashed server-side, 30 day expiry so devices need not re-prompt for the passphrase, bound to the device; revoked on device revoke and on passphrase change for all other devices). Failure responses are indistinguishable for unknown user vs wrong passphrase (fake record, constant-shape response), and failures are rate limited per username and per IP.
 2. A device unknown to the account is created `pending`. A pending token can only: read its own status, and nothing else (cannot pull records, cannot fetch `wrap_pass`).
 3. An already approved device lists pending devices, shows name + public-key fingerprint (short code), and on user confirmation calls approve with `SealedBox(new_device_pub, keybag)`. The server marks the device `approved`.
 4. The new device fetches the sealed package, opens it with its private key, and now holds the keybag. It may also fetch `wrap_pass` (same keybag) as a consistency check.
@@ -109,7 +109,7 @@ Any approved device can revoke another (or itself).
 
 ### 5.8 Records
 Plaintext envelope (CBOR-free, JSON for the reference engine): `{v:1, id (logical id), hlc, dev, deleted, data}`. Encrypted with `XChaCha20-Poly1305(CK_n,c, nonce=24 random bytes, aad)` where
-`aad = "corvid-sync/v1" || account_id || collection || record_id || epoch`.
+`aad = "corvid-sync/v1|" + username + "|" + collection + "|" + record_id + "|" + epoch` (username is immutable and known to every client).
 Wire record: `{id, epoch, blob = nonce||ciphertext, deleted, base_seq}`. Plaintext is padded to a multiple of 256 bytes before encryption (length hiding, coarse).
 - The AAD binds a ciphertext to its account, collection, record id and epoch: a malicious server cannot swap blobs between records or collections undetected.
 - The server sets `seq` (monotonic per account) on every write; clients pull `since=seq`.
@@ -124,7 +124,7 @@ Wire record: `{id, epoch, blob = nonce||ciphertext, deleted, base_seq}`. Plainte
 
 ## 6. Server-side controls
 
-1. Per-IP token bucket on every route; much stricter bucket on auth routes; per-username failed-login counter with exponential backoff (online guessing resistance).
+1. Per-IP token bucket on every route; much stricter bucket on auth routes; per-(username, IP) attempt counter with exponential backoff (1 s doubling to ~17 min after 5 consecutive attempts without a successful login). In OPAQUE a wrong passphrase is only detectable by the client (it cannot unmask the server's reply), so the server cannot see "failures"; every `login/start` therefore counts as an attempt until a login for that pair completes. Keying on the pair means an attacker cannot lock the real owner out from the owner's own IP; a distributed attacker is bounded by the per-IP limiter instead. Unknown usernames get a fake (deterministic per name) OPAQUE record.
 2. Request body cap (default 2 MiB), record cap (default 256 KiB), batch cap (default 200 records), per-account byte quota (default 100 MiB), records-per-account cap.
 3. Registration modes: `open`, `closed`, `token` (invite token), default `token` or `closed` in the compose file.
 4. Secrets: OPAQUE long-term key material and OPRF seed generated at first start into a key file (0600), separate from the DB, and part of the backup instructions.
@@ -182,7 +182,11 @@ Residual risks, explicit
 See `tests/acceptance/phase-4/`: convergence (offline edits), DB dump plaintext scan, revoked device, tamper / wrong passphrase, recovery key, passphrase rewrap with zero record writes, fuzzing + rate limits, layout/module list with unavailable modules.
 
 ## 10. Implementation status vs this draft
-Implemented as a Go reference engine (portable, unit/acceptance tested). Integration into the Chromium tree (C++/Mojo wrapper or Go sidecar) and the Windows + Linux real-client run are not done and are UNVERIFIED.
+- Server (`server/sync/`, Go 1.26, SQLite via modernc, OPAQUE via bytemare/opaque): implemented as specified, except: Postgres adapter not written; session state for in-flight OPAQUE logins is in memory (single instance only); `history`/`tabs` collection names are accepted by the server but no client feature exists.
+- Client engine (`src-overlay/corvid/sync/`, Go reference implementation): implemented and tested. Integration into the Chromium tree (C++ port or Go sidecar, Mojo bridge) is not done.
+- `corvid://sync` page (`ui/pages/sync/`): implemented against a proxy interface and tested in jsdom; the Mojo bridge is a stub.
+- Windows + Linux real-client convergence is UNVERIFIED (the acceptance test simulates two devices on one machine).
+- Residual that testing exposed: a client that is offline longer than the tombstone retention window is told to resync (HTTP 410) and reconciles by dropping clean local records absent from the full listing; its unsynced local edits are kept and re-pushed.
 
 ## 11. Questions for the user (sign-off checklist)
 1. Approve this threat model and protocol (or list changes)?

@@ -1,0 +1,33 @@
+# Corvid sync: minimal homelab deployment behind a TLS-terminating reverse proxy (Caddy).
+# 1. cp .env.example .env   and set CORVID_SYNC_REG_TOKEN and SYNC_DOMAIN
+# 2. docker compose up -d
+services:
+  sync:
+    build: .
+    image: corvid-sync:local
+    restart: unless-stopped
+    environment:
+      CORVID_SYNC_REGISTRATION: token          # open | closed | token
+      CORVID_SYNC_REG_TOKEN: ${CORVID_SYNC_REG_TOKEN:?set an invite token in .env}
+      CORVID_SYNC_TRUST_PROXY: "1"             # only because Caddy is the sole way in
+    volumes:
+      - sync-data:/data                        # sync.db + server-keys.json: BACK UP BOTH
+    expose: ["8443"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      SYNC_DOMAIN: ${SYNC_DOMAIN:?set your domain in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on: [sync]
+
+volumes:
+  sync-data:
+  caddy-data:

@@ -1,0 +1,15 @@
+# Phase 4 patch series (sync). Merge into patches/series when Phase 1 lands.
+#
+# Currently EMPTY on purpose: Phase 4 is implemented entirely as new files
+# (server/sync/, src-overlay/corvid/sync/, ui/pages/sync/), no upstream Chromium
+# file has been modified, and there is no Chromium tree in this workspace.
+#
+# Hook patches that WILL be needed (each one concern, author with the add-patch skill
+# once the tree exists; none written yet, nothing verified):
+#   sync/0001-register-corvid-sync-webui.patch
+#       Purpose: register corvid://sync in the WebUI config registry + GN target
+#       Rebase risk: low (one registration line + one BUILD.gn deps line)
+#   sync/0002-wire-sync-engine-into-profile.patch
+#       Purpose: own a SyncEngine per Profile (KeyedService factory) bridging to the
+#       engine (Go reference engine to be ported to C++ or run as a sidecar: open decision)
+#       Rebase risk: medium

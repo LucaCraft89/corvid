@@ -1,0 +1,56 @@
+// DRAFT: Mojo interface for corvid://sync (add-webui-page skill, step 1).
+// Lives under src-overlay/corvid/sync/webui/ for now to stay inside the Phase 4
+// path; move to src-overlay/corvid/webui/sync/ when the WebUI registry lands (Phase 1.5).
+// Not compiled in this workspace (no Chromium tree). Mirrors ui/pages/sync/src/proxy.ts.
+module corvid.sync.mojom;
+
+enum SyncErrorCode {
+  kOther,
+  kWrongPassphrase,
+  kRateLimited,
+  kServerRollback,
+};
+
+struct DeviceRow {
+  string id;
+  string name;
+  string state;        // "approved" | "pending" | "revoked"
+  string fingerprint;
+  bool self;
+  int64 last_seen_ms;
+};
+
+struct SyncState {
+  bool signed_in;
+  bool pending_approval;
+  string server_url;
+  string username;
+  int64 last_sync_ms;
+  int32 queued;
+  map<string, bool> enabled;
+  int32 integrity_errors;
+  array<string> unavailable_modules;
+};
+
+struct Result {
+  bool ok;
+  SyncErrorCode code;
+  string message;
+  string recovery_key;  // only set by CreateAccount / RotateRecoveryKey, shown once
+};
+
+interface SyncPageHandler {
+  GetState() => (SyncState state);
+  CreateAccount(string server_url, string username, string passphrase, string token, string device_name) => (Result r);
+  SignIn(string server_url, string username, string passphrase, string device_name) => (Result r);
+  Recover(string server_url, string username, string recovery_key, string new_passphrase, string device_name) => (Result r);
+  SetCollectionEnabled(string collection, bool enabled) => (Result r);
+  ListDevices() => (array<DeviceRow> devices);
+  ApproveDevice(string id, string fingerprint) => (Result r);
+  RevokeDevice(string id, string passphrase) => (Result r);
+  ChangePassphrase(string old_passphrase, string new_passphrase) => (Result r);
+  RotateRecoveryKey() => (Result r);
+  SyncNow() => (Result r);
+  SignOut() => (Result r);
+  DeleteAccount() => (Result r);
+};
