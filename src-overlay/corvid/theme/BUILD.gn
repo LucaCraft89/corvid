@@ -1,0 +1,47 @@
+# UNVERIFIED: not evaluated by gn until the first CI run.
+import("//mojo/public/tools/bindings/mojom.gni")
+
+source_set("appearance_snapshot") {
+  sources = [
+    "appearance_snapshot.cc",
+    "appearance_snapshot.h",
+  ]
+}
+
+source_set("config_file_reader") {
+  sources = [
+    "config_file_reader.cc",
+    "config_file_reader.h",
+  ]
+  deps = [ "//base" ]
+}
+
+# Needs //ui/native_theme (heavier). Kept separate so the pure parts above compile and test on their own.
+source_set("native_theme_appearance_observer") {
+  sources = [
+    "native_theme_appearance_observer.cc",
+    "native_theme_appearance_observer.h",
+  ]
+  deps = [
+    ":appearance_snapshot",
+    "//base",
+    "//skia",
+    "//ui/native_theme",
+  ]
+}
+
+mojom("mojom") {
+  sources = [ "linux_appearance.mojom" ]
+  webui_module_path = "/"
+}
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "theme_unittest.cc" ]
+  deps = [
+    ":appearance_snapshot",
+    ":config_file_reader",
+    "//base",
+    "//testing/gtest",
+  ]
+}
