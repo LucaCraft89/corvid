@@ -63,7 +63,7 @@ const ev = (e: Partial<DiagEvent> & { kind: DiagEvent['kind']; data: any }): Dia
 
 test('hang events link into the DevTools console with their stack', () => {
   const c = eventToConsoleEntry(ev({ kind: 'hang', data: { durationMs: 5000, stack: [{ fn: 'spin' }], stackCaptured: true, recovered: false, renderPid: 1 } }))!;
-  assert.ok(c.message.includes('5000 ms')); assert.equal(c.stack![0].fn, 'spin');
+  assert.ok(c.message.includes('5000 ms')); assert.equal(c.stack?.[0]?.fn, 'spin');
   assert.equal(eventToConsoleEntry(ev({ kind: 'memory', data: {} })), null);
 });
 

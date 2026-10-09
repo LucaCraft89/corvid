@@ -35,8 +35,10 @@ export interface SyncState {
 export type SyncErrorCode = 'wrong_passphrase' | 'rate_limited' | 'rollback' | 'other';
 
 export class SyncError extends Error {
-  constructor(public code: SyncErrorCode, message = '') {
+  readonly code: SyncErrorCode;
+  constructor(code: SyncErrorCode, message = '') {
     super(message || code);
+    this.code = code;
   }
 }
 

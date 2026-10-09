@@ -66,7 +66,7 @@ test('query filters: kind, severity, tab, time, text', () => {
   assert.equal(rb.query({ tabId: 2 }).length, 1);
   assert.equal(rb.query({ sinceTs: 2500 }).length, 1);
   assert.equal(rb.query({ text: 'BETA' }).length, 1);
-  assert.equal(rb.query({ limit: 1 })[0].ts, 3000);
+  assert.equal(rb.query({ limit: 1 })[0]?.ts, 3000);
 });
 
 test('subscribe gets live events and can unsubscribe', () => {
@@ -109,7 +109,7 @@ test('export bundle == preview; manifest hashes match; zip valid', () => {
   const manifest = JSON.parse(new TextDecoder().decode(entries.find(e => e.name === 'manifest.json')!.data));
   assert.equal(manifest.eventCount, 2);
   assert.deepEqual(manifest.files.map((f: any) => f.name), ['events.jsonl', 'a.dmp']);
-  assert.equal(entries[0].data.length, plan.preview.files[0].bytes);
+  assert.equal(entries[0]?.data.length, plan.preview.files[0]?.bytes);
 });
 
 test('redaction toggle removes URLs from the bundle and drops minidumps', () => {
@@ -121,7 +121,7 @@ test('redaction toggle removes URLs from the bundle and drops minidumps', () => 
   const text = entries.map(e => new TextDecoder().decode(e.data)).join('\n');
   for (const leak of ['leak.example', 'secret.example', 'private.example']) assert.ok(!text.includes(leak), leak);
   assert.ok(!entries.some(e => e.name === 'a.dmp'));
-  assert.equal(plan.preview.excluded[0].name, 'a.dmp');
+  assert.equal(plan.preview.excluded[0]?.name, 'a.dmp');
   assert.equal(plan.preview.redacted, true);
 });
 
@@ -147,7 +147,7 @@ test('exported events are the exact same events listed (count)', () => {
   for (let i = 0; i < 10; i++) rb.add(consoleEv(1000, 'm' + i));
   const plan = planExport({ events: rb.query({ limit: 4 }), redact: false, appVersion: 'v' });
   const entries = unzipStore(buildBundle(plan));
-  const lines = new TextDecoder().decode(entries[0].data).trim().split('\n');
+  const lines = new TextDecoder().decode(entries[0]?.data).trim().split('\n');
   assert.equal(lines.length, 4); assert.equal(plan.preview.eventCount, 4);
-  assert.ok((JSON.parse(lines[0]) as DiagEvent).id > 0);
+  assert.ok((JSON.parse(lines[0] ?? '') as DiagEvent).id > 0);
 });

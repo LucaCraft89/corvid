@@ -44,8 +44,10 @@ export class RingBuffer {
     let evicted = false;
     const cutoff = this.now() - this.cfg.maxAgeMs;
     while (this.events.length &&
-           (this.bytes > this.cfg.maxBytes || this.events.length > this.cfg.maxEvents || this.events[0].e.ts < cutoff)) {
-      this.bytes -= this.events.shift()!.size; evicted = true;
+           (this.bytes > this.cfg.maxBytes || this.events.length > this.cfg.maxEvents || (this.events[0]?.e.ts ?? Infinity) < cutoff)) {
+      const dropped = this.events.shift();
+      if (!dropped) break;
+      this.bytes -= dropped.size; evicted = true;
     }
     return evicted;
   }
@@ -65,7 +67,9 @@ export class RingBuffer {
     const text = f.text?.toLowerCase();
     const out: DiagEvent[] = [];
     for (let i = this.events.length - 1; i >= 0; i--) {
-      const e = this.events[i].e;
+      const slot = this.events[i];
+      if (!slot) continue;
+      const e = slot.e;
       if (f.kinds && !f.kinds.includes(e.kind)) continue;
       if (SEVERITY_ORDER.indexOf(e.severity) < min) continue;
       if (f.tabId !== undefined && e.tabId !== f.tabId) continue;

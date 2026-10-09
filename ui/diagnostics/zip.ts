@@ -7,7 +7,7 @@ const TABLE = (() => {
 })();
 export function crc32(b: Uint8Array): number {
   let c = 0xffffffff;
-  for (let i = 0; i < b.length; i++) c = TABLE[(c ^ b[i]) & 255] ^ (c >>> 8);
+  for (let i = 0; i < b.length; i++) c = (TABLE[(c ^ (b[i] ?? 0)) & 255] ?? 0) ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
 
