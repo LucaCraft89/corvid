@@ -1,0 +1,10 @@
+# Corvid Windows-only patch series (Phase 3). Applied after patches/series by scripts/apply-patches.ps1.
+# Paths are relative to patches/. One concern per patch; see skills/add-patch.
+#
+# No patches are committed yet: each must be authored against a real Chromium tree on a Windows host
+# (UNVERIFIED in the authoring sandbox). Planned, in order (details in docs/reports/):
+#   windows/0001-win-mini-installer-branding.patch     (installer strings/ids from branding/config.toml)
+#   windows/0002-win-disable-google-update.patch       (gate GoogleUpdate; install_static brand)
+#   windows/0003-win-register-accent-provider.patch    (hook corvid::windows::AccentWatcher into native theme)
+#   windows/0004-win-webauthn-hello-gating.patch       (enable Windows WebAuthn platform auth, gate enclave)
+#   windows/0005-win-caption-controls-overlay.patch    (frameless window + WebUI caption controls)
