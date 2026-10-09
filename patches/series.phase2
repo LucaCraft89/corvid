@@ -1,0 +1,7 @@
+# Phase 2 patch entries. Merge into patches/series when Phase 0 tooling lands.
+# All entries UNVERIFIED: never applied to a real Chromium tree (sandbox has none).
+# Each .patch is a header + hunk SKETCH to be regenerated with scripts/refresh-patches.sh on a real tree.
+diagnostics/2001-register-corvid-diagnostics-webui.patch
+diagnostics/2002-error-page-detail-hook.patch
+passkeys/2003-fido-discovery-software-authenticator.patch
+passkeys/2004-disable-enclave-authenticator.patch

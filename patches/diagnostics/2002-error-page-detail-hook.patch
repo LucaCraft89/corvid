@@ -1,0 +1,6 @@
+Purpose: Feed net error detail (resolver, cert chain, timings, retries) from the diagnostics ring into the Corvid error page.
+Area: diagnostics
+Files: components/error_page/content/browser/net_error_auto_reloader / chrome/browser/ui/webui/... (error page local state provider; exact file TBD)
+Rebase risk: high because the error page pipeline (LocalizedError, NetErrorHelper) is refactored regularly
+Origin: original
+Status: UNVERIFIED SKETCH, no hunks. Needs inspection of the pinned tree: find where the renderer builds error page params (grep "LocalizedError::GetStrings") and inject a Corvid hook that returns the diagnostics event for the failed navigation id. Page UI itself lives in ui/pages/diagnostics/error-summary.ts (verified logic).
