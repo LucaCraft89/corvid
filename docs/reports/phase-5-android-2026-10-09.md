@@ -3,6 +3,8 @@
 Environment: sandbox without Chromium checkout, Android SDK, device or emulator. Phase 5 is NOT complete. Nothing was built.
 Legend: PASS (ran here), UNVERIFIED (written, never run on device/build), BLOCKED (needs user decision).
 
+## Update 2026-10-09: user answered CR-A1..A7; see docs/specs/phase-5-budgets.md. Open: signing-key plan approval, CR-1, CR-2, CR-3.
+
 ## Acceptance (docs/specs/phase-5.md)
 | # | Check | Status | Evidence / next step |
 |---|---|---|---|
@@ -25,10 +27,10 @@ experimental) come from web-search excerpts of Chromium docs/commits and press; 
 
 ## Key findings
 1. Upstream has a gradual "desktop Android" extensions port keyed on `ENABLE_EXTENSIONS_CORE`; reuse it. It is MV3-only, so Corvid's MV2 requirement (uBO) is the largest carried delta.
-2. Upstream Android WebAuthn likely depends on Google Play services: conflicts with zero-Google; needs a spike (CR-A7).
+2. Upstream Android WebAuthn likely depends on Google Play services; resolved as: Track C task 1 is a go/no-go spike (Play services only if proven required, isolated and optional).
 
-## Questions for the user (defaults proposed in `docs/specs/phase-5-budgets.md`)
-CR-A1 min Android (proposed API 26); CR-A2 ABIs (arm64 + x86_64 emulator); CR-A3 distribution/signing (sideload + F-Droid-style, no CI signing);
+## Questions (ANSWERED 2026-10-09, see budgets doc; only signing-key plan remains open)
+CR-A1 min Android (answered: floor 26, target 12+); CR-A2 ABIs (arm64 + x86_64 emulator); CR-A3 distribution/signing (sideload + F-Droid-style, no CI signing);
 CR-A4 budgets; CR-A5 Android top-100 target (80%); CR-A6 foreground service for MV2 background pages; CR-A7 passkeys without Play services.
 Also existing: CR-1 (uBO licence), CR-2 (extension store source), CR-3 (codecs).
 

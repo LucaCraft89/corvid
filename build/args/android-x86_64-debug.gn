@@ -1,4 +1,4 @@
-# Corvid Android x86_64 emulator debug (not shipped). UNVERIFIED: never built.
+# Corvid Android x86_64 emulator debug emulator only, never shipped (CR-A2). UNVERIFIED: never built.
 target_os = "android"
 target_cpu = "x64"
 

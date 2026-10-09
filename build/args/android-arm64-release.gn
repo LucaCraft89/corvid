@@ -1,6 +1,6 @@
 # Corvid Android arm64 release. UNVERIFIED: never built (sandbox cannot build Chromium).
 # Arg names must be checked with `gn args out/android-arm64-release --list` on the pinned tree.
-# ABI/minSdk are proposals pending CR-A1/CR-A2 in docs/specs/phase-5-budgets.md.
+# Decisions 2026-10-09: minSdk floor 26, target Android 12+; ABIs arm64+armhf ship (docs/specs/phase-5-budgets.md).
 
 target_os = "android"
 target_cpu = "arm64"

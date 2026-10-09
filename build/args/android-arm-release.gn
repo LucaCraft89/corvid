@@ -1,5 +1,5 @@
-# Corvid Android arm (32-bit) release. OPTIONAL: ABI shipping is undecided (CR-A2). Not in the CI matrix.
-# UNVERIFIED: never built.
+# Corvid Android armhf (armeabi-v7a) release. SHIPS (CR-A2, 2026-10-09).
+# UNVERIFIED: never built. minSdk floor 26, target Android 12+ (CR-A1).
 target_os = "android"
 target_cpu = "arm"
 

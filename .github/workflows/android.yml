@@ -1,6 +1,6 @@
 # Corvid Android CI. UNVERIFIED: never run. Depends on Phase 0 scripts (scripts/fetch.sh, apply-patches.sh), which do not
 # exist in this base; step names assume the Phase 0 interfaces and must be reconciled when it lands.
-# No signing, no secrets: artifacts are unsigned/debug-signed only (distribution is undecided, CR-A3).
+# No signing, no secrets: artifacts are unsigned/debug-signed only (distribution: GitHub Releases APK; signing plan open, CR-A3).
 name: android
 
 on:
@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        args: [android-arm64-release, android-arm64-debug, android-x86_64-debug]
+        args: [android-arm64-release, android-arm-release, android-arm64-debug, android-x86_64-debug]
     steps:
       - uses: actions/checkout@v4
       - name: Configure

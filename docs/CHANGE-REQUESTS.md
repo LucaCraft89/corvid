@@ -16,3 +16,9 @@ Agents: propose changes to locked decisions here; do not act on them until the u
 | Date | Decision |
 |---|---|
 | 2026-10-09 | Gecko/Firefox dual-engine dropped; Chromium only |
+| 2026-10-09 | Phase 5 CR-A1: minSdk 26 floor, supported/target Android 12+ (API 31), dynamic color 31+, seed fallback below; user may tighten floor to 31 (wording ambiguous) |
+| 2026-10-09 | Phase 5 CR-A2: ship arm64 + armhf; x86_64 emulator-only |
+| 2026-10-09 | Phase 5 CR-A3: distribute via GitHub Releases APK now; F-Droid-style repo and Play later/maybe; signing-key plan still open (proposal in docs/specs/phase-5-budgets.md) |
+| 2026-10-09 | Phase 5 CR-A4/A5: budgets and 80% Android top-100 target delegated to agent (docs/specs/phase-5-budgets.md); new-tab overrides, password managers, ad blockers are mandatory pass categories |
+| 2026-10-09 | Phase 5 CR-A6: MV2 background pages may use a foreground service with guardrails |
+| 2026-10-09 | Phase 5 CR-A7: passkeys must work; Play services only if the Track C spike proves required, isolated and optional |
