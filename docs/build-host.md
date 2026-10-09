@@ -28,22 +28,43 @@ Windows and Android hosts are out of scope for Phase 0 (see `build-windows`, `bu
 
 `.github/workflows/nightly-build.yml` expects a self-hosted runner labelled `corvid-builder` with the checkout, depot_tools and sccache on persistent disk under `/srv/corvid/` (paths set in the workflow `env`). GitHub-hosted runners are too small for a Chromium build.
 
-## Measurements (fill in on the first real host)
+## Measurements (M0, 2026-10-09/10, Chromium 155.0.8059.39)
 
 | Item | Value |
 |---|---|
-| Host (CPU model, cores) | TODO: measure on real host |
-| RAM | TODO: measure on real host |
-| Disk used after sync / after first build | TODO: measure on real host |
-| `gclient sync` time | TODO: measure on real host |
-| First full `chrome` debug build | TODO: measure on real host |
-| Incremental build (touch one `.cc`) | TODO: measure on real host |
-| sccache hit rate on second clean build | TODO: measure on real host |
-| Date and Chromium version measured | TODO: measure on real host |
+| Host | Fedora 44, kernel 7.2.8, Ryzen 9 7900X (12C/24T), RTX 4070 (unused for build) |
+| RAM / swap | 31.9 GB; zram 8 GB + 24 GB btrfs swapfile (`/home/swap/swapfile`, `btrfs filesystem mkswapfile`, not in fstab) |
+| Storage | 2 TB DRAM-less Gen4 NVMe, btrfs `/home` |
+| Disk used | ~113 GB after sync (`~/chromium`), +34 GB `out/Debug` after first build (~147 GB) |
+| Fetch time | initial clone ~30 min (93.5 GiB pack at ~90 MiB/s, 22:32-23:01); whole fetch took ~2 h wall because of googlesource HTTP 429 on parallel dep clones and a stalled `git fetch` of all refs (see Known gaps) |
+| First full `chrome` debug build | ~70 min compile (jobs=20, sccache cold), link done ~01:20; output "Corvid 155.0.8059.39" |
+| Incremental (touch `chrome/browser/chrome_content_browser_client.cc`) | 68 s wall (jobs=20, includes relink) |
+| sccache hit rate on second clean build | not measured (no second clean build yet) |
+
+## Fedora host + Ubuntu distrobox (how M0 was built)
+
+Chromium's `install-build-deps.sh` is Debian-only, so the host (Fedora 44) fetches and the build runs in a container sharing `$HOME`:
+
+```
+distrobox create --yes --name corvid-build --image docker.io/library/ubuntu:24.04 --additional-flags "--security-opt label=disable"
+distrobox enter corvid-build -- sudo apt-get install -y git python3 curl lsb-release xz-utils file build-essential pkg-config shellcheck
+distrobox enter corvid-build -- sudo ~/chromium/src/build/install-build-deps.sh --no-prompt --no-chromeos-fonts --no-arm --no-nacl
+# sccache: host binary copied to /usr/local/bin/sccache inside the container
+distrobox enter corvid-build -- bash -lc 'cd ~/chromium && PATH=$HOME/depot_tools:$PATH gclient runhooks'
+```
+
+`~/chromium/src` and `~/depot_tools` are shared with the host (checkout stays on NVMe). Run any script in the container with `CORVID_BUILD_CONTAINER` (handled in `scripts/lib.sh`, re-execs via `distrobox enter`; `CORVID_SRC`, `CORVID_JOBS`, `CORVID_ALLOW_BUILD`, `SCCACHE_DIR`, `SCCACHE_CACHE_SIZE` are forwarded):
+
+```
+CORVID_BUILD_CONTAINER=corvid-build CORVID_ALLOW_BUILD=1 CORVID_JOBS=20 SCCACHE_DIR=$HOME/sccache scripts/verify.sh --phase 0 --platform linux
+```
+
+Desktop-integration tests (GNOME/KDE accent, Wayland/X11, rpm install, GPU) run on the Fedora host with the container-built `out/Debug/chrome`.
 
 ## Known gaps
 
-- `scripts/DEPOT_TOOLS_REV` is unset, so depot_tools is not pinned yet (reproducibility risk named in the Phase 0 spec). Pin it on the first host that can reach googlesource.
+- depot_tools is pinned to `50cc30f5dbb8d56b4b45fe3223c572ef01d38198` (`scripts/DEPOT_TOOLS_REV`), the revision used for M0.
+- Fetch hazards seen: googlesource returns 429 if gclient clones many deps at once (use `CORVID_FETCH_JOBS`, default 4); `--with_branch_heads --with_tags` made `git fetch origin` pull every ref and stall, so they were dropped (the pinned tag is fetched explicitly). A half-cloned dep dir (e.g. third_party/perfetto) must be deleted before re-sync.
 - The `gn` args in `scripts/build.sh` are a reasonable starting set, not validated against the pinned release.
 
 ## Runner topology (decided 2026-10-09)
