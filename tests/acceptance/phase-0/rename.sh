@@ -37,6 +37,18 @@ EOF
 allowed_re='(^|/)(AUTHORS|CREDITS)[^/]*$'
 hits() { # <tree> -> prints offending paths (content or file name)
   local t="$1"
+  if [ "$FIXTURE" != 1 ]; then
+    # Real tree: upstream Chromium legitimately contains the word (dictionaries, ...). Only paths we
+    # changed or added (vs the pinned tag, plus untracked non-ignored) can leak the product name.
+    # The overlay's internal `corvid/` code namespace is a codename, not branding, and is exempt.
+    { git -C "$t" diff --name-only "refs/tags/$(grep -Ev "^[[:space:]]*(#|$)" "$T_ROOT/scripts/CHROMIUM_VERSION" | head -n1)"; git -C "$t" ls-files -o --exclude-standard; } |
+      sort -u | grep -Ev '^corvid/' | while IFS= read -r f; do
+        [ -f "$t/$f" ] || continue
+        case "$(basename "$f" | tr '[:upper:]' '[:lower:]')" in *"$OLD"*) echo "$f"; continue ;; esac
+        grep -Iqi -- "$OLD" "$t/$f" && echo "$f"
+      done | { grep -Ev "$allowed_re" || true; }
+    return 0
+  fi
   { (cd "$t" && grep -rIil --exclude-dir=.git --exclude-dir=out "$OLD" . || true)
     (cd "$t" && find . -path ./.git -prune -o -iname "*$OLD*" -print || true)
   } | sed 's|^\./||' | sort -u | { grep -Ev "$allowed_re" || true; }

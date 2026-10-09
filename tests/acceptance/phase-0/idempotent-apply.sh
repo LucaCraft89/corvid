@@ -12,7 +12,8 @@ s2="$(tree_state)"
 cat "$WORK/run2.log"
 
 [ "$s1" = "$s2" ] || fail "tree state differs between first and second apply ($s1 vs $s2)"
-strays="$(find "$CORVID_SRC" -path "$CORVID_SRC/.git" -prune -o \( -name '*.rej' -o -name '*.orig' \) -print)"
+# Untracked and not gitignored only: upstream dependency dirs ship their own *.orig files.
+strays="$(git -C "$CORVID_SRC" ls-files -o --exclude-standard | { grep -E '\.(rej|orig)$' || true; })"
 [ -z "$strays" ] || fail "stray files: $strays"
 
 if [ "$FIXTURE" = 1 ]; then
