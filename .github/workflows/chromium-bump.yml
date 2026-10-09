@@ -1,0 +1,62 @@
+name: chromium-stable-bump
+
+# UNVERIFIED: never run. Weekly: look up the latest Chromium stable (Linux) from the public
+# version-history API, run scripts/rebase.sh against it, and open a DRAFT pull request with the
+# new pin plus docs/rebase/<version>.md. Conflicts do not fail the job; they are in the report.
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CORVID_FETCH_MODE: patch-only
+      CORVID_SRC: ${{ github.workspace }}/../chromium-sparse/src
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run rebase against latest stable
+        id: rebase
+        run: |
+          old="$(grep -Ev '^[[:space:]]*(#|$)' scripts/CHROMIUM_VERSION | head -n1)"
+          # Needs a base checkout at the current pin so the sparse clone exists first.
+          scripts/fetch.sh
+          set +e
+          scripts/rebase.sh --latest-stable
+          rc=$?
+          set -e
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 2 ] || exit "$rc"
+          new="$(grep -Ev '^[[:space:]]*(#|$)' scripts/CHROMIUM_VERSION | head -n1)"
+          echo "old=$old" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+      - name: Open draft change
+        if: steps.rebase.outputs.new != steps.rebase.outputs.old
+        env:
+          OLD: ${{ steps.rebase.outputs.old }}
+          NEW: ${{ steps.rebase.outputs.new }}
+          RC: ${{ steps.rebase.outputs.rc }}
+        run: |
+          branch="bump/chromium-$NEW"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            echo "branch $branch already exists; nothing to do"; exit 0
+          fi
+          git config user.name "corvid-bot"
+          git config user.email "corvid-bot@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add scripts/CHROMIUM_VERSION docs/rebase
+          git commit -m "Bump Chromium $OLD -> $NEW (rebase report attached)"
+          git push origin "$branch"
+          status="all patches apply (clean or fuzz)"
+          [ "$RC" -eq 0 ] || status="CONFLICTS: see docs/rebase/$NEW.md; resolve before merging"
+          gh pr create --draft --base "${GITHUB_REF_NAME}" --head "$branch" \
+            --title "Bump Chromium $OLD -> $NEW" \
+            --body "Automated weekly bump. Status: $status. A full Linux build and Phase 0 verify are still required before merge (skills/rebase-chromium)."

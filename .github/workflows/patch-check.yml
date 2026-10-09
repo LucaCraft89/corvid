@@ -1,0 +1,52 @@
+name: patch-check
+
+# UNVERIFIED: this workflow has never run on GitHub. It must be exercised by a trivial valid
+# patch PR (expect green) and a deliberately broken patch PR (expect red) per phase-0 acceptance 5.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patch-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tooling:
+    # Lint + fixture tests: prove the scripts themselves still work. No Chromium needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Fixture acceptance (tooling logic only)
+        # Exit 3 = only skips (clean-build needs real Chromium); anything else non-zero is a failure.
+        run: |
+          set +e
+          scripts/verify.sh --phase 0 --platform linux --fixture
+          rc=$?
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ]
+
+  patch-apply:
+    # Applies the series to the pinned tag using a partial, sparse clone (only files the
+    # series touches). Fails on lint errors, missing headers, orphans, or any non-applying patch.
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CORVID_FETCH_MODE: patch-only
+      CORVID_SRC: ${{ github.workspace }}/../chromium-sparse/src
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache sparse Chromium clone
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../chromium-sparse
+          key: chromium-sparse-${{ hashFiles('scripts/CHROMIUM_VERSION', 'patches/series') }}
+      - name: Fetch pinned tag (patch-only)
+        run: scripts/fetch.sh
+      - name: Lint patches and apply series
+        run: scripts/verify.sh --patch-check

@@ -1,0 +1,46 @@
+name: nightly-linux-build
+
+# UNVERIFIED: never run. Needs a self-hosted runner meeting docs/build-host.md sizing
+# (>=32 GB RAM, >=150 GB SSD, 16+ cores) labelled "corvid-builder". GitHub-hosted runners
+# cannot hold a Chromium checkout and build.
+#
+# Build cache: the runner keeps the checkout (CORVID_SRC), out/ and the sccache directory on
+# persistent disk between runs, so nightly builds are incremental. Remote cache/RBE is an option
+# recorded in docs/build-host.md.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-linux-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, x64, corvid-builder]
+    timeout-minutes: 600
+    env:
+      CORVID_SRC: /srv/corvid/chromium/src
+      DEPOT_TOOLS: /srv/corvid/depot_tools
+      SCCACHE_DIR: /srv/corvid/sccache
+      SCCACHE_CACHE_SIZE: 100G
+      CORVID_ALLOW_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (fetch, apply, gn, ninja, smoke)
+        run: scripts/build.sh linux debug
+      - name: Phase 0 acceptance (real)
+        run: mkdir -p reports && scripts/verify.sh --phase 0 --platform linux --report reports/phase-0-linux.md
+      - name: sccache stats
+        if: always()
+        run: sccache --show-stats || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-0-linux-report
+          path: reports/
