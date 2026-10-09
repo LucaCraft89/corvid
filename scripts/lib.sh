@@ -2,6 +2,16 @@
 # Shared helpers for Corvid scripts. Source this file; do not execute it.
 # shellcheck shell=bash
 
+# Optional: run the whole script inside a distrobox (e.g. Ubuntu LTS on a Fedora host).
+#   CORVID_BUILD_CONTAINER=corvid-build scripts/build.sh linux debug
+# $CONTAINER_ID is set by distrobox inside the container, so this re-execs only once.
+if [ -n "${CORVID_BUILD_CONTAINER:-}" ] && [ -z "${CONTAINER_ID:-}" ]; then
+  exec distrobox enter "$CORVID_BUILD_CONTAINER" -- env \
+    CORVID_SRC="${CORVID_SRC:-}" CORVID_JOBS="${CORVID_JOBS:-}" CORVID_ALLOW_BUILD="${CORVID_ALLOW_BUILD:-}" \
+    SCCACHE_DIR="${SCCACHE_DIR:-$HOME/sccache}" SCCACHE_CACHE_SIZE="${SCCACHE_CACHE_SIZE:-50G}" \
+    bash "${BASH_SOURCE[1]}" "$@"
+fi
+
 # Always derived from this file's location (never inherited from the environment), so a
 # copy of scripts/ operates on its own sibling patches/, branding/ and docs/.
 CORVID_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
