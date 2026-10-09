@@ -1,0 +1,22 @@
+# Single rename point. Everything user-visible and every identifier derives from this file.
+name = "Corvid"
+short_name = "Corvid"
+vendor = "Corvid Project"
+version = "0.0.1"
+
+[ids]
+linux_desktop_id = "org.corvid.Corvid"
+windows_app_id = "Corvid.Browser"
+android_package = "org.corvid.browser"
+mac_bundle_id = "org.corvid.Corvid"
+url_scheme = "corvid"
+
+[user_agent]
+product_token = "Corvid"
+
+[icons]
+source_svg = "branding/icons/corvid.svg"
+
+[urls]
+homepage = ""
+update_server = ""
