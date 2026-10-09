@@ -1,6 +1,6 @@
 # Phase 1 (Linux MVP) report, 2026-10-09
 
-Scope of this pass: everything achievable **without a Chromium checkout** (the sandbox cannot fetch or build Chromium). Phase 1 is **not complete**: no acceptance test that needs a built browser has run. Nothing below claims otherwise.
+Updated 2026-10-09 (second Phase 1 pass: C++ overlay targets, CI, ci-report; see section 8). Scope of the first pass: everything achievable **without a Chromium checkout** (the sandbox cannot fetch or build Chromium). Phase 1 is **not complete**: no acceptance test that needs a built browser has run. Nothing below claims otherwise.
 
 Legend: **PASS** = ran here, real output. **FAIL** = ran and failed. **UNVERIFIED** = written, not compiled/run (needs Chromium build). **SKIP** = script exists, exits 77 without its prerequisites (a skip is never a pass). **OPEN** = blocked on a user decision.
 
@@ -83,3 +83,36 @@ All C++/GN/Mojo under `src-overlay/corvid/`, all `patches/**` (intent only, no h
 5. Widevine/DRM video: it needs a Google-hosted CDM download, which conflicts with zero Google calls. Currently off.
 6. Keep the DevTools frontend reachable? (It is stock UI.)
 7. Should the browser-side C++ (WebUI controllers, Mojo handlers, window patch) be done next, in a session that has a Chromium checkout?
+
+## 8. Second pass: C++ overlay targets, CI, report script (2026-10-09)
+
+Still **no Chromium build was possible** here (no access to chromium.googlesource.com). Nothing in `src-overlay/corvid/**` has been compiled against Chromium, gn-evaluated, or run as gtest. UNVERIFIED unless stated.
+
+| Item | Status |
+|---|---|
+| GN root `src-overlay/corvid/BUILD.gn`: `//corvid:base_compat` (was referenced but missing) and `test("corvid_phase1_unittests")` aggregating every directory's `unit_tests` | UNVERIFIED |
+| Small independent targets: `chrome_shell:{layout_json,layout_storage}`, `modules:{module_permissions,module_manifest,module_host_service}`, `extensions:extensions`, `theme:{appearance_snapshot,config_file_reader,linux_appearance_source,native_theme_appearance_observer}`, `webui:{stock_page_policy,stock_page_rewriter}` (rewriter split from policy so policy tests do not pull in `//content`) | UNVERIFIED |
+| Stock-page policy tests (`webui/*_unittest.cc`): scheme registration fix (bare test suite has no `chrome://`, so `host()` would be empty), whole generated table re-included and checked row by row for all three governed schemes, deny-by-default, control surfaces never redirected | UNVERIFIED (table/docs/json consistency itself is PASS via `gen-stock-pages.mjs --check` and the TS test) |
+| Module host + permissions + manifest: existing gtests reviewed, missing `<optional>/<utility>` includes added. `module_permissions` tests also run on stand-ins (below) | permissions logic PASS on stand-ins; rest UNVERIFIED |
+| Layout persistence (`LayoutStorage`, `IsPlausibleLayoutLibrary`, atomic write, corrupt backup rotation) | UNVERIFIED (reviewed, no change needed) |
+| Appearance transport: new `LinuxAppearanceSource` (implements the mojom contract's logic: portal values from a NativeTheme snapshot, exact-match config allow-list, bad-message on anything else, no D-Bus, no subprocess) + tests; `NativeThemeAppearanceObserver` tests (assume `ui::TestNativeTheme` setters). Duplicate `IsAllowedAppearanceConfigFile` definition (header vs `.cc`, an ODR/redefinition error) removed. `appearance_snapshot`, `config_file_reader`, `linux_appearance_source` logic PASS on stand-ins | observer + real-Chromium compile UNVERIFIED. Not written: Mojo `Receiver` adapter and `FilePathWatcher` (need the WebUI controller). Whether the accent arrives at all depends on upstream's portal accent feature flag in the pinned tree |
+| NTP override resolution C++ (`ResolveNewTab`): 5 more tests (picker not eligible, incognito, force-default, corvid pick, tie) matching `resolveNewTab` in TS | logic PASS on stand-ins; real compile UNVERIFIED |
+| `scripts/overlay-selfcheck.sh` + `tests/overlay-standins/` | **PASS**: 23 tests, 0 failed, `-Wall -Wextra -Werror` C++20. Uses tiny stand-in headers, so it proves logic only; failure detection checked once by mutating `ntp_override.cc` (test went red) |
+| `.github/workflows/overlay-tests.yml` + `scripts/overlay-tests.sh` | UNVERIFIED, never run. Hosted `portable` job on push/dispatch; `overlay` job on `[self-hosted, corvid-builder]`, skipped cleanly unless repo variable `CORVID_BUILDER_ENABLED=true`, never on `pull_request`; script exits 77 (reported as a notice, not a pass) when there is no checkout or gn. Applies patches+overlay, `gn gen out/CorvidOverlay`, builds each target alone, `gn check //corvid/*`, runs `corvid_phase1_unittests`, writes `reports/overlay/summary.md` |
+| `scripts/ci-report.sh` | PASS (runs here). One markdown report: portable checks + overlay results (or "NOT RUN") |
+| Address bar top/bottom (`addressbar.position`) | Verified, no gap found: manifest setting (`top`/`bottom` only), `setAddressBarPosition`/`addressBarPosition`, drag-and-drop to the bottom bar, guard rails (no hide/remove/left/right/floating), all presets, persistence, reset: **PASS** in `ui/layout/layout.test.ts`. Android wiring Phase 5 needs is in `docs/notes/addressbar-position.md` |
+| uBO pin | `scripts/pin-ubo.sh` exists; `--verify` re-run here: **PASS** (downloads release asset, MV2 manifest check, sha256 matches 1.75.0). GitHub API still returns 403 through the proxy, so "1.75.0 is the latest" is **unconfirmed**; the check also used the same network as the original pin, so it is not an independent comparison |
+
+### Checks re-run in this pass (`npm run check` pieces)
+
+| Check | Result |
+|---|---|
+| `npm test` | PASS: 134 tests, 0 fail |
+| module manifests | PASS: 12 manifests |
+| licenses | PASS but vacuous in this worktree (`licenses: 0 packages`: `node_modules` lives in a parent dir; CI uses `npm ci`) |
+| `tsc --noEmit` | **FAIL**, all in Phase 2/4 files owned by another agent (`ui/diagnostics/**`, `ui/pages/{diagnostics,sync}`, `src-overlay/corvid/passkeys/**`) plus `ui/devtools/test/devtools.test.ts(66)`; none in Phase 1 files |
+| `lint` | **FAIL**: 87 errors, all `missing key` i18n errors for Phase 4 sync/diagnostics pages; 12 warnings (unused keys) |
+
+### First CI compile run: expect failures
+
+Expected weak points: `base::DictValue/ListValue` aliases (`base_compat.h`), `url::AddStandardScheme` in test fixtures, `ui::TestNativeTheme` setter names, `//ui/native_theme:test_support` label, `BrowserURLHandler::AddHandlerPair` signature, GN target names in `scripts/overlay-tests.sh`, and whether `//corvid` is allowed to be a top-level GN dir without a `BUILDCONFIG`/`gn check` visibility tweak. Fix, re-run, and only then remove UNVERIFIED headers.

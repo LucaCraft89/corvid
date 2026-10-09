@@ -1,11 +1,17 @@
-# src-overlay/corvid/theme (UNVERIFIED, partial)
+# src-overlay/corvid/theme (UNVERIFIED, not compiled)
 
-Written: `linux_appearance.mojom` (transport contract) and `config_file_allowlist.h`.
+Targets (all in `BUILD.gn`, each small and independent):
 
-NOT written: the browser-side `LinuxAppearanceSource` implementation. Per `skills/platform-color-provider`, Chromium
-already has GTK/portal integration under `ui/gtk`, `ui/linux` and `ui/base/` (dark mode manager, accent handling). Before
-adding D-Bus code, read what those expose in the pinned tree and prefer extending them: the implementation should
-forward `org.freedesktop.appearance` values (`color-scheme`, `contrast`, `accent-color`) and `SettingChanged` signals
-over this Mojo interface, serve only the allow-listed config files (with a size cap), and watch them with
-`base::FilePathWatcher`. All parsing and precedence logic is in TypeScript (`theme/providers/linux/`), unit tested
-against fixtures.
+- `appearance_snapshot`: NativeTheme values -> portal numbering (note the dark/light swap). Pure.
+- `config_file_reader`: exact-match allow-list + size cap for gtk/kdeglobals files. Single definition of the allow-list.
+- `linux_appearance_source`: the logic behind `linux_appearance.mojom` (portal values from a snapshot, allow-listed
+  files, bad-message on anything else). No Mojo types, no D-Bus, no subprocess.
+- `native_theme_appearance_observer`: watches `ui::NativeTheme` and emits a snapshot only when it changed.
+- `unit_tests`: gtest sources for all of the above.
+
+D-Bus is intentionally not re-implemented: upstream `ui/linux/portal_settings_linux.cc` already reads
+`org.freedesktop.appearance` and feeds NativeTheme; we observe NativeTheme. The accent comes through only if upstream
+enables the portal accent path (`features::kUsePortalAccentColor` in the version we read); verify on the pinned tree.
+Still to write (needs the WebUI controller): the `mojom::LinuxAppearanceSource` adapter that owns the Receiver, binds
+`bad_message` to `mojo::ReportBadMessage`, and a `base::FilePathWatcher` on the allow-listed files that calls
+`OnConfigFilesChanged`. All parsing/precedence stays in TypeScript (`theme/providers/linux/`).

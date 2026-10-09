@@ -3,6 +3,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <optional>
+#include <utility>
 
 #include "base/strings/string_util.h"
 

@@ -1,0 +1,23 @@
+# UNVERIFIED: not evaluated by gn until the first CI run (see .github/workflows/overlay-tests.yml).
+# Root of the overlay GN tree. apply-patches.sh copies src-overlay/ into the Chromium checkout, so this file becomes
+# //corvid/BUILD.gn. Nothing in //chrome depends on these targets yet (the patches that do so are intent-only), so
+# `autoninja -C out/<dir> corvid:corvid_phase1_unittests` builds only the overlay and its direct dependencies.
+import("//testing/test.gni")
+
+source_set("base_compat") {
+  sources = [ "base_compat.h" ]
+  public_deps = [ "//base" ]
+}
+
+# One gtest binary for every Phase 1 overlay unit test. Each directory keeps its own small `unit_tests` source_set;
+# run a subset with --gtest_filter.
+test("corvid_phase1_unittests") {
+  deps = [
+    "//base/test:run_all_unittests",
+    "//corvid/chrome_shell:unit_tests",
+    "//corvid/extensions:unit_tests",
+    "//corvid/modules:unit_tests",
+    "//corvid/theme:unit_tests",
+    "//corvid/webui:unit_tests",
+  ]
+}

@@ -1,5 +1,6 @@
-# UNVERIFIED: not evaluated by gn. Targets are added to the build by patches/ui/0200-*.patch.
-source_set("webui") {
+# UNVERIFIED: not evaluated by gn until the first CI run.
+# Pure policy (host table -> decision -> rewritten URL): depends only on //base and //url.
+source_set("stock_page_policy") {
   sources = [
     "stock_page_policy.cc",
     "stock_page_policy.h",
@@ -11,11 +12,28 @@ source_set("webui") {
   ]
 }
 
+# BrowserURLHandler glue. Separate so the policy and its tests do not pull in //content.
+source_set("stock_page_rewriter") {
+  sources = [
+    "stock_page_rewriter.cc",
+    "stock_page_rewriter.h",
+  ]
+  deps = [
+    ":stock_page_policy",
+    "//content/public/browser",
+    "//url",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
-  sources = [ "stock_page_policy_unittest.cc" ]
+  sources = [
+    "stock_page_policy_unittest.cc",
+    "stock_page_rewriter_unittest.cc",
+  ]
   deps = [
-    ":webui",
+    ":stock_page_policy",
+    ":stock_page_rewriter",
     "//base",
     "//testing/gtest",
     "//url",
