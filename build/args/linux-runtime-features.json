@@ -1,0 +1,26 @@
+{
+  "_comment": "Default-on runtime features/switches for Linux hardware acceleration and WebRTC privacy. UNVERIFIED: feature names are candidates from memory of media/base/media_switches.cc and gpu/config/gpu_finch_features.cc; grep the pinned tree and prune names that do not exist. Consumed by src-overlay/corvid/app/default_features (to be written once the startup hook location is known) and mirrored in docs/specs notes.",
+  "enableFeatures": [
+    "AcceleratedVideoDecodeLinux",
+    "AcceleratedVideoDecodeLinuxGL",
+    "AcceleratedVideoEncoder",
+    "VaapiIgnoreDriverChecks",
+    "CanvasOopRasterization",
+    "Vulkan",
+    "DefaultANGLEVulkan",
+    "VulkanFromANGLE",
+    "WebGPUService",
+    "WebRtcHideLocalIpsWithMdns"
+  ],
+  "disableFeatures": [],
+  "switches": {
+    "ozone-platform-hint": "auto",
+    "enable-gpu-rasterization": null,
+    "enable-zero-copy": null
+  },
+  "notes": [
+    "VaapiIgnoreDriverChecks is only needed for AMD/NVIDIA VA-API drivers; verify per vendor before leaving it on by default.",
+    "WebGPU on Linux may still require --enable-unsafe-webgpu on the pinned Chromium; check at pin time.",
+    "GPU blocklist stays at upstream defaults; a user-facing 'ignore GPU blocklist' setting is a later option."
+  ]
+}

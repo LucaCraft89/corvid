@@ -8,6 +8,7 @@ import { ModuleHost, type HostBackend, type KeyValueStore, type CodeLoader, type
 import { LayoutStore } from '../layout/store.ts';
 import { LayoutPersistence, layoutNameForWidth, type LayoutStorage } from '../layout/persistence.ts';
 import { presetCopy } from '../layout/defaults.ts';
+import { moveSlot, resizeSlot, setTabPosition, setVisible } from '../layout/ops.ts';
 import type { CvLayoutHost } from '../layout/layout-host.ts';
 import { setBridge, type ChromeBridge } from './bridge.ts';
 
@@ -23,6 +24,8 @@ export interface ShellServices {
   loadCode: CodeLoader;
   prompter: Prompter;
   openSettings(path: string): void;
+  /** True only when the browser was started with --corvid-test-hooks (acceptance tests). */
+  testHooks?: boolean;
 }
 
 export const SHORTCUTS = { edit: { ctrl: true, shift: true, alt: false, key: 'L' }, reset: { ctrl: true, shift: true, alt: true, key: 'L' } } as const;
@@ -69,6 +72,27 @@ export async function startShell(root: HTMLElement, svc: ShellServices): Promise
     if (target !== persistence.active) store.switchTo(persistence.switchActive(target));
   };
   addEventListener('resize', mq);
+
+  if (svc.testHooks) {
+    // Contract used by tests/acceptance/phase-1/*.mjs. Never present in normal runs.
+    (globalThis as Record<string, unknown>)['__corvidTest'] = {
+      layout: () => JSON.parse(JSON.stringify(store.layout)),
+      tabsTo: (pos: 'top' | 'left' | 'right' | 'bottom') => store.apply((l, c) => setTabPosition(l, c, pos)),
+      move: (id: string, region: 'top' | 'bottom' | 'left' | 'right' | 'floating', index: number) => store.apply((l, c) => moveSlot(l, c, id, region, index)),
+      setVisible: (id: string, v: boolean) => store.apply((l, c) => setVisible(l, c, id, v)),
+      resize: (id: string, rem: number) => store.apply((l, c) => resizeSlot(l, c, id, { unit: 'rem', value: rem })),
+      reset: () => store.reset(),
+      flush: () => persistence.flush(),
+      tokens: () => ({ ...theme.tokens }),
+      resolvedTheme: () => ({ ...theme.resolved }),
+      setThemePrefs: (p: Record<string, unknown>) => theme.setPrefs(p),
+      loadedModules: () => host.loadedManifests().map((m) => m.id),
+      installUiMod: async (manifest: unknown) => { host.install(manifest); await host.load((manifest as { id: string }).id); },
+      unloadModule: (id: string) => host.unload(id),
+      resourceCount: (id: string) => host.resourceCount(id),
+      editMode: (on: boolean) => store.setEditMode(on),
+    };
+  }
 
   return { store, host, theme };
 }

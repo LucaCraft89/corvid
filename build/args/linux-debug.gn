@@ -1,0 +1,45 @@
+# Corvid Linux debug/dev GN args (Phase 1). UNVERIFIED: not run through `gn gen`. See linux-release.gn.
+
+# --- build mode ---
+is_debug = false                # dev builds: non-debug component build is the fast-iteration baseline
+is_official_build = false
+is_component_build = true
+use_sysroot = true
+chrome_pgo_phase = 0
+symbol_level = 1
+
+# --- de-Google (identical to linux-release.gn) ---
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+use_official_google_api_keys = false
+safe_browsing_mode = 0
+enable_hangout_services_extension = false
+enable_nacl = false
+enable_remoting_host = false
+enable_media_router = false
+enable_service_discovery = false
+enable_widevine = false
+disable_fieldtrial_testing_config = true
+
+# --- codecs (identical to linux-release.gn; CR-3 user decision: enable all, legal check before public release) ---
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+rtc_use_h264 = true
+enable_platform_hevc = true
+enable_platform_encrypted_hevc = true
+enable_platform_ac3_eac3_audio = true
+enable_platform_dolby_vision = true
+enable_platform_mpeg_h_audio = true
+enable_platform_ac4_audio = true
+
+# --- hardware acceleration (identical to linux-release.gn) ---
+use_vaapi = true
+use_ozone = true
+ozone_platform_x11 = true
+ozone_platform_wayland = true
+ozone_platform = "x11"
+use_gtk = true
+use_v4l2_codec = false
+angle_enable_vulkan = true
+use_vulkan = true

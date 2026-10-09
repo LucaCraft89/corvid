@@ -1,0 +1,33 @@
+# Preinstalled extensions (task 1.10, skill: preinstall-extension).
+# Consumed by scripts/ (phase-1 build step, TODO) which emits the JSON read by
+# src-overlay/corvid/extensions/preinstalled_extensions.cc.
+#
+# PINNING STATUS: NOT PINNED. The sandbox that produced this file could not download release assets
+# or compute checksums (GitHub API/asset hosts returned 403 through the agent proxy). A page fetch of
+# https://github.com/gorhill/uBlock/releases reported "1.75.0" as the latest release with a
+# "uBlock0_1.75.0.chromium.crx" asset, but that came through a summarizing fetch with no checksum and
+# is NOT a verified pin. Fill the TODO fields from the real release, verifying the sha256 yourself.
+
+[policy]
+# CR-1 (uBlock Origin is GPL-3.0; bundling unmodified as a separate extension) is OPEN.
+# Until the user decides, release builds must not bundle it. Dev/test builds may.
+release_bundling_allowed = false
+cr_reference = "CR-1"
+# Extension updates never use Google endpoints. Source is user-configurable in corvid://extensions.
+default_update_source = "none"          # none | github-releases | custom (CR-2 is open)
+first_run_network_fetches = false       # uBO ships its bundled filter lists; list updates need opt-in
+
+[[extension]]
+name = "uBlock Origin"
+slug = "ublock-origin"
+manifest_version = 2                     # full (MV2, blocking webRequest) build, not uBO Lite
+license = "GPL-3.0-only"
+upstream = "https://github.com/gorhill/uBlock"
+version = "TODO"                         # e.g. the 1.75.0 seen on the releases page; verify
+asset = "TODO"                           # e.g. uBlock0_<version>.chromium.zip or .crx from the GitHub release
+sha256 = "TODO"                          # compute from the downloaded asset; commit only if verified
+extension_id = "TODO"                    # id derived from the signing key of the pinned CRX/zip build
+enabled_by_default = true
+user_removable = true                    # removal must persist across updates
+allowed_in_incognito = "ask-at-first-run"  # default: on for normal windows
+modify_source = false                    # never patch uBO inside the Corvid tree

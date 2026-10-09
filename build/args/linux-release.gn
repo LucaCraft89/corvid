@@ -1,0 +1,47 @@
+# Corvid Linux release GN args (Phase 1). UNVERIFIED: not run through `gn gen` (no Chromium checkout).
+# Arg names are from knowledge of recent Chromium; run `gn args --list` on the pinned tree and fix any
+# that no longer exist. The shared block is duplicated in linux-debug.gn (GN has no include).
+
+# --- build mode ---
+is_debug = false
+is_official_build = true        # check build time/memory first; use a component build for iteration
+is_component_build = false
+use_sysroot = true
+chrome_pgo_phase = 0            # no PGO profile download during build
+symbol_level = 0
+
+# --- de-Google (task 1.1, see docs/degoogle.md) ---
+google_api_key = ""
+google_default_client_id = ""
+google_default_client_secret = ""
+use_official_google_api_keys = false
+safe_browsing_mode = 0
+enable_hangout_services_extension = false
+enable_nacl = false
+enable_remoting_host = false
+enable_media_router = false     # Cast / Google-hosted component fetches
+enable_service_discovery = false
+enable_widevine = false         # Widevine CDM is fetched from Google by the component updater. OPEN QUESTION: DRM video (Netflix etc.)
+disable_fieldtrial_testing_config = true
+
+# --- codecs: user decision 2026-10-09 "enable all"; legal check required before public release (CR-3) ---
+proprietary_codecs = true
+ffmpeg_branding = "Chrome"
+rtc_use_h264 = true             # WebRTC H.264
+enable_platform_hevc = true     # HEVC (name may differ: also check enable_hevc_parser_and_hw_decoder)
+enable_platform_encrypted_hevc = true
+enable_platform_ac3_eac3_audio = true
+enable_platform_dolby_vision = true
+enable_platform_mpeg_h_audio = true
+enable_platform_ac4_audio = true
+
+# --- hardware acceleration (user decision 2026-10-09) ---
+use_vaapi = true                # VA-API video decode/encode
+use_ozone = true
+ozone_platform_x11 = true
+ozone_platform_wayland = true
+ozone_platform = "x11"          # default platform; runtime --ozone-platform-hint=auto selects Wayland when available
+use_gtk = true
+use_v4l2_codec = false          # ARM SoCs only
+angle_enable_vulkan = true
+use_vulkan = true               # Vulkan for GPU raster / WebGPU; GL remains the fallback

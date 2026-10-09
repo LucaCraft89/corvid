@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Corvid new tab override b",
+  "version": "1.0",
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  }
+}

@@ -5,7 +5,7 @@
   "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
-    "test": "node --import ./ui/tools/register.mjs --test \"ui/**/*.test.ts\" \"theme/**/*.test.ts\" \"modules/**/*.test.ts\" \"tests/**/*.test.ts\"",
+    "test": "node --import ./ui/tools/register.mjs --test \"ui/**/*.test.ts\" \"theme/**/*.test.ts\" \"modules/**/*.test.ts\" \"tests/**/*.test.ts\" \"tests/**/*.test.mjs\"",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "node ui/tools/lint.mjs",
     "validate:manifests": "node --import ./ui/tools/register.mjs ui/tools/validate-manifests.ts",
