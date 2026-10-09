@@ -76,7 +76,7 @@ fetch_full() {
   src_git fetch -q origin "refs/tags/$TAG:refs/tags/$TAG"
   src_git checkout -q -f --detach "$TAG"
   log "gclient sync at $TAG"
-  (cd "$parent" && gclient sync -D --with_branch_heads --with_tags -r "src@$TAG")
+  (cd "$parent" && gclient sync -j "${CORVID_FETCH_JOBS:-4}" -D --with_branch_heads --with_tags -r "src@$TAG")
 }
 
 log "fetch: version=$TAG mode=$MODE src=$CORVID_SRC"
