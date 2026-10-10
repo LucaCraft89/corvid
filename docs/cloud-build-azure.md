@@ -148,6 +148,29 @@ Check the paths: `nightly-build.yml` expects the checkout, depot_tools and sccac
 - **Optional: a Remote Control session on the VM.** Install Claude Code on the VM and sign in with your account; this project can then start a session in `/srv/corvid/corvid` that runs commands directly, like on your PC. I could not verify the exact setup commands from here, so follow the current Claude Code docs when you get there.
 - Do not give me Azure credentials or paste them in chat. I do not need them.
 
+## 9b. Remote Control on the VM (so Claude can work there directly)
+
+Status: `claude remote-control` run in the folder to work in is the documented way to make a machine appear as a device for this project (VERIFIED in the environment docs). The install command and the headless login flow below come from third-party tutorials and general knowledge (ASSUMED); if one differs on screen, follow the on-screen text or the official Claude Code docs.
+
+On the VM (inside `tmux`, so it survives SSH drops):
+```bash
+curl -fsSL https://claude.ai/install.sh | bash        # native installer, no Node needed (ASSUMED URL, from tutorials)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+claude --version
+cd /srv/corvid/corvid
+claude                                                # first run: choose login, it prints a URL
+```
+Login without a browser: open the printed URL in the browser on your PC, sign in with the Claude account you use for this project, and paste the code back into the VM terminal. Requires a plan that includes Claude Code. Do not paste the code or any token into chat.
+
+Then, still in `/srv/corvid/corvid`:
+```bash
+tmux new -s rc
+claude remote-control          # leave running, detach with Ctrl+b d
+```
+The VM should now show as a device for the folder; tell Claude in the project and it will start a Remote Control session there (you may get an approval prompt). The session only exists while the VM is running and this process is alive, so after `az vm start` you must SSH in and re-run it, or add a systemd user service (not covered here).
+
+The runner (section 8) stays as the fallback: it needs no login on the VM and works through GitHub.
+
 ## Plan B if the student quota is too small
 
 All unverified current terms; check before committing.
