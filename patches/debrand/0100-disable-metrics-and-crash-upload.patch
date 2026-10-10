@@ -1,18 +1,20 @@
-Purpose: Permanently disable UMA/UKM reporting and crash upload; crashes stay local.
+Purpose: Never give metrics/crash-report consent: UMA/UKM reporting stays off whatever the pref says (crash upload is already off in non-Google-branded builds).
 Area: debrand
-Files: chrome/browser/metrics/chrome_metrics_services_manager_client.cc; components/metrics/metrics_service_accessor.cc; chrome/browser/crash_upload_list/*; components/crash/core/app/*
-Rebase risk: medium: metrics plumbing is touched often
+Files: chrome/browser/metrics/chrome_metrics_service_accessor.cc
+Rebase risk: low because it is a one-line change in a stable accessor
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
 
-Change:
-- MetricsServicesManagerClient::IsMetricsReportingEnabled() returns false unconditionally; consent UI never shown.
-- UKM/URL-keyed data collection: IsUkmAllowed-style gates return false.
-- Crash reporter: do not start the upload thread / set no upload URL; keep local minidump writing for corvid://crash and Phase 2 diagnostics-event.
-- Candidate locations are from memory; locate with `rg -n "IsMetricsReportingEnabled|kMetricsReportingEnabled|crash_upload"`.
-
-Verify:
-- Idle capture shows no connections to any metrics/crash host.
-- Forced renderer crash leaves a local report and sends nothing.
+diff --git a/chrome/browser/metrics/chrome_metrics_service_accessor.cc b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
+index 0a3af24345c0..6f6ce1087427 100644
+--- a/chrome/browser/metrics/chrome_metrics_service_accessor.cc
++++ b/chrome/browser/metrics/chrome_metrics_service_accessor.cc
+@@ -52,7 +52,8 @@ bool ChromeMetricsServiceAccessor::IsMetricsAndCrashReportingEnabled(
+     return false;
+   }
+ 
+-  return IsMetricsReportingEnabled(local_state);
++  // Zero telemetry: metrics/crash consent is never given, whatever the pref says.
++  return false;
+ }
+ 
+ // static

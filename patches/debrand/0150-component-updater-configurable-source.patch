@@ -1,15 +1,21 @@
-Purpose: Component updater uses a configurable source (default: none) instead of Google's update server.
+Purpose: Component updater has no default update server; it only updates from --component-updater=url-source=<url>. Components shipped in the build keep working, they just do not update.
 Area: debrand
-Files: components/component_updater/component_updater_url_constants.cc; components/update_client/*
-Rebase risk: medium
+Files: components/component_updater/configurator_impl.cc
+Rebase risk: low because only the default URL list changes
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
 
-Change:
-- Default update URL list empty; settings (corvid://settings, extensions page) list sources per component, each off until enabled.
-- CRLSets, origin trials, etc. are individually re-enabled only with the user's approval.
-
-Verify:
-- Idle capture: no update.googleapis.com / clients2.google.com.
+diff --git a/components/component_updater/configurator_impl.cc b/components/component_updater/configurator_impl.cc
+index 2ff9716b246f..e35df7c8ea6e 100644
+--- a/components/component_updater/configurator_impl.cc
++++ b/components/component_updater/configurator_impl.cc
+@@ -80,8 +80,8 @@ std::vector<GURL> ConfiguratorImpl::UpdateUrl() const {
+     return {GURL(url_source_override_)};
+   }
+ 
+-  std::vector<GURL> urls{GURL(kUpdaterJSONDefaultUrl),
+-                         GURL(kUpdaterJSONFallbackUrl)};
++  // No default update source: components only update from --component-updater=url-source=<url>.
++  std::vector<GURL> urls;
+   if (require_encryption_) {
+     update_client::RemoveUnsecureUrls(&urls);
+   }

@@ -15,7 +15,15 @@ The machine-readable block below is parsed by `tests/acceptance/phase-1/lib/allo
 Google hostnames that may appear in the built binary/resources (for example a search-provider entry the user can select). Parsed by `01b-binary-host-grep.sh`.
 
 ```binary-allowlist
-# (none yet)
+# Everything else is rewritten to <host>.invalid at build time by scripts/domain-substitute.py (unresolvable, fails closed).
+# Google web search as a user-selectable search provider (never contacted unless the user picks it and searches).
+www.google.com
+google.com
+# Chrome Web Store as a user-selectable extension source (install/update only on user action; docs/extension-sources.md).
+chromewebstore.google.com
+chrome.google.com
+clients2.google.com
+clients2.googleusercontent.com
 ```
 
 ## User-initiated exceptions

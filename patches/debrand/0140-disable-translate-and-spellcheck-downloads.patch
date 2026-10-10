@@ -1,15 +1,35 @@
-Purpose: Disable Translate service and spellcheck dictionary downloads.
+Purpose: No spellcheck dictionary download source (bundled or local dictionaries only). Translate needs no change: it only contacts Google when the user clicks Translate.
 Area: debrand
-Files: components/translate/core/browser/translate_url_util.cc; chrome/browser/spellchecker/*; components/spellcheck/browser/spellcheck_hunspell_dictionary.cc
-Rebase risk: low
+Files: chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+Rebase risk: low because the download URL is a local function
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
 
-Change:
-- Translate script/language list URLs empty; feature off by default.
-- Dictionary download URL empty; bundled dictionaries only (optional local installs).
-
-Verify:
-- No translate.googleapis.com / redirector requests.
+diff --git a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+index f2a10504550e..b238e9f755e0 100644
+--- a/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
++++ b/chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc
+@@ -274,18 +274,16 @@ GURL SpellcheckHunspellDictionary::GetDictionaryURL() {
+     return GetDownloadUrlForTesting();
+   }
+ 
+-  std::string bdict_file = dictionary_file_.path.BaseName().MaybeAsASCII();
+-  DCHECK(!bdict_file.empty());
+-
+-  static const char kDownloadServerUrl[] =
+-      "https://redirector.gvt1.com/edgedl/chrome/dict/";
+-
+-  return GURL(std::string(kDownloadServerUrl) +
+-              base::ToLowerASCII(bdict_file));
++  // No dictionary download source (bundled or locally installed dictionaries only).
++  return GURL();
+ }
+ 
+ void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
++  if (url.is_empty()) {
++    InformListenersOfDownloadFailure();
++    return;
++  }
+   DCHECK(browser_context_);
+ 
+   download_status_ = DOWNLOAD_IN_PROGRESS;

@@ -80,6 +80,10 @@ if [ "$DO_BRANDING" = 1 ]; then
     --config "${CORVID_BRANDING_CONFIG:-$CORVID_ROOT/branding/config.toml}" --tree "$CORVID_SRC"
 fi
 
+if [ "${CORVID_NO_DOMAIN_SUBSTITUTION:-0}" != 1 ]; then
+  python3 -I "$CORVID_ROOT/scripts/domain-substitute.py" --tree "$CORVID_SRC" --allowlist "$CORVID_ROOT/docs/network-allowlist.md"
+fi
+
 stray="$(stray_reject_files)"
 if [ -n "$stray" ]; then
   printf '%s\n' "$stray" >&2

@@ -66,6 +66,9 @@ Origin: TODO"
       die "commit '$subj' touches overlay/branding-rendered file '$touched'; stage only your own files"
     fi
   done < <(src_git diff --name-only "$c^" "$c")
+  if src_git diff "$c^" "$c" | grep -Eq '^\+.*\b(google|googleapis|gstatic|googleusercontent|gvt1|gvt2|googlesyndication|google-analytics|withgoogle|youtube|ytimg|withyoutube|doubleclick)\.(invalid)\b'; then
+    die "commit '$subj' contains domain-substituted '.invalid' hosts: run scripts/domain-substitute.py --revert before editing, then re-apply"
+  fi
   mkdir -p "$(dirname "$out")"
   tmp="$(mktemp)"
   { printf '%s\n' "$header" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'; printf '\n'; } >"$tmp"

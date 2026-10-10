@@ -1,0 +1,39 @@
+Purpose: Do not load system-wide or per-user external extension directories on Linux (/usr/share/chromium/extensions/*.json auto-installs from, and updates against, the Chrome Web Store without user action; seen on the dev host with the GNOME Shell integration). Extensions come from the preinstalled provider (0320) or the user.
+Area: debrand
+Files: chrome/browser/extensions/external_provider_impl.cc
+Rebase risk: medium because it removes a block inside CreateExternalProviders, which is edited regularly
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/chrome/browser/extensions/external_provider_impl.cc b/chrome/browser/extensions/external_provider_impl.cc
+index 1cf32e1b816a..bee47cfc1551 100644
+--- a/chrome/browser/extensions/external_provider_impl.cc
++++ b/chrome/browser/extensions/external_provider_impl.cc
+@@ -874,16 +874,6 @@ void ExternalProviderImpl::CreateExternalProviders(
+ 
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+   if (!profile->GetPrefs()->GetBoolean(pref_names::kBlockExternalExtensions)) {
+-#if BUILDFLAG(IS_LINUX)
+-    provider_list->push_back(std::make_unique<ExternalProviderImpl>(
+-        service,
+-        base::MakeRefCounted<ExternalPrefLoader>(
+-            chrome::DIR_STANDALONE_EXTERNAL_EXTENSIONS,
+-            ExternalPrefLoader::USE_USER_TYPE_PROFILE_FILTER, profile),
+-        profile, ManifestLocation::kExternalPref,
+-        ManifestLocation::kExternalPrefDownload,
+-        bundled_extension_creation_flags));
+-#endif
+ #if BUILDFLAG(IS_WIN)
+     auto registry_provider = std::make_unique<ExternalProviderImpl>(
+         service, new ExternalRegistryLoader, profile,
+@@ -891,6 +881,11 @@ void ExternalProviderImpl::CreateExternalProviders(
+         ManifestLocation::kExternalPrefDownload, Extension::NO_FLAGS);
+     registry_provider->set_allow_updates(true);
+     provider_list->push_back(std::move(registry_provider));
++#elif BUILDFLAG(IS_LINUX)
++    // No system-wide or per-user external extension directories: they auto-install from, and update against, the
++    // Chrome Web Store without any user action. Extensions come from the preinstalled provider or the user.
++    static_cast<void>(check_admin_permissions_on_mac);
++    static_cast<void>(bundled_extension_creation_flags);
+ #else
+     provider_list->push_back(std::make_unique<ExternalProviderImpl>(
+         service,

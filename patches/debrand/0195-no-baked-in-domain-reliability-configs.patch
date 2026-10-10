@@ -1,0 +1,49 @@
+Purpose: Ship no baked-in Domain Reliability collector configs (they name ~20 Google hosts and would upload network-error reports to them); the monitor has nothing to report to.
+Area: debrand
+Files: components/domain_reliability/BUILD.gn
+Rebase risk: low because the file list is replaced by an empty list
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/components/domain_reliability/BUILD.gn b/components/domain_reliability/BUILD.gn
+index 7a2f8ba36498..cb16613c3b6c 100644
+--- a/components/domain_reliability/BUILD.gn
++++ b/components/domain_reliability/BUILD.gn
+@@ -6,35 +6,15 @@ action("bake_in_configs") {
+   visibility = [ ":*" ]
+   script = "bake_in_configs.py"
+ 
+-  inputs = [
+-    "baked_in_configs/c_android_clients_google_com.json",
+-    "baked_in_configs/c_bigcache_googleapis_com.json",
+-    "baked_in_configs/c_doc-0-0-sj_sj_googleusercontent_com.json",
+-    "baked_in_configs/c_docs_google_com.json",
+-    "baked_in_configs/c_drive_google_com.json",
+-    "baked_in_configs/c_googlesyndication_com.json",
+-    "baked_in_configs/c_pack_google_com.json",
+-    "baked_in_configs/c_play_google_com.json",
+-    "baked_in_configs/c_youtube_com.json",
+-    "baked_in_configs/clients2_google_com.json",
+-    "baked_in_configs/docs_google_com.json",
+-    "baked_in_configs/gcp_gvt2_com.json",
+-    "baked_in_configs/gcp_gvt6_com.json",
+-    "baked_in_configs/google-analytics_com.json",
+-    "baked_in_configs/googlevideo_com.json",
+-    "baked_in_configs/gvt1_com.json",
+-    "baked_in_configs/gvt2_com.json",
+-    "baked_in_configs/gvt6_com.json",
+-    "baked_in_configs/ssl_gstatic_com.json",
+-    "baked_in_configs/www_google_com.json",
+-  ]
++  # No baked-in Google collector configs (they name Google hosts and enable Domain Reliability uploads).
++  inputs = []
+ 
+   output_file = "$target_gen_dir/baked_in_configs.cc"
+   outputs = [ output_file ]
+ 
+   # The JSON file list is too long for the command line on Windows, so put
+   # them in a response file.
+-  response_file_contents = rebase_path(inputs, root_build_dir)
++  response_file_contents = [ "" ]  # no inputs: GN rejects an empty list here
+   args = [
+     "--file-list",
+     "{{response_file_name}}",

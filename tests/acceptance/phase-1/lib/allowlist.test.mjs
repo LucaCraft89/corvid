@@ -12,10 +12,13 @@ test('parseAllowlist reads fenced blocks and strips comments', () => {
   assert.throws(() => parseAllowlist('nothing', 'allowlist'));
 });
 
-test('real docs/network-allowlist.md parses and is initially empty', () => {
+test('real docs/network-allowlist.md: runtime allow-list empty, binary allow-list is exactly the documented intentional set', () => {
   const p = fileURLToPath(new URL('../../../../docs/network-allowlist.md', import.meta.url));
   assert.deepEqual(loadAllowlist(p), []);
-  assert.deepEqual(loadAllowlist(p, 'binary-allowlist'), []);
+  // Changing this set needs a reason in docs/network-allowlist.md and an edit here.
+  assert.deepEqual(loadAllowlist(p, 'binary-allowlist'), [
+    'www.google.com', 'google.com', 'chromewebstore.google.com', 'chrome.google.com', 'clients2.google.com', 'clients2.googleusercontent.com',
+  ]);
   assert.match(readFileSync(p, 'utf8'), /initially empty/);
 });
 

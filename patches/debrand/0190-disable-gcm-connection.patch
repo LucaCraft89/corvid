@@ -1,0 +1,24 @@
+Purpose: GCM (Google push: android.clients.google.com checkin/register, mtalk.google.com) never starts: GCMDriverDesktop::EnsureStarted returns GCM_DISABLED.
+Area: debrand
+Files: components/gcm_driver/gcm_driver_desktop.cc
+Rebase risk: low because one early-out
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/components/gcm_driver/gcm_driver_desktop.cc b/components/gcm_driver/gcm_driver_desktop.cc
+index 16e142aed302..29e7b80450ec 100644
+--- a/components/gcm_driver/gcm_driver_desktop.cc
++++ b/components/gcm_driver/gcm_driver_desktop.cc
+@@ -1192,9 +1192,10 @@ GCMClient::Result GCMDriverDesktop::EnsureStarted(
+   if (gcm_started_)
+     return GCMClient::SUCCESS;
+ 
+-  // Have any app requested the service?
+-  if (app_handlers().empty())
+-    return GCMClient::UNKNOWN_ERROR;
++  // Have any app requested the service? GCM is Google's push service: it never starts.
++  constexpr bool kGcmConnectionAllowed = false;
++  if (app_handlers().empty() || !kGcmConnectionAllowed)
++    return GCMClient::GCM_DISABLED;
+ 
+   if (!delayed_task_controller_)
+     delayed_task_controller_ = std::make_unique<GCMDelayedTaskController>();

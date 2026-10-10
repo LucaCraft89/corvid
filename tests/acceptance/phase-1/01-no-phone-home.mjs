@@ -7,7 +7,7 @@ import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hostsFromNetLog, hostsFromStrace, loadAllowlist, violations } from './lib/allowlist.mjs';
+import { hostsFromNetLog, hostsFromStrace, loadAllowlist, parseNetLog, violations } from './lib/allowlist.mjs';
 import { skip } from './lib/cdp.mjs';
 
 const bin = process.env.CORVID_BIN;
@@ -33,7 +33,7 @@ await new Promise((r) => setTimeout(r, 1000));
 
 const hosts = [];
 if (existsSync(netlog)) {
-  try { hosts.push(...hostsFromNetLog(JSON.parse(readFileSync(netlog, 'utf8')))); } catch (e) { console.log(`warn: netlog not parseable: ${e.message}`); }
+  try { hosts.push(...hostsFromNetLog(parseNetLog(readFileSync(netlog, 'utf8')))); } catch (e) { console.log(`warn: netlog not parseable: ${e.message}`); }
 } else console.log('warn: no netlog written');
 if (existsSync(straceOut)) hosts.push(...hostsFromStrace(readFileSync(straceOut, 'utf8')));
 

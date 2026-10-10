@@ -1,17 +1,63 @@
-Purpose: Disable Google sign-in, account consistency (Mirror/Dice) and the Chrome Sync client.
+Purpose: Disable Google sign-in, Chrome Sync and every Google-account network call: signin prefs default false, IsSyncAllowedByFlag() false, ChromeSigninClient::DelayNetworkCall drops its callback (no ListAccounts/logout/token traffic).
 Area: debrand
-Files: chrome/browser/signin/*; components/signin/*; components/sync/*; chrome/browser/sync/*
-Rebase risk: high: deeply interconnected
+Files: components/signin/internal/identity_manager/primary_account_manager.cc; chrome/browser/signin/account_consistency_mode_manager.cc; components/sync/base/command_line_switches.cc; chrome/browser/signin/chrome_signin_client.cc
+Rebase risk: low because three constants and one early-out, no code deleted
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
 
-Change:
-- Prefer a policy-style default: signin.allowed=false, sync disabled; do not delete the sync code (rebase cost).
-- Corvid sync (Phase 4) is a separate self-hosted client.
-- Remove sign-in entry points from any remaining native UI.
-
-Verify:
-- No accounts.google.com / clients*.google.com connections.
-- Settings page has no sign-in section.
+diff --git a/chrome/browser/signin/account_consistency_mode_manager.cc b/chrome/browser/signin/account_consistency_mode_manager.cc
+index 7d4c893cbcd9..d3ed03dd7dfa 100644
+--- a/chrome/browser/signin/account_consistency_mode_manager.cc
++++ b/chrome/browser/signin/account_consistency_mode_manager.cc
+@@ -146,7 +146,7 @@ AccountConsistencyModeManager::~AccountConsistencyModeManager() = default;
+ // static
+ void AccountConsistencyModeManager::RegisterProfilePrefs(
+     user_prefs::PrefRegistrySyncable* registry) {
+-  registry->RegisterBooleanPref(prefs::kSigninAllowedOnNextStartup, true);
++  registry->RegisterBooleanPref(prefs::kSigninAllowedOnNextStartup, false);
+ }
+ 
+ // static
+diff --git a/chrome/browser/signin/chrome_signin_client.cc b/chrome/browser/signin/chrome_signin_client.cc
+index 9de17f69254e..c5da7c39ae88 100644
+--- a/chrome/browser/signin/chrome_signin_client.cc
++++ b/chrome/browser/signin/chrome_signin_client.cc
+@@ -428,7 +428,11 @@ bool ChromeSigninClient::AreNetworkCallsDelayed() {
+ }
+ 
+ void ChromeSigninClient::DelayNetworkCall(base::OnceClosure callback) {
+-  wait_for_network_callback_helper_->DelayNetworkCall(std::move(callback));
++  // Google account network calls (ListAccounts, logout, token calls queued behind this) never run.
++  constexpr bool kGoogleAccountNetworkCalls = false;
++  if (kGoogleAccountNetworkCalls) {
++    wait_for_network_callback_helper_->DelayNetworkCall(std::move(callback));
++  }
+ }
+ 
+ std::unique_ptr<GaiaAuthFetcher> ChromeSigninClient::CreateGaiaAuthFetcher(
+diff --git a/components/signin/internal/identity_manager/primary_account_manager.cc b/components/signin/internal/identity_manager/primary_account_manager.cc
+index cb7399be2cc6..1739d4477ef3 100644
+--- a/components/signin/internal/identity_manager/primary_account_manager.cc
++++ b/components/signin/internal/identity_manager/primary_account_manager.cc
+@@ -391,7 +391,7 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {
+       prefs::kGoogleServicesSyncingUsernameMigratedToSignedIn, std::string());
+   registry->RegisterIntegerPref(prefs::kGoogleServicesSyncingUserMigrationType,
+                                 /*SyncToSigninMigrationType::kUnknown=*/0);
+-  registry->RegisterBooleanPref(prefs::kSigninAllowed, true);
++  registry->RegisterBooleanPref(prefs::kSigninAllowed, false);
+   registry->RegisterBooleanPref(prefs::kSignedInWithCredentialProvider, false);
+   registry->RegisterBooleanPref(prefs::kExplicitBrowserSignin, false);
+   registry->RegisterBooleanPref(
+diff --git a/components/sync/base/command_line_switches.cc b/components/sync/base/command_line_switches.cc
+index 064326ef5273..2ef6dce42d20 100644
+--- a/components/sync/base/command_line_switches.cc
++++ b/components/sync/base/command_line_switches.cc
+@@ -11,7 +11,8 @@
+ namespace syncer {
+ 
+ bool IsSyncAllowedByFlag() {
+-  return !base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSync);
++  // Chrome Sync is off; Corvid has its own sync client (phase 4).
++  return false;
+ }
+ 
+ }  // namespace syncer
