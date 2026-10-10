@@ -41,6 +41,7 @@ TEST_F(BrandUrlHandlerTest, StockBlockedAndUnknownHostsGoToBlockedPage) {
     EXPECT_TRUE(HandleBrandUrl(&url, nullptr)) << in;
     EXPECT_EQ(url.host(), "corvid-blocked") << in;
     EXPECT_NE(url.query().find("url="), std::string::npos) << in;
+    EXPECT_EQ(url.query().find('.'), std::string::npos) << in;
   }
 }
 

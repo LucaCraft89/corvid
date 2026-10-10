@@ -6,6 +6,7 @@
 
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_util.h"
 #include "content/public/browser/browser_url_handler.h"
 #include "corvid/webui/corvid_resources.h"
 #include "corvid/webui/stock_page_policy.h"
@@ -35,8 +36,11 @@ bool HandleBrandUrl(GURL* url, content::BrowserContext*) {
   if (std::ranges::find(pages, host) != pages.end()) {
     *url = GURL(base::StrCat({"chrome://", kBrandHostPrefix, host, TailOf(*url)}));
   } else {
-    *url = GURL(base::StrCat({"chrome://", kBrandHostPrefix, "blocked/?url=",
-                              base::EscapeQueryParamValue(url->spec(), /*use_plus=*/false)}));
+    // Dots are escaped too: a ".top-chrome" substring anywhere in the URL makes Chromium refuse to commit the navigation
+    // (ERR_FAILED), which would show the stock error page instead of the blocked page.
+    std::string shown = base::EscapeQueryParamValue(url->spec(), /*use_plus=*/false);
+    base::ReplaceSubstringsAfterOffset(&shown, 0, ".", "%2E");
+    *url = GURL(base::StrCat({"chrome://", kBrandHostPrefix, "blocked/?url=", shown}));
   }
   return true;
 }

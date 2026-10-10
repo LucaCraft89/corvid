@@ -23,9 +23,12 @@ How it works
   Unlisted `*.top-chrome` hosts also pass the URL handler untouched so the stock shell (omnibox popup) keeps working until M5.
 
 Known limits
-- Top-chrome hosts listed in stock-pages.json (tab-strip, tab-search, side-panel, read-later, bookmarks/customize side
-  panels): the URL is rewritten to corvid://blocked but Chromium refuses to commit navigations whose original URL is a
-  top-chrome WebUI inside a tab (ERR_FAILED, stock "This site can't be reached"). No stock WebUI content is shown, but it is
-  not a Corvid page: acceptance 02 reports 6 FAIL. Revisit with the Corvid error page (G4) or M5.
+- Chromium refuses to commit any navigation whose URL contains the substring `.top-chrome` (ERR_FAILED, stock "This site can't
+  be reached"), including a query value. The blocked page therefore gets the original URL with dots percent-escaped
+  (`stock_page_policy.cc`); without that, the 6 top-chrome entries of the stock table showed the stock error page.
 - Omnibox classification of a typed `corvid://x` is not patched (not testable headless); the Corvid omnibox lands with M5.
-- Stock shell WebUIs (print preview, ...) not in the table would be blocked; only top-chrome is exempted.
+- Stock shell WebUIs not in the table (print preview, ...) would be blocked; only `*.top-chrome` and `chrome://headless`
+  (command handler for --dump-dom/--screenshot, `IsInternalToolHost`) are exempted.
+- Rename: the scheme and host prefix come from `branding/templates/corvid/webui/brand.h.in` (url_scheme); hook patches only
+  mention the overlay namespace (`corvid::`, `//corvid/`), which tests/acceptance/phase-0/rename.sh treats as the codename.
+  The TS pages still contain literal `corvid://` links (UI branding is G5).

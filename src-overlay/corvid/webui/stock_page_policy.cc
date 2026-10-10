@@ -4,6 +4,7 @@
 
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_util.h"
 #include "corvid/webui/brand.h"
 
 namespace corvid {
@@ -51,7 +52,11 @@ std::optional<GURL> RewriteStockUrl(const GURL& url) {
   std::string spec = base::StrCat({kBrandScheme, "://", host, "/"});
   if (!decision || decision->action == StockPageAction::kBlocked) {
     // Deny by default; tell the blocked page what was requested (display only).
-    base::StrAppend(&spec, {"?url=", base::EscapeQueryParamValue(url.spec(), /*use_plus=*/false)});
+    // Dots are escaped too: a ".top-chrome" substring anywhere in the URL makes Chromium refuse to commit the
+    // navigation (ERR_FAILED) and show the stock error page instead of the blocked page.
+    std::string shown = base::EscapeQueryParamValue(url.spec(), /*use_plus=*/false);
+    base::ReplaceSubstringsAfterOffset(&shown, 0, ".", "%2E");
+    base::StrAppend(&spec, {"?url=", shown});
   } else if (url.has_path() && url.path().size() > 1) {
     // Keep sub-paths for replaced pages that have sections (settings/layout#reset).
     spec = base::StrCat({kBrandScheme, "://", host, url.path(), url.has_ref() ? "#" : "", url.ref()});

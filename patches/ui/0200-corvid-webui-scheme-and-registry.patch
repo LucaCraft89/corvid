@@ -72,17 +72,17 @@ index 62b07dca0834..559dd66734ec 100644
    map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
 diff --git a/chrome/common/chrome_content_client.cc b/chrome/common/chrome_content_client.cc
-index a97283168c97..a647ae5a760c 100644
+index a97283168c97..257368ad7889 100644
 --- a/chrome/common/chrome_content_client.cc
 +++ b/chrome/common/chrome_content_client.cc
-@@ -95,6 +95,7 @@
- 
- #if BUILDFLAG(IS_ANDROID)
- #include "chrome/common/media/chrome_media_drm_bridge_client.h"
+@@ -28,6 +28,7 @@
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_constants.h"
+ #include "chrome/common/chrome_paths.h"
 +#include "corvid/webui/brand.h"
- #endif
- 
- namespace {
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/crash_keys.h"
+ #include "chrome/common/media/cdm_registration.h"
 @@ -197,6 +198,8 @@ static const char* const kChromeStandardURLSchemes[] = {
  #if BUILDFLAG(IS_ANDROID)
      content::kAndroidAppScheme,
