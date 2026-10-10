@@ -6,6 +6,29 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 setup
 
+# Guard: this test renders a throwaway brand into the (real) tree. Whatever happens, put Corvid back, and verify it,
+# so a later build can never come out named Zebrafish (that happened once in M0/M1).
+config_name() { sed -n 's/^name *= *"\(.*\)"/\1/p' "$RROOT/branding/config.toml" | head -n1; }
+branding_ok() {
+  [ "$(config_name)" = "Corvid" ] || { say "branding/config.toml name is '$(config_name)', not Corvid" >&2; return 1; }
+  grep -q "^PRODUCT_FULLNAME=Corvid\$" "$CORVID_SRC/chrome/app/theme/chromium/BRANDING" 2>/dev/null || { say "tree BRANDING is not Corvid" >&2; return 1; }
+}
+restore_branding() {
+  trap - EXIT INT TERM
+  if [ "$FIXTURE" != 1 ]; then
+    python3 -I "$RROOT/scripts/render-branding.py" --tree "$CORVID_SRC" >/dev/null 2>&1 || say "WARN: branding restore failed" >&2
+    branding_ok || { say "FAIL: tree left renamed after rename test" >&2; cleanup; exit 1; }
+  fi
+  cleanup
+}
+trap 'restore_branding' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [ "$FIXTURE" != 1 ]; then
+  python3 -I "$RROOT/scripts/render-branding.py" --tree "$CORVID_SRC" >/dev/null || fail "initial branding render failed"
+  branding_ok || fail "tree is not Corvid-branded at start"
+fi
+
 OLD="corvid"
 NEWNAME="Zebrafish"
 CFG="$WORK/zebra.toml"
