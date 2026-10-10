@@ -7,3 +7,5 @@ __pycache__/
 docs/reports/*-run*.md
 node_modules/
 reports/
+.claude/worktrees/
+.claude/settings.local.json
