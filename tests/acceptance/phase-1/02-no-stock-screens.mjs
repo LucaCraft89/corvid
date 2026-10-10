@@ -17,6 +17,7 @@ const urls = [...new Set([...table.pages.map((p) => `chrome://${p.host}/`), ...e
 const c = checker('no-stock-screens');
 const b = await launch({ bin });
 const page = await b.open('about:blank');
+const rendered = `(() => (document.body.firstElementChild?.shadowRoot?.textContent ?? '').trim().length > 0)()`;
 const marker = `(() => document.querySelector('meta[name=corvid-page]')?.content ?? null)()`;
 const unknown = extra.filter((h) => !table.pages.some((p) => p.host === h.replace(/^chrome:\/\//, '').replace(/\/$/, '')));
 c.ok(unknown.length === 0, `hosts from upstream list missing in stock-pages.json: ${unknown.join(', ') || 'none'}`);
@@ -25,11 +26,15 @@ for (const url of urls) {
   await page.navigate(url, 400);
   await page.waitFor(`document.readyState !== 'loading'`, 3000);
   const m = await page.eval(marker).catch(() => null);
+  const drew = await page.waitFor(rendered, 2500); // the page's own element rendered text, not just the HTML shell
   // The user-visible (virtual) URL: Corvid pages are served from chrome://corvid-<page> and shown as corvid://<page>
   // (docs/notes/corvid-scheme.md), so location.href is the internal alias; the target list holds what the omnibox shows.
   const final = (await b.targets()).find((t) => t.id === page.target.id)?.url ?? '';
-  const ok = !!m && /^corvid:\/\//.test(final);
-  c.ok(ok, `${url} -> ${final} [${m ?? 'NO CORVID MARKER'}]`);
+  // What the document actually is (renderer view) must be the internal Corvid page, never a stock chrome:// host or an error page.
+  const landed = await page.eval('location.href').catch(() => '');
+  const visibleHost = /^corvid:\/\/([^/?#]+)/.exec(final)?.[1];
+  const ok = !!m && /^chrome:\/\/corvid-[a-z-]+\//.test(landed) && !!visibleHost && landed.startsWith(`chrome://corvid-${visibleHost}/`) && m === visibleHost && drew;
+  c.ok(ok, `${url} -> shown ${final}, landed ${landed} [marker ${m ?? 'NONE'}, rendered ${drew}]`);
 }
 await b.close();
 c.done();
