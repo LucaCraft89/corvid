@@ -84,7 +84,7 @@ Open points:
 | `profile-picker` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |
 | `quota-internals` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |
 | `read-later.top-chrome` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |
-| `reset-password` | redirected | `corvid://blocked` |  |
+| `reset-password` | blocked | `corvid://blocked` | Google password-protection page; no Google account |
 | `safe-browsing` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |
 | `sandbox` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |
 | `segmentation-internals` | blocked | `corvid://blocked` | diagnostics/dev page; Phase 2 diagnostics hub replaces where useful |

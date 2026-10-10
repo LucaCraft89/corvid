@@ -71,7 +71,7 @@
 {"profile-picker", 2, "blocked"},
 {"quota-internals", 2, "blocked"},
 {"read-later.top-chrome", 2, "blocked"},
-{"reset-password", 1, "blocked"},
+{"reset-password", 2, "blocked"},
 {"safe-browsing", 2, "blocked"},
 {"sandbox", 2, "blocked"},
 {"segmentation-internals", 2, "blocked"},

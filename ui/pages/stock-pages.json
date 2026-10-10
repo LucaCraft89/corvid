@@ -165,9 +165,9 @@
   },
   {
    "host": "reset-password",
-   "action": "redirected",
+   "action": "blocked",
    "target": "blocked",
-   "note": ""
+   "note": "Google password-protection page; no Google account"
   },
   {
    "host": "whats-new",
