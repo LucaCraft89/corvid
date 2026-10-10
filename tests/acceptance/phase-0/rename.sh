@@ -68,7 +68,9 @@ hits() { # <tree> -> prints offending paths (content or file name)
       sort -u | grep -Ev '^corvid/' | while IFS= read -r f; do
         [ -f "$t/$f" ] || continue
         case "$(basename "$f" | tr '[:upper:]' '[:lower:]')" in *"$OLD"*) echo "$f"; continue ;; esac
-        grep -Iqi -- "$OLD" "$t/$f" && echo "$f"
+        # Code references to the overlay namespace (`//corvid/...` GN labels, "corvid/..." include paths, `corvid::` symbols)
+        # are the internal codename, exempt like the overlay directory itself; every other occurrence is a brand leak.
+        sed -E "s#(//|\")${OLD}/##Ig; s#${OLD}::##Ig" "$t/$f" | grep -Iqi -- "$OLD" && echo "$f"
       done | { grep -Ev "$allowed_re" || true; }
     return 0
   fi

@@ -24,6 +24,10 @@ struct StockPageDecision {
 // Unknown hosts under those schemes are BLOCKED (deny by default).
 std::optional<StockPageDecision> LookupStockPage(std::string_view host);
 
+// Stock hosts that are plumbing, not pages: never shown to users, needed by Chromium itself (the headless command
+// handler behind --dump-dom/--screenshot/--print-to-pdf, "chrome://headless"). They are neither rewritten nor removed.
+bool IsInternalToolHost(std::string_view host);
+
 // Rewrites a stock URL to its Corvid replacement, or to corvid://blocked?url=<original>.
 // Returns nullopt for URLs this policy does not govern (non chrome:// schemes, corvid://, web URLs).
 std::optional<GURL> RewriteStockUrl(const GURL& url);

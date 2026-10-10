@@ -1,6 +1,6 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-#ifndef CORVID_WEBUI_CORVID_WEB_UI_H_
-#define CORVID_WEBUI_CORVID_WEB_UI_H_
+#ifndef CORVID_WEBUI_BRAND_WEB_UI_H_
+#define CORVID_WEBUI_BRAND_WEB_UI_H_
 
 namespace corvid {
 
@@ -14,4 +14,4 @@ void RemoveStockWebUIConfigs();
 
 }  // namespace corvid
 
-#endif  // CORVID_WEBUI_CORVID_WEB_UI_H_
+#endif  // CORVID_WEBUI_BRAND_WEB_UI_H_

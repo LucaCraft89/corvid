@@ -1,0 +1,14 @@
+// Rendered from branding/config.toml by scripts/render-branding.py. Do not edit.
+#ifndef CORVID_WEBUI_BRAND_H_
+#define CORVID_WEBUI_BRAND_H_
+
+namespace corvid {
+
+// User-visible URL scheme (branding url_scheme): <scheme>://settings.
+inline constexpr char kBrandScheme[] = "@@URL_SCHEME@@";
+// Internal chrome:// host prefix of the brand's pages: <scheme>://settings loads chrome://<scheme>-settings.
+inline constexpr char kBrandHostPrefix[] = "@@URL_SCHEME@@-";
+
+}  // namespace corvid
+
+#endif  // CORVID_WEBUI_BRAND_H_

@@ -26,7 +26,8 @@ const child = spawn('strace', ['-f', '-e', 'trace=network', '-o', straceOut, bin
   `--user-data-dir=${join(work, 'profile')}`, `--log-net-log=${netlog}`, '--net-log-capture-mode=Everything',
   '--no-first-run', '--headless=new', 'about:blank'], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, idle * 1000));
-child.kill('SIGTERM');
+// strace -f does not exit on SIGTERM while the traced browser lives: stop the browser (matched by its unique profile dir).
+spawnSync('pkill', ['-TERM', '-f', join(work, 'profile')]);
 await new Promise((r) => child.once('exit', r));
 await new Promise((r) => setTimeout(r, 1000));
 

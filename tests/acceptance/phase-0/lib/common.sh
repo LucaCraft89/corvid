@@ -24,7 +24,9 @@ fx_git() { git -C "$WORK/src" -c user.name=fixture -c user.email=fixture@localho
 copy_root() {
   mkdir -p "$WORK/root"
   local d
-  for d in scripts branding patches src-overlay; do cp -a "$T_ROOT/$d" "$WORK/root/$d"; done
+  for d in scripts branding patches src-overlay ui theme modules package.json; do cp -a "$T_ROOT/$d" "$WORK/root/$d"; done
+  # ui/ is bundled into the overlay by scripts/build-ui.sh (esbuild from the repo's node_modules).
+  ln -s "$T_ROOT/node_modules" "$WORK/root/node_modules"
   mkdir -p "$WORK/root/docs/rebase"
   RROOT="$WORK/root"
 }

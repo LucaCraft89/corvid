@@ -17,14 +17,14 @@ index b58905ddb371..f7f20dd8112c 100644
      "//storage/browser",
    ]
 diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
-index 19045777b3d8..80424f6f8753 100644
+index 19045777b3d8..126ce5431bf5 100644
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
 @@ -208,6 +208,7 @@
  #include "chrome/browser/ui/ui_features.h"
  #include "chrome/browser/ui/webid/identity_dialog_controller.h"
  #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
-+#include "corvid/webui/corvid_url_handler.h"
++#include "corvid/webui/brand_url_handler.h"
  #include "chrome/browser/ui/webui/internal_debug_pages_disabled/internal_debug_pages_disabled_ui.h"
  #include "chrome/browser/ui/webui/log_web_ui_url.h"
  #include "chrome/browser/universal_web_contents_observers.h"
@@ -32,8 +32,8 @@ index 19045777b3d8..80424f6f8753 100644
  
  void ChromeContentBrowserClient::BrowserURLHandlerCreated(
      BrowserURLHandler* handler) {
-+  // Corvid: must run first so no other handler sees a stock chrome:// WebUI URL.
-+  corvid::RegisterCorvidUrlHandlers(handler);
++  // Must run first so no other handler sees a stock chrome:// WebUI URL.
++  corvid::RegisterBrandUrlHandlers(handler);
 +
    // The group policy NTP URL handler must be registered before the other NTP
    // URL handlers below. Also register it before the "parts" handlers, so the
@@ -51,14 +51,14 @@ index 2a4eae8943e6..63d173e114c7 100644
      ":net_export_ui",
      ":ntp_tiles_internals_ui",
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index 62b07dca0834..556b955d3f07 100644
+index 62b07dca0834..559dd66734ec 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -4,6 +4,8 @@
  
  #include "chrome/browser/ui/webui/chrome_web_ui_configs.h"
  
-+#include "corvid/webui/corvid_web_ui.h"
++#include "corvid/webui/brand_web_ui.h"
 +
  #include "build/android_buildflags.h"
  #include "build/branding_buildflags.h"
@@ -72,15 +72,23 @@ index 62b07dca0834..556b955d3f07 100644
    map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
    map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
 diff --git a/chrome/common/chrome_content_client.cc b/chrome/common/chrome_content_client.cc
-index a97283168c97..748c5d87c36b 100644
+index a97283168c97..a647ae5a760c 100644
 --- a/chrome/common/chrome_content_client.cc
 +++ b/chrome/common/chrome_content_client.cc
-@@ -197,6 +197,8 @@ static const char* const kChromeStandardURLSchemes[] = {
+@@ -95,6 +95,7 @@
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ #include "chrome/common/media/chrome_media_drm_bridge_client.h"
++#include "corvid/webui/brand.h"
+ #endif
+ 
+ namespace {
+@@ -197,6 +198,8 @@ static const char* const kChromeStandardURLSchemes[] = {
  #if BUILDFLAG(IS_ANDROID)
      content::kAndroidAppScheme,
  #endif
-+    // Corvid: alias for chrome:// WebUI URLs (see corvid/webui/corvid_url_handler.h).
-+    "corvid",
++    // Brand-scheme alias for chrome:// WebUI URLs (see brand_url_handler.h).
++    corvid::kBrandScheme,
  };
  
  void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {

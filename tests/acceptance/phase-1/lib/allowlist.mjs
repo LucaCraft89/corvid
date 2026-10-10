@@ -35,7 +35,8 @@ export function hostAllowed(host, allowlist) {
 export function violations(hosts, allowlist) {
   const bad = new Set();
   for (const raw of hosts) {
-    const h = raw.replace(/:\d+$/, '').replace(/\.$/, '');
+    // strip a trailing :port only from host:port / ipv4:port, never from IPv6 literals (2001:4860:4860::8888)
+    const h = (raw.split(':').length === 2 ? raw.replace(/:\d+$/, '') : raw).replace(/\.$/, '');
     if (isIgnoredHost(h)) continue;
     if (!hostAllowed(h, allowlist)) bad.add(h);
   }

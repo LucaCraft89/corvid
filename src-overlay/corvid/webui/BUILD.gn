@@ -2,6 +2,7 @@
 # Pure policy (host table -> decision -> rewritten URL): depends only on //base and //url.
 source_set("stock_page_policy") {
   sources = [
+    "brand.h",  # rendered from branding/templates by scripts/render-branding.py
     "stock_page_policy.cc",
     "stock_page_policy.h",
     "stock_page_table.inc",
@@ -55,8 +56,8 @@ source_set("resources") {
 # corvid:// <-> chrome://corvid-<page> aliasing + stock page rewriting for BrowserURLHandler.
 source_set("url_handler") {
   sources = [
-    "corvid_url_handler.cc",
-    "corvid_url_handler.h",
+    "brand_url_handler.cc",
+    "brand_url_handler.h",
   ]
   deps = [
     ":resources",
@@ -69,11 +70,12 @@ source_set("url_handler") {
 
 source_set("web_ui") {
   sources = [
-    "corvid_web_ui.cc",
-    "corvid_web_ui.h",
+    "brand_web_ui.cc",
+    "brand_web_ui.h",
   ]
   deps = [
     ":resources",
+    ":stock_page_policy",
     ":url_handler",
     "//base",
     "//content/public/browser",
@@ -97,7 +99,7 @@ source_set("unit_tests") {
   sources = [
     "stock_page_policy_unittest.cc",
     "stock_page_rewriter_unittest.cc",
-    "corvid_url_handler_unittest.cc",
+    "brand_url_handler_unittest.cc",
   ]
   deps = [
     ":resources",

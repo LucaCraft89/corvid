@@ -5,7 +5,7 @@ Rebase risk: low because it is one call at the end of a function; the removal lo
 Origin: original (written for Corvid; no third-party patch text reused)
 
 diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
-index 556b955d3f07..a69d0948db82 100644
+index 559dd66734ec..75c33ba9d164 100644
 --- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 +++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
 @@ -520,4 +520,7 @@ void RegisterChromeWebUIConfigs() {
@@ -13,6 +13,6 @@ index 556b955d3f07..a69d0948db82 100644
  #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
          // BUILDFLAG(IS_CHROMEOS)
 +
-+  // Corvid: drop every stock chrome:// WebUI (deny by default).
++  // Drop every stock chrome:// WebUI (deny by default).
 +  corvid::RemoveStockWebUIConfigs();
  }
