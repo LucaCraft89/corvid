@@ -15,15 +15,16 @@ google_api_key = ""
 google_default_client_id = ""
 google_default_client_secret = ""
 use_official_google_api_keys = false
-safe_browsing_mode = 0
+# safe_browsing_mode: left at default (1). =0 is unsupported on desktop in M155 (gn gen: unresolved
+# //components/safe_browsing/content/* deps from chrome/browser). Off at runtime/by patch (docs/notes/gn-args.md).
 enable_hangout_services_extension = false
-enable_nacl = false
-enable_remoting_host = false
-enable_media_router = false     # Cast / Google-hosted component fetches
-enable_service_discovery = false
+enable_remoting = false          # was enable_remoting_host
+# enable_media_router: arg removed upstream; Cast router is gated at runtime/patch (docs/notes/gn-args.md)
+# enable_service_discovery: left default (true). =false breaks is_official_build gn gen (assert in
+# //chrome/browser/local_discovery via service_discovery_sniffer). mDNS discovery stays runtime-gated (docs/notes/gn-args.md).
 enable_widevine = true          # glue only (CR-11 open: do not distribute release builds until resolved, docs/notes/widevine.md)
 bundle_widevine_cdm = false     # no CDM binary is shipped; it is only obtained after an explicit user prompt
-enable_widevine_cdm_host_verification = false  # needs Widevine signing certs; enable only under a license agreement
+# enable_widevine_cdm_host_verification: not an arg in M155 (computed); stays off without signing certs
 ignore_missing_widevine_signing_cert = true
 disable_fieldtrial_testing_config = true
 
@@ -32,7 +33,7 @@ proprietary_codecs = true
 ffmpeg_branding = "Chrome"
 rtc_use_h264 = true             # WebRTC H.264
 enable_platform_hevc = true     # HEVC (name may differ: also check enable_hevc_parser_and_hw_decoder)
-enable_platform_encrypted_hevc = true
+enable_hevc_parser_and_hw_decoder = true  # HEVC parser + VA-API hw decode (replaces enable_platform_encrypted_hevc, gone)
 enable_platform_ac3_eac3_audio = true
 enable_platform_dolby_vision = true
 enable_platform_mpeg_h_audio = true
@@ -47,4 +48,4 @@ ozone_platform = "x11"          # default platform; runtime --ozone-platform-hin
 use_gtk = true
 use_v4l2_codec = false          # ARM SoCs only
 angle_enable_vulkan = true
-use_vulkan = true               # Vulkan for GPU raster / WebGPU; GL remains the fallback
+enable_vulkan = true            # was use_vulkan
