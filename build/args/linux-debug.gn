@@ -1,4 +1,6 @@
-# Corvid Linux debug/dev GN args (Phase 1). UNVERIFIED: not run through `gn gen`. See linux-release.gn.
+# Corvid Linux dev GN args (Phase 1). NOTE: despite the file name this is a NON-debug COMPONENT build
+# (is_debug=false, is_component_build=true, symbol_level=1): the fast-iteration baseline. Used for out/GnDebug.
+# gn gen verified in M1. See linux-release.gn.
 
 # --- build mode ---
 is_debug = false                # dev builds: non-debug component build is the fast-iteration baseline
