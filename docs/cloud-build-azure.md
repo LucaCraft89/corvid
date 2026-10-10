@@ -28,9 +28,18 @@ Corvid's build host needs 32 GB RAM (64 GB better), 150+ GB SSD, 8-16+ cores, x8
 
 ```bash
 az account show -o table                       # subscription name should say "Azure for Students"
-az vm list-usage --location westeurope -o table | grep -Ei "total regional|DASv5|Dsv5|Standard B|Spot"
+for r in germanywestcentral norwayeast spaincentral polandcentral denmarkeast; do
+  echo "== $r"; az vm list-usage --location $r -o table | grep -Ei "total regional|DASv5|Dsv5|Standard B|Spot"
+done
 az policy assignment list --query "[].{n:displayName,p:parameters}" -o json   # look for "Allowed resource deployment regions"
 ```
+
+How to read the output: the columns are Name, CurrentValue, Limit. `Total Regional vCPUs` is the overall cap; `Standard DASv5 Family vCPUs` (or the family of the size you want) must also have Limit >= 16; `Total Regional Spot vCPUs` / `Standard ... Spot` apply to spot VMs. Limit 0 or a small number means that size is blocked in that region. Also check which sizes the region actually offers (the portal can lie):
+```bash
+az vm list-skus --location germanywestcentral --size Standard_D16as_v5 -o table   # empty or "NotAvailableForSubscription" = unavailable
+az vm list-skus --location germanywestcentral --resource-type virtualMachines --query "[?restrictions==\`[]\`].name" -o tsv | grep -E "D16|D8|E8|E16|F16"
+```
+Paste the output back to Claude and it will pick a size/region.
 
 Portal alternative: Subscriptions > your sub > Usage + quotas, filter by region.
 
@@ -53,10 +62,10 @@ Spot caveat: Azure can evict the VM with 30 s notice when it needs capacity. Wit
 
 ## 4. Create the VM (Azure CLI)
 
-Pick a region from the allowed list in step 2 (examples use `westeurope`). Leave availability zones unset (they reportedly break student creates, COMMUNITY).
+Pick a region from the allowed list in step 2. Luca's subscription allows only germanywestcentral, norwayeast, spaincentral, polandcentral and denmarkeast (checked 2026-10-10); examples use `germanywestcentral`. Leave availability zones unset (they reportedly break student creates, COMMUNITY).
 
 ```bash
-RG=corvid-build; LOC=westeurope; VM=corvid-builder
+RG=corvid-build; LOC=germanywestcentral; VM=corvid-builder
 az group create -n $RG -l $LOC
 
 az vm create -g $RG -n $VM -l $LOC \
