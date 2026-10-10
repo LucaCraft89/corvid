@@ -1,9 +1,12 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 (M2).
 #include "corvid/modules/module_permissions.h"
 
 #include <iterator>
 
 namespace corvid {
+
+ModulePermissionTable::ModulePermissionTable() = default;
+ModulePermissionTable::~ModulePermissionTable() = default;
 
 namespace {
 struct Name { const char* name; ModulePermission perm; };

@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Cases mirror ui/modules/modules.test.ts.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Cases mirror ui/modules/modules.test.ts.
 #include "corvid/modules/module_host_service.h"
 
 #include "base/json/json_reader.h"

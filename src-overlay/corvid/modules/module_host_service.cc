@@ -1,9 +1,12 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 (M2).
 #include "corvid/modules/module_host_service.h"
 
 #include <algorithm>
 
 namespace corvid {
+
+ModuleHostService::ModuleHostService() = default;
+ModuleHostService::~ModuleHostService() = default;
 
 base::expected<ModuleManifest, std::string> ModuleHostService::Install(const Dict& manifest) {
   auto parsed = ParseModuleManifest(manifest);

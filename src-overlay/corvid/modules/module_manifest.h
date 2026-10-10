@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Browser-side manifest validation. The browser does NOT trust the WebUI to have
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Browser-side manifest validation. The browser does NOT trust the WebUI to have
 // validated a manifest: this mirrors the security-relevant rules of ui/modules/manifest.ts (schema shape,
 // namespaces, builtin-only permissions, entry path). Full semantic checks stay in TypeScript.
 #ifndef CORVID_MODULES_MODULE_MANIFEST_H_

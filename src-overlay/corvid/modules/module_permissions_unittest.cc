@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 (M2).
 #include "corvid/modules/module_permissions.h"
 
 #include "testing/gtest/include/gtest/gtest.h"

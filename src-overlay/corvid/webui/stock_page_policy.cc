@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. See stock_page_policy.h.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). See stock_page_policy.h.
 #include "corvid/webui/stock_page_policy.h"
 
 
@@ -37,15 +37,15 @@ std::optional<GURL> RewriteStockUrl(const GURL& url) {
   if (!url.SchemeIs("chrome") && !url.SchemeIs("chrome-untrusted") && !url.SchemeIs("chrome-search")) {
     return std::nullopt;
   }
-  auto decision = LookupStockPage(url.host_piece());
+  auto decision = LookupStockPage(url.host());
   const std::string host = decision ? decision->target_host : "blocked";
   std::string spec = base::StrCat({kCorvidScheme, "://", host, "/"});
   if (!decision || decision->action == StockPageAction::kBlocked) {
     // Deny by default; tell the blocked page what was requested (display only).
     base::StrAppend(&spec, {"?url=", base::EscapeQueryParamValue(url.spec(), /*use_plus=*/false)});
-  } else if (url.has_path() && url.path_piece().size() > 1) {
+  } else if (url.has_path() && url.path().size() > 1) {
     // Keep sub-paths for replaced pages that have sections (settings/layout#reset).
-    spec = base::StrCat({kCorvidScheme, "://", host, url.path_piece(), url.has_ref() ? "#" : "", url.ref_piece()});
+    spec = base::StrCat({kCorvidScheme, "://", host, url.path(), url.has_ref() ? "#" : "", url.ref()});
   }
   return GURL(spec);
 }

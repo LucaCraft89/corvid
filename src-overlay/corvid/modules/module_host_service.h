@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Browser-side module registry and permission authority.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Browser-side module registry and permission authority.
 // The TypeScript ModuleHost (ui/modules/host.ts) runs module code in the WebUI; this class is what the browser
 // consults before binding any Mojo capability for that module. A module that is not Loaded, or that lacks a
 // permission, gets no capability.
@@ -18,6 +18,9 @@ namespace corvid {
 
 class ModuleHostService {
  public:
+  ModuleHostService();
+  ~ModuleHostService();
+
   base::expected<ModuleManifest, std::string> Install(const Dict& manifest);
   bool Uninstall(const std::string& id);  // refused (false) unless installed and not loaded
 
