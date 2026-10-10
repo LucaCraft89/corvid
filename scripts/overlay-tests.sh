@@ -10,12 +10,11 @@
 # Exit codes: 0 all built and all tests passed; 77 SKIPPED (no Chromium checkout / no gn: says nothing about the code);
 #             1 something failed to build or a test failed. Never prints "PASS" for a skip.
 # Output: <report-dir>/summary.tsv (target<TAB>step<TAB>PASS|FAIL), per-step logs, gtest.json, and a markdown summary.
-# UNVERIFIED: never run (the authoring sandbox cannot fetch Chromium). First real run is expected to find compile errors.
 set -uo pipefail
 # shellcheck source=scripts/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-MODE=full OUT_NAME="${CORVID_OVERLAY_OUT:-CorvidOverlay}" REPORT_DIR="$CORVID_ROOT/reports/overlay"
+MODE=full OUT_NAME="${CORVID_OVERLAY_OUT:-GnDebug}" REPORT_DIR="$CORVID_ROOT/reports/overlay"
 while [ $# -gt 0 ]; do
   case "$1" in
     --overlay-only) MODE=overlay ;;
@@ -52,13 +51,16 @@ esac
 
 cd "$CORVID_SRC" || exit 1
 OUT="out/$OUT_NAME"
-ARGS=(
-  "is_debug=false" "is_component_build=true" "symbol_level=0" "blink_symbol_level=0"
-  "is_official_build=false" "chrome_pgo_phase=0" "use_sysroot=true"
-  "proprietary_codecs=true" "ffmpeg_branding=\"Chrome\""
-)
-command -v sccache >/dev/null 2>&1 && ARGS+=("cc_wrapper=\"sccache\"")
-if gn gen "$OUT" --args="${ARGS[*]}" >"$REPORT_DIR/gn-gen.log" 2>&1; then note all gn-gen PASS; else
+# Same args as the product build (build/args/linux-debug.gn) so objects are shared with out/GnDebug via sccache, plus the
+# hook that makes //corvid reachable: gn only loads BUILD.gn files that something references, and //BUILD.gn exposes
+# `root_extra_deps` for exactly this (no upstream file is patched).
+mkdir -p "$OUT"
+{
+  sed 's/#.*//' "$CORVID_ROOT/build/args/linux-debug.gn" | grep -v '^[[:space:]]*$'
+  command -v sccache >/dev/null 2>&1 && echo 'cc_wrapper = "sccache"'
+  echo 'root_extra_deps = [ "//corvid:corvid_phase1_unittests" ]'
+} > "$OUT/args.gn"
+if gn gen "$OUT" >"$REPORT_DIR/gn-gen.log" 2>&1; then note all gn-gen PASS; else
   note all gn-gen FAIL; tail -n 40 "$REPORT_DIR/gn-gen.log" >&2; exit 1
 fi
 
@@ -68,7 +70,7 @@ TARGETS=(
   //corvid:base_compat
   //corvid/chrome_shell:layout_json //corvid/chrome_shell:layout_storage //corvid/chrome_shell:mojom
   //corvid/modules:module_permissions //corvid/modules:module_manifest //corvid/modules:module_host_service
-  //corvid/extensions:extensions
+  //corvid/extensions:extensions //corvid/diagnostics:mojom //corvid/diagnostics:ring_buffer
   //corvid/theme:appearance_snapshot //corvid/theme:config_file_reader //corvid/theme:linux_appearance_source
   //corvid/theme:native_theme_appearance_observer //corvid/theme:mojom
   //corvid/webui:stock_page_policy //corvid/webui:stock_page_rewriter
