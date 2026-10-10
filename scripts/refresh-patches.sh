@@ -80,19 +80,21 @@ Origin: TODO"
   new_series+=("$rel")
 done < <(src_git rev-list --reverse "$VER..HEAD")
 
+old_series="$(series_list)"
 {
   { grep -E '^[[:space:]]*#' "$PATCHES/series" || true; }
   if [ "${#new_series[@]}" -gt 0 ]; then printf '%s\n' "${new_series[@]}"; fi
 } >"$PATCHES/series.new"
 if cmp -s "$PATCHES/series.new" "$PATCHES/series"; then rm -f "$PATCHES/series.new"; else mv "$PATCHES/series.new" "$PATCHES/series"; log "series updated"; fi
 
-# Drop patch files no longer in series (commit removed or renamed).
-while IFS= read -r f; do
-  rel="${f#"$PATCHES"/}"
+# Drop patch files that were in the series and no longer are (commit removed or renamed). Files that were never in the
+# series (intent patches still listed in series.phaseN) are left alone.
+while IFS= read -r rel; do
+  [ -n "$rel" ] || continue
   if ! printf '%s\n' "${new_series[@]:-}" | grep -qxF "$rel"; then
-    rm -f "$f"
+    rm -f "$PATCHES/$rel"
     log "removed orphan patches/$rel"
   fi
-done < <(find "$PATCHES" -type f -name '*.patch')
+done <<<"$old_series"
 
 log "refresh done: $changed file(s) changed, ${#new_series[@]} patch(es) in series"

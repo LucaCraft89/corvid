@@ -25,13 +25,83 @@ source_set("stock_page_rewriter") {
   ]
 }
 
+# ui/pages bundled by ui/tools/bundle.mjs into //corvid/webui/dist (scripts/build-ui.sh, run by apply-patches.sh),
+# embedded as C++ byte arrays so no grit/pak/resource_ids.spec edit is needed.
+action("embed_resources") {
+  script = "embed_resources.py"
+  depfile = "$target_gen_dir/corvid_embedded_files.d"
+  inputs = [ "dist/shared/tokens.css" ]
+  outputs = [ "$target_gen_dir/corvid_embedded_files.cc" ]
+  args = [
+    rebase_path("dist", root_build_dir),
+    rebase_path(outputs[0], root_build_dir),
+    rebase_path(depfile, root_build_dir),
+  ]
+}
+
+source_set("resources") {
+  sources = [
+    "corvid_resources.cc",
+    "corvid_resources.h",
+  ]
+  deps = [
+    ":embed_resources",
+    "//base",
+  ]
+  # The generated table lives in the same target.
+  sources += get_target_outputs(":embed_resources")
+}
+
+# corvid:// <-> chrome://corvid-<page> aliasing + stock page rewriting for BrowserURLHandler.
+source_set("url_handler") {
+  sources = [
+    "corvid_url_handler.cc",
+    "corvid_url_handler.h",
+  ]
+  deps = [
+    ":resources",
+    ":stock_page_policy",
+    "//base",
+    "//content/public/browser",
+    "//url",
+  ]
+}
+
+source_set("web_ui") {
+  sources = [
+    "corvid_web_ui.cc",
+    "corvid_web_ui.h",
+  ]
+  deps = [
+    ":resources",
+    ":url_handler",
+    "//base",
+    "//content/public/browser",
+    "//content/public/common",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+}
+
+# What //chrome/browser depends on (patches/ui/0200).
+group("webui") {
+  public_deps = [
+    ":stock_page_rewriter",
+    ":url_handler",
+    ":web_ui",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [
     "stock_page_policy_unittest.cc",
     "stock_page_rewriter_unittest.cc",
+    "corvid_url_handler_unittest.cc",
   ]
   deps = [
+    ":resources",
+    ":url_handler",
     ":stock_page_policy",
     ":stock_page_rewriter",
     "//base",

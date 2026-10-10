@@ -25,7 +25,9 @@ for (const url of urls) {
   await page.navigate(url, 400);
   await page.waitFor(`document.readyState !== 'loading'`, 3000);
   const m = await page.eval(marker).catch(() => null);
-  const final = await page.eval('location.href').catch(() => '');
+  // The user-visible (virtual) URL: Corvid pages are served from chrome://corvid-<page> and shown as corvid://<page>
+  // (docs/notes/corvid-scheme.md), so location.href is the internal alias; the target list holds what the omnibox shows.
+  const final = (await b.targets()).find((t) => t.id === page.target.id)?.url ?? '';
   const ok = !!m && /^corvid:\/\//.test(final);
   c.ok(ok, `${url} -> ${final} [${m ?? 'NO CORVID MARKER'}]`);
 }

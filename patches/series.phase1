@@ -10,9 +10,7 @@
 #UNVERIFIED debrand/0150-component-updater-configurable-source.patch
 #UNVERIFIED debrand/0160-disable-network-time-geolocation-doh-preconnect.patch
 #UNVERIFIED debrand/0170-webrtc-privacy-defaults.patch
-#UNVERIFIED ui/0200-corvid-webui-scheme-and-registry.patch
 #UNVERIFIED ui/0210-native-window-shell-hosts-webui-chrome.patch
-#UNVERIFIED ui/0220-block-or-redirect-stock-webui.patch
 #UNVERIFIED extensions/0300-allow-mv2-no-deprecation.patch
 #UNVERIFIED extensions/0310-webrequest-blocking-for-mv2.patch
 #UNVERIFIED extensions/0320-preinstalled-extension-provider.patch

@@ -1,15 +1,86 @@
-Purpose: Register corvid:// as a WebUI scheme and add Corvid WebUI configs (src-overlay/corvid/webui).
+Purpose: Make corvid:// work: register the corvid scheme, route corvid:// <-> chrome://corvid-<page> and register the Corvid WebUI configs (overlay src-overlay/corvid/webui).
 Area: ui
-Files: content/public/common/url_constants.h; chrome/common/webui_url_constants.h; chrome/browser/ui/webui/chrome_web_ui_configs.cc; chrome/common/chrome_content_client.cc (AddAdditionalSchemes)
-Rebase risk: high: scheme registration touches several layers
-Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
+Files: chrome/common/chrome_content_client.cc (kChromeStandardURLSchemes); chrome/browser/chrome_content_browser_client.cc (BrowserURLHandlerCreated); chrome/browser/ui/webui/chrome_web_ui_configs.cc (RegisterChromeWebUIConfigs); chrome/browser/BUILD.gn, chrome/browser/ui/webui/BUILD.gn (deps on //corvid/webui)
+Rebase risk: medium because it adds 1-3 lines to 5 upstream files, all stable registration points; no logic is patched (alias design: docs/notes/corvid-scheme.md)
+Origin: original (written for Corvid; the alias-scheme idea, a URL handler pair that maps a brand scheme to chrome://, is also how other forks do it, no third-party patch text reused)
 
-Change:
-- Add a standard, WebUI-capable scheme `corvid` (value from branding url_scheme), registered via ContentClient::AddAdditionalSchemes and chrome::AddChromeWebUIConfigs hook that calls corvid::RegisterWebUIConfigs() from the overlay.
-- Keep chrome:// aliases that redirect (see 0220).
-
-Verify:
-- Navigating to corvid://about loads the overlay page.
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index b58905ddb371..f7f20dd8112c 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -3716,6 +3716,7 @@ source_set("primitives") {
+ source_set("chrome_content_browser_client_parts") {
+   sources = [ "chrome_content_browser_client_parts.h" ]
+   deps = [
++    "//corvid/webui:webui",
+     "//services/service_manager/public/cpp",
+     "//storage/browser",
+   ]
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 19045777b3d8..80424f6f8753 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -208,6 +208,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webid/identity_dialog_controller.h"
+ #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
++#include "corvid/webui/corvid_url_handler.h"
+ #include "chrome/browser/ui/webui/internal_debug_pages_disabled/internal_debug_pages_disabled_ui.h"
+ #include "chrome/browser/ui/webui/log_web_ui_url.h"
+ #include "chrome/browser/universal_web_contents_observers.h"
+@@ -5032,6 +5033,9 @@ bool ChromeContentBrowserClient::
+ 
+ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+     BrowserURLHandler* handler) {
++  // Corvid: must run first so no other handler sees a stock chrome:// WebUI URL.
++  corvid::RegisterCorvidUrlHandlers(handler);
++
+   // The group policy NTP URL handler must be registered before the other NTP
+   // URL handlers below. Also register it before the "parts" handlers, so the
+   // NTP policy takes precedence over extensions that override the NTP.
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 2a4eae8943e6..63d173e114c7 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -47,6 +47,7 @@ source_set("configs") {
+   }
+ 
+   deps = [
++    "//corvid/webui:web_ui",
+     ":gcm_internals_ui",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index 62b07dca0834..556b955d3f07 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/ui/webui/chrome_web_ui_configs.h"
+ 
++#include "corvid/webui/corvid_web_ui.h"
++
+ #include "build/android_buildflags.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+@@ -263,6 +265,7 @@ void RegisterChromeWebUIConfigs() {
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   auto& map = content::WebUIConfigMap::GetInstance();
++  corvid::RegisterWebUIConfigs();
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+diff --git a/chrome/common/chrome_content_client.cc b/chrome/common/chrome_content_client.cc
+index a97283168c97..748c5d87c36b 100644
+--- a/chrome/common/chrome_content_client.cc
++++ b/chrome/common/chrome_content_client.cc
+@@ -197,6 +197,8 @@ static const char* const kChromeStandardURLSchemes[] = {
+ #if BUILDFLAG(IS_ANDROID)
+     content::kAndroidAppScheme,
+ #endif
++    // Corvid: alias for chrome:// WebUI URLs (see corvid/webui/corvid_url_handler.h).
++    "corvid",
+ };
+ 
+ void ChromeContentClient::AddAdditionalSchemes(Schemes* schemes) {

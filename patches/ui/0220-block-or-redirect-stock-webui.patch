@@ -1,15 +1,18 @@
-Purpose: Make every stock chrome:// WebUI redirect to its Corvid page or to corvid://blocked.
+Purpose: Deny stock chrome:// WebUI by default: remove every non-Corvid chrome:// WebUIConfig after Chromium registers them. Navigations are redirected/blocked earlier by the URL handler from 0200 (corvid::StockPagePolicy).
 Area: ui
-Files: chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc; content/browser/webui/web_ui_configs / url data source registration; chrome/browser/chrome_content_browser_client.cc (HandleURLRewrite)
-Rebase risk: medium
+Files: chrome/browser/ui/webui/chrome_web_ui_configs.cc (end of RegisterChromeWebUIConfigs)
+Rebase risk: low because it is one call at the end of a function; the removal logic lives in the overlay
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
 
-Change:
-- Add a BrowserURLHandler / URL rewriter early in the chain that consults corvid::StockPagePolicy (table in src-overlay/corvid/webui/stock_page_table.inc) for chrome:// and chrome-untrusted:// hosts.
-- Error interstitials (chrome-error://) render the Corvid error page.
-
-Verify:
-- tests/acceptance/phase-1/02-no-stock-screens.mjs
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+index 556b955d3f07..a69d0948db82 100644
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -520,4 +520,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<skills::SkillsUIConfig>());
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+         // BUILDFLAG(IS_CHROMEOS)
++
++  // Corvid: drop every stock chrome:// WebUI (deny by default).
++  corvid::RemoveStockWebUIConfigs();
+ }

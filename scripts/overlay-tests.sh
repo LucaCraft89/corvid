@@ -45,7 +45,7 @@ case "$MODE" in
   full) "$CORVID_ROOT/scripts/apply-patches.sh" >"$REPORT_DIR/apply.log" 2>&1 && note all apply PASS || { note all apply FAIL; tail -n 30 "$REPORT_DIR/apply.log" >&2; exit 1; } ;;
   overlay)
     # Overlay-only refresh: no collision check against patched files, so use it only on a tree that already passed `full` once.
-    (cd "$CORVID_ROOT/src-overlay" && tar --exclude='.gitkeep' -cf - .) | tar -xf - -C "$CORVID_SRC" && note all overlay-copy PASS || { note all overlay-copy FAIL; exit 1; } ;;
+    (cd "$CORVID_ROOT/src-overlay" && tar --exclude='.gitkeep' -cf - .) | tar -xf - -C "$CORVID_SRC" && "$CORVID_ROOT/scripts/build-ui.sh" && note all overlay-copy PASS || { note all overlay-copy FAIL; exit 1; } ;;
   none) ;;
 esac
 

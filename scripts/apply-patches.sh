@@ -72,6 +72,7 @@ if [ "$DO_OVERLAY" = 1 ]; then
   done < <(find "$OVERLAY" -type f ! -name '.gitkeep' -print0)
   (cd "$OVERLAY" && tar --exclude='.gitkeep' -cf - .) | tar -xf - -C "$CORVID_SRC"
   log "overlay: $count file(s) copied"
+  "$CORVID_ROOT/scripts/build-ui.sh"
 fi
 
 if [ "$DO_BRANDING" = 1 ]; then

@@ -37,7 +37,12 @@ std::optional<GURL> RewriteStockUrl(const GURL& url) {
   if (!url.SchemeIs("chrome") && !url.SchemeIs("chrome-untrusted") && !url.SchemeIs("chrome-search")) {
     return std::nullopt;
   }
+  // Corvid's own pages live at chrome://corvid-<page> (corvid_url_handler.h); they are not stock pages.
+  if (url.SchemeIs("chrome") && url.host().starts_with("corvid-")) return std::nullopt;
   auto decision = LookupStockPage(url.host());
+  // Views-embedded top-chrome WebUIs the stock shell needs until the Corvid shell replaces it (M5). Hosts listed in the
+  // table are still blocked; this only lets unlisted ones (omnibox popup, ...) keep working.
+  if (!decision && url.SchemeIs("chrome") && url.host().ends_with(".top-chrome")) return std::nullopt;
   const std::string host = decision ? decision->target_host : "blocked";
   std::string spec = base::StrCat({kCorvidScheme, "://", host, "/"});
   if (!decision || decision->action == StockPageAction::kBlocked) {
