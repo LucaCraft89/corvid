@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run:*)",
+      "Bash(npm ci)",
+      "Bash(npm test:*)",
+      "Bash(node --test:*)",
+      "Bash(go test:*)",
+      "Bash(go vet:*)",
+      "Bash(scripts/verify.sh:*)",
+      "Bash(scripts/overlay-selfcheck.sh:*)",
+      "Bash(scripts/overlay-tests.sh:*)",
+      "Bash(scripts/ci-report.sh:*)",
+      "Bash(scripts/apply-patches.sh:*)",
+      "Bash(scripts/refresh-patches.sh:*)",
+      "Bash(scripts/gn-gen.sh:*)",
+      "Bash(shellcheck:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git merge --ff-only:*)",
+      "Bash(rg:*)",
+      "Bash(df:*)",
+      "Bash(free:*)",
+      "Bash(nproc)"
+    ],
+    "ask": [
+      "Bash(git push:*)",
+      "Bash(sudo:*)",
+      "Bash(scripts/fetch.sh:*)",
+      "Bash(scripts/rebase.sh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard origin:*)",
+      "Bash(rm -rf /:*)",
+      "Bash(rm -rf ~:*)",
+      "Bash(rm -rf $HOME:*)",
+      "Read(./.env)",
+      "Read(./**/*.pem)",
+      "Read(./**/*.key)"
+    ]
+  }
+}
