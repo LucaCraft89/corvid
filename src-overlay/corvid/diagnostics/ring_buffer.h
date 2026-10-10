@@ -21,6 +21,13 @@ struct Retention {
 };
 
 struct Event {
+  Event();
+  Event(const Event&);
+  Event(Event&&) noexcept;
+  Event& operator=(const Event&);
+  Event& operator=(Event&&) noexcept;
+  ~Event();
+
   uint64_t id = 0;
   int64_t ts_ms = 0;
   int tab_id = -1;  // -1 = none
@@ -33,6 +40,7 @@ struct Event {
 class RingBuffer {
  public:
   explicit RingBuffer(Retention r = {}, std::function<int64_t()> now_ms = nullptr);
+  ~RingBuffer();
   uint64_t Add(Event e);  // returns assigned id
   std::vector<Event> Snapshot() const;
   size_t size() const { return events_.size(); }

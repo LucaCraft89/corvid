@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Mirrors ui/pages/shared/logic.ts resolveNewTab (the TS version is unit tested).
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Mirrors ui/pages/shared/logic.ts resolveNewTab (the TS version is unit tested).
 #ifndef CORVID_EXTENSIONS_NTP_OVERRIDE_H_
 #define CORVID_EXTENSIONS_NTP_OVERRIDE_H_
 

@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled (no Chromium checkout was available). Review against the pinned tree.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Review against the pinned tree.
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
 #ifndef CORVID_WEBUI_STOCK_PAGE_POLICY_H_
 #define CORVID_WEBUI_STOCK_PAGE_POLICY_H_

@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md).
 // Linux appearance transport (color-scheme, contrast, accent) in the shape the TypeScript provider expects
 // (theme/providers/linux/provider.ts reads portal-style values: color-scheme 0/1/2, contrast 0/1,
 // accent (r,g,b) doubles in 0..1).

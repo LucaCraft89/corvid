@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. API checked against content/public/browser/browser_url_handler.h (chromium mirror, 2026-10):
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). API checked against content/public/browser/browser_url_handler.h (chromium mirror, 2026-10):
 // typedef bool (*URLHandler)(GURL*, BrowserContext*); AddHandlerPair(handler, reverse_handler); null_handler().
 #ifndef CORVID_WEBUI_STOCK_PAGE_REWRITER_H_
 #define CORVID_WEBUI_STOCK_PAGE_REWRITER_H_

@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. API names checked by reading ui/native_theme/native_theme.h and native_theme_observer.h
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). API names checked by reading ui/native_theme/native_theme.h and native_theme_observer.h
 // from the chromium/chromium mirror (2026-10): NativeTheme::GetInstanceForNativeUi(), AddObserver/RemoveObserver,
 // preferred_color_scheme(), preferred_contrast(), user_color(), NativeThemeObserver::OnNativeThemeUpdated.
 #ifndef CORVID_THEME_NATIVE_THEME_APPEARANCE_OBSERVER_H_

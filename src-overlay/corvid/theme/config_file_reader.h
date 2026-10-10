@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md).
 // Serves the fixed allow-list of appearance config files to the WebUI color provider. Anything else is refused.
 #ifndef CORVID_THEME_CONFIG_FILE_READER_H_
 #define CORVID_THEME_CONFIG_FILE_READER_H_

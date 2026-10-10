@@ -1,10 +1,13 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
 // Standalone test (no gtest needed): g++ -std=c++17 ring_buffer.cc ring_buffer_unittest.cc && ./a.out
-// In the Chromium tree this is wrapped as a gtest target (BUILD.gn, UNVERIFIED).
+// In the Chromium tree it is built with CORVID_GTEST defined (BUILD.gn): same checks, run from one gtest TEST.
 #include <cstdio>
 #include <cstdlib>
 
 #include "ring_buffer.h"
+#if defined(CORVID_GTEST)
+#include "testing/gtest/include/gtest/gtest.h"
+#endif
 
 using namespace corvid::diagnostics;
 static int failures = 0;
@@ -15,7 +18,7 @@ static Event Ev(int64_t ts, std::string data = "{}") {
   return e;
 }
 
-int main() {
+static void RunAll() {
   int64_t now = 1000;
   {  // count cap
     Retention r; r.max_events = 3;
@@ -52,6 +55,17 @@ int main() {
     CHECK(only_urls.find("/home/a/b") != std::string::npos);
     CHECK(only_urls.find("x.example") == std::string::npos);
   }
+}
+
+#if defined(CORVID_GTEST)
+TEST(DiagnosticsRingBufferTest, CapsAndRedaction) {
+  RunAll();
+  EXPECT_EQ(failures, 0);
+}
+#else
+int main() {
+  RunAll();
   std::printf(failures ? "FAILED (%d)\n" : "OK\n", failures);
   return failures ? 1 : 0;
 }
+#endif

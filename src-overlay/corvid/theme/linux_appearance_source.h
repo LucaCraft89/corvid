@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Browser-side implementation of corvid.theme.mojom.LinuxAppearanceSource.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Browser-side implementation of corvid.theme.mojom.LinuxAppearanceSource.
 // Deliberately free of D-Bus: portal values come from an AppearanceSnapshot (fed by NativeThemeAppearanceObserver,
 // which sees what upstream's portal_settings_linux.cc already read), config files come from the exact-match
 // allow-list in config_file_reader.h. Kept free of Mojo types so it unit-tests without a message pipe; the thin

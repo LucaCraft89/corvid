@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Cases that name hosts use hosts present in ui/pages/stock-pages.json
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Cases that name hosts use hosts present in ui/pages/stock-pages.json
 // (docs/stock-pages.md); the table-wide test re-includes the generated table so it cannot drift from it.
 #include "corvid/webui/stock_page_policy.h"
 

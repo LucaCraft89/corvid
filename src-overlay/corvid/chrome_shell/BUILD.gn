@@ -1,4 +1,4 @@
-# UNVERIFIED: not evaluated by gn until the first CI run. Small independent targets so they build incrementally.
+# Evaluated by gn and built in M2.
 import("//mojo/public/tools/bindings/mojom.gni")
 
 source_set("layout_json") {

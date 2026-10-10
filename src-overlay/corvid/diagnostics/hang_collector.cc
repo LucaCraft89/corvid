@@ -64,17 +64,19 @@ void HangCollector::PrimaryMainFrameRenderProcessGone(base::TerminationStatus st
               .tab_id = TabIdFor(web_contents()), .data = std::move(d)});
 }
 
-void HangCollector::OnDidAddMessageToConsole(content::RenderFrameHost*, int32_t level,
+void HangCollector::OnDidAddMessageToConsole(content::RenderFrameHost*,
+                                             blink::mojom::ConsoleMessageLevel level,
                                              const std::u16string& message, int32_t line_no,
                                              const std::u16string& source_id,
                                              const std::optional<std::u16string>& stack) {
   base::Value::Dict d;
-  d.Set("level", level == 0 ? "verbose" : level == 1 ? "info" : level == 2 ? "warning" : "error");
+  using Level = blink::mojom::ConsoleMessageLevel;
+  d.Set("level", level == Level::kVerbose ? "verbose" : level == Level::kInfo ? "info" : level == Level::kWarning ? "warning" : "error");
   d.Set("message", base::UTF16ToUTF8(message));
   d.Set("sourceUrl", base::UTF16ToUTF8(source_id));
   d.Set("line", line_no);
   if (stack) d.Set("rawStack", base::UTF16ToUTF8(*stack));
-  bus_->Emit({.kind = "console", .severity = level >= 3 ? "error" : level == 2 ? "warning" : "info",
+  bus_->Emit({.kind = "console", .severity = level == Level::kError ? "error" : level == Level::kWarning ? "warning" : "info",
               .source = "renderer", .tab_id = TabIdFor(web_contents()), .data = std::move(d)});
 }
 

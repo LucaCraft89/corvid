@@ -1,6 +1,7 @@
 # Copyright 2026 The Corvid Authors. BSD-3-Clause.
-# UNVERIFIED (not run through gn). event_bus.h/.cc, stack_sampler.*, net_collector.cc impl,
-# and the file-backed sink are NOT yet written: only the verified portable core exists.
+# Built in M2: mojom, ring_buffer (+ its gtest). NOT built yet: `collectors` (hang_collector.cc / net_collector.cc need
+# event_bus.h and stack_sampler.h, which are Phase 2 work). The collectors target is kept so the intent is visible,
+# but nothing depends on it.
 import("//mojo/public/tools/bindings/mojom.gni")
 
 mojom("mojom") {
@@ -8,16 +9,32 @@ mojom("mojom") {
 }
 
 source_set("ring_buffer") {
-  sources = [ "ring_buffer.cc", "ring_buffer.h" ]
+  sources = [
+    "ring_buffer.cc",
+    "ring_buffer.h",
+  ]
 }
 
 source_set("collectors") {
-  sources = [ "hang_collector.cc", "hang_collector.h", "net_collector.cc" ]
-  deps = [ ":mojom", ":ring_buffer", "//content/public/browser", "//net" ]
+  sources = [
+    "hang_collector.cc",
+    "hang_collector.h",
+    "net_collector.cc",
+  ]
+  deps = [
+    ":mojom",
+    ":ring_buffer",
+    "//content/public/browser",
+    "//net",
+  ]
 }
 
-source_set("unittests") {
+source_set("unit_tests") {
   testonly = true
-  sources = [ "ring_buffer_unittest.cc" ]  # standalone main(); convert to gtest TEST() when wired
-  deps = [ ":ring_buffer" ]
+  sources = [ "ring_buffer_unittest.cc" ]
+  defines = [ "CORVID_GTEST" ]
+  deps = [
+    ":ring_buffer",
+    "//testing/gtest",
+  ]
 }

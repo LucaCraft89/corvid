@@ -7,6 +7,14 @@
 
 namespace corvid::diagnostics {
 
+Event::Event() = default;
+Event::Event(const Event&) = default;
+Event::Event(Event&&) noexcept = default;
+Event& Event::operator=(const Event&) = default;
+Event& Event::operator=(Event&&) noexcept = default;
+Event::~Event() = default;
+RingBuffer::~RingBuffer() = default;
+
 static int64_t SystemNowMs() {
   using namespace std::chrono;
   return duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();

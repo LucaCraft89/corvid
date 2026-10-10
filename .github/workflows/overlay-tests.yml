@@ -1,8 +1,8 @@
 name: overlay-tests
 
-# UNVERIFIED: never run. Builds ONLY the src-overlay/corvid GN targets (not chrome) in the checkout on the
+# Builds ONLY the src-overlay/corvid GN targets (not chrome) in the checkout on the
 # self-hosted runner labelled "corvid-builder" (docs/build-host.md) and runs corvid_phase1_unittests.
-# Expect the first run to find compile errors: all overlay C++ was written without a Chromium tree.
+# Locally verified in M2 (docs/reports/M2-*.md); the runner itself has not run this workflow yet.
 #
 # Skips cleanly (job skipped, not failed) unless the repo variable CORVID_BUILDER_ENABLED is "true".
 # Never runs on pull_request (a self-hosted runner executes workflow code on the owner's machine).

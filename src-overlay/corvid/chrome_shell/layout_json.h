@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md).
 // Structural sanity check for the layout library JSON that the (untrusted) WebUI renderer asks us to persist.
 // This is NOT the full validation: the authoritative schema (ui/layout/layout.schema.json) and repair logic run in
 // TypeScript on load. The browser only refuses data that cannot possibly be a layout library, so a compromised or

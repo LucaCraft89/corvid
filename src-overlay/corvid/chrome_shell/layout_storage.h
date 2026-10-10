@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Profile-scoped layout file with atomic writes.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Profile-scoped layout file with atomic writes.
 #ifndef CORVID_CHROME_SHELL_LAYOUT_STORAGE_H_
 #define CORVID_CHROME_SHELL_LAYOUT_STORAGE_H_
 

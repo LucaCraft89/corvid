@@ -1,13 +1,18 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// UNVERIFIED (uncompiled): Chromium API names below are from memory of recent stable and MUST be
-// checked against the pinned version (see docs/notes/chromium-hooks.md "to verify" list).
+// NOT BUILT YET (needs event_bus.h and stack_sampler.h, Phase 2). WebContentsObserver signatures were checked against
+// content/public/browser/web_contents_observer.h @155 (docs/notes/chromium-api-m2.md).
 #ifndef CORVID_DIAGNOSTICS_HANG_COLLECTOR_H_
 #define CORVID_DIAGNOSTICS_HANG_COLLECTOR_H_
 
 #include "base/memory/raw_ptr.h"
+#include <optional>
+#include <string>
+
+#include "base/process/kill.h"
 #include "base/time/time.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "third_party/blink/public/mojom/devtools/console_message.mojom-forward.h"
 
 namespace corvid::diagnostics {
 
@@ -25,7 +30,8 @@ class HangCollector : public content::WebContentsObserver,
   void OnRendererUnresponsive(content::RenderProcessHost* host) override;
   void OnRendererResponsive(content::RenderProcessHost* host) override;
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus status) override;
-  void OnDidAddMessageToConsole(content::RenderFrameHost* source, int32_t level,
+  void OnDidAddMessageToConsole(content::RenderFrameHost* source,
+                                blink::mojom::ConsoleMessageLevel level,
                                 const std::u16string& message, int32_t line_no,
                                 const std::u16string& source_id,
                                 const std::optional<std::u16string>& untrusted_stack_trace) override;

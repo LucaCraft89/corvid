@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 (M2).
 #include "corvid/webui/stock_page_rewriter.h"
 
 #include "content/public/browser/browser_url_handler.h"

@@ -1,9 +1,9 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// UNVERIFIED (uncompiled). Chromium-side software authenticator. The behavior contract is the
+// NOT COMPILED (no BUILD target yet). Chromium-side software authenticator. The behavior contract is the
 // verified TS reference (reference/authenticator.ts + vault.ts, 20 passing tests); this C++ must
 // reproduce its byte-level outputs (test vectors: reference/test/*.test.ts).
 //
-// Integration shape (names from memory, verify against pinned tree; see docs/notes/chromium-hooks.md):
+// Integration shape (FIDO names verified @155, docs/notes/chromium-api-m2.md; Argon2 is NOT in the tree, see that note):
 //  * device::FidoDiscoveryFactory::Create(FidoTransportProtocol) is the single place discoveries are
 //    made. Corvid adds a hook that, for kInternal on Linux, returns SoftwareDiscovery below.
 //  * SoftwareDiscovery is a device::FidoDiscoveryBase that reports exactly one FidoAuthenticator

@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled.
+// Compiled and tested against Chromium 155 (M2).
 #include "corvid/theme/native_theme_appearance_observer.h"
 
 #include <utility>

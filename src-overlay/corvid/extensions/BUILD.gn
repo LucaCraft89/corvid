@@ -1,4 +1,4 @@
-# UNVERIFIED: not evaluated by gn.
+# Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md).
 source_set("extensions") {
   sources = [
     "ntp_override.cc",

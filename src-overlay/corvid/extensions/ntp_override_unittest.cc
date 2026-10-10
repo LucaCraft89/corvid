@@ -1,4 +1,4 @@
-// UNVERIFIED: not compiled. Cases mirror ui/pages/shared/logic.test.ts.
+// Compiled and tested against Chromium 155 in M2 (docs/notes/chromium-api-m2.md). Cases mirror ui/pages/shared/logic.test.ts.
 #include "corvid/extensions/ntp_override.h"
 
 #include "testing/gtest/include/gtest/gtest.h"

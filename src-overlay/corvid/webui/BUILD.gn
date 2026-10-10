@@ -1,4 +1,4 @@
-# UNVERIFIED: not evaluated by gn until the first CI run.
+# Evaluated by gn and built in M2.
 # Pure policy (host table -> decision -> rewritten URL): depends only on //base and //url.
 source_set("stock_page_policy") {
   sources = [
