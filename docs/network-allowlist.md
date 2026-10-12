@@ -26,6 +26,19 @@ clients2.google.com
 clients2.googleusercontent.com
 ```
 
+### Scoped binary strings (approved by Luca, 2026-10-12: "allow A, B, C")
+
+Hosts that appear in the binary only as data, allowed by *where* they sit, not by name. Parsed by `01b-binary-host-grep.sh`: one rule per line, `file-glob  host-glob  # reason`, matched against the per-file report from `scripts/binary-host-report.sh`. A host found in any file or form not matched here still fails the check.
+
+```binary-scoped
+# A. HSTS preload and key-pin lists (transport_security_state_static). Data saying "use HTTPS for this host"; nothing is contacted. scripts/domain-substitute.py skips it on purpose, rewriting would corrupt the list. Limit: this also allows any other Google host string inside libnet.so.
+libnet.so  *
+# B. Protobuf Any type-URL prefix: an identifier, never connected to.
+*  type.googleapis.com
+# C. Help links and bundled page text in resource packs. Followed only if the user clicks a link in a page; the stock pages are hidden by the stock-page rewriter. Limit: this also allows any Google host string in the packs.
+*.pak  *
+```
+
 ## User-initiated exceptions
 
 Hosts that may be contacted **only as the direct result of an explicit user action** (never in the idle capture, which must stay empty). Parsed by the acceptance scripts that exercise those actions.
