@@ -56,7 +56,7 @@ index 064326ef5273..2ef6dce42d20 100644
  
  bool IsSyncAllowedByFlag() {
 -  return !base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSync);
-+  // Chrome Sync is off; Corvid has its own sync client (phase 4).
++  // Chrome Sync is off; the in-house sync client lands in phase 4.
 +  return false;
  }
  
