@@ -10,6 +10,6 @@ source_set("unit_tests") {
     "//components/search_engines",
     "//components/sync_preferences:test_support",
     "//testing/gtest",
-    "//third_party/search_engines_data:prepopulated_engines",
+    "//ui/base",
   ]
 }

@@ -9,6 +9,7 @@
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/search_engines_data/resources/definitions/prepopulated_engines.h"
+#include "ui/base/resource/resource_bundle.h"
 
 namespace {
 
@@ -44,6 +45,9 @@ TEST(CorvidSearchDefaults, NoDuckDuckGoKeepsOrderWithoutGoogle) {
 }
 
 TEST(CorvidSearchDefaults, StarterPackHasNoGeminiOrAiMode) {
+  // GetStarterPackEngines() reads localized names through the ResourceBundle.
+  ui::ResourceBundle::InitSharedInstanceWithLocale(
+      "en-US", nullptr, ui::ResourceBundle::DO_NOT_LOAD_COMMON_RESOURCES);
   auto engines = template_url_starter_pack_data::GetStarterPackEngines();
   EXPECT_EQ(4u, engines.size());  // bookmarks, history, tabs, page
   for (const auto& engine : engines) {
@@ -52,6 +56,7 @@ TEST(CorvidSearchDefaults, StarterPackHasNoGeminiOrAiMode) {
     EXPECT_NE(static_cast<int>(StarterPackId::kAiMode),
               engine->starter_pack_id);
   }
+  ui::ResourceBundle::CleanupSharedInstance();
 }
 
 }  // namespace
