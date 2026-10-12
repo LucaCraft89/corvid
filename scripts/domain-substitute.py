@@ -6,7 +6,7 @@ the binary; replacing the TLD with `.invalid` (RFC 6761, never resolves) makes a
 the binary free of live Google endpoints. Hosts in KEEP (docs/network-allowlist.md binary-allowlist block) are left alone.
 
 Run after patches + overlay + branding, before building (scripts/apply-patches.sh does). Idempotent. The substituted files
-are listed in <tree>/.corvid-substituted; `--revert` restores them from git (do this before authoring patches, and never
+are listed in <tree>/.domain-substituted; `--revert` restores them from git (do this before authoring patches, and never
 commit substituted content: scripts/refresh-patches.sh refuses hunks that add `.invalid` hosts).
 
 Usage: domain-substitute.py --tree DIR [--allowlist docs/network-allowlist.md] [--revert]
@@ -29,7 +29,7 @@ SKIP_NAME = re.compile(r"(_unittest|_browsertest|_test|_perftest|_mock|_fake|_st
 DOMAINS = r"(?:google|googleapis|gstatic|googleusercontent|gvt1|gvt2|googlesyndication|google-analytics|withgoogle)\.com|doubleclick\.net|youtube\.com|ytimg\.com|withyoutube\.com"
 HOST = re.compile(r"(?<![A-Za-z0-9])((?:[A-Za-z0-9_-]+\.)*(?:" + DOMAINS + r"))(?![A-Za-z0-9-])", re.I)
 TLD = re.compile(r"\.(com|net)$", re.I)
-MANIFEST = ".corvid-substituted"
+MANIFEST = ".domain-substituted"
 
 
 def keep_set(path):
