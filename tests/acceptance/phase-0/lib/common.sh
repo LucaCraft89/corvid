@@ -28,6 +28,8 @@ copy_root() {
   # ui/ is bundled into the overlay by scripts/build-ui.sh (esbuild from the repo's node_modules).
   ln -s "$T_ROOT/node_modules" "$WORK/root/node_modules"
   mkdir -p "$WORK/root/docs/rebase"
+  # G2 substitution/render scripts read the allowlist from the repo root.
+  cp "$T_ROOT/docs/network-allowlist.md" "$WORK/root/docs/"
   RROOT="$WORK/root"
 }
 
