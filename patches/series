@@ -14,3 +14,4 @@ debrand/0170-webrtc-privacy-defaults.patch
 debrand/0180-no-external-extension-dirs-linux.patch
 debrand/0190-disable-gcm-connection.patch
 debrand/0195-no-baked-in-domain-reliability-configs.patch
+debrand/0196-default-search-duckduckgo.patch

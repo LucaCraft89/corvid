@@ -1,0 +1,42 @@
+Purpose: No Google-owned default search engine: drop Google from the prepopulated list, put DuckDuckGo first, and make it the fallback (CR-8; degoogle item 17).
+Area: debrand
+Files: components/search_engines/template_url_prepopulate_data.cc
+Rebase risk: low because two small hunks in one function and the fallback helper
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/components/search_engines/template_url_prepopulate_data.cc b/components/search_engines/template_url_prepopulate_data.cc
+index 85b0c960533ac..1a31022a315ae 100644
+--- a/components/search_engines/template_url_prepopulate_data.cc
++++ b/components/search_engines/template_url_prepopulate_data.cc
+@@ -192,8 +192,20 @@ std::vector<std::unique_ptr<TemplateURLData>> GetPrepopulatedEngines(
+     return t_urls;
+   }
+ 
+-  return base::ToVector(regional_prepopulated_engines,
+-                        &PrepopulatedEngineToTemplateURLData);
++  // Corvid: no Google-owned default. Drop Google and put DuckDuckGo first (the
++  // first entry is the default). shortcut: if DuckDuckGo is not in a region's
++  // list the first remaining engine becomes the default.
++  std::vector<raw_ptr<const PrepopulatedEngine>> engines;
++  for (const PrepopulatedEngine* engine : regional_prepopulated_engines) {
++    if (engine->id != google.id) {
++      engines.push_back(engine);
++    }
++  }
++  std::stable_partition(engines.begin(), engines.end(),
++                        [](const PrepopulatedEngine* engine) {
++                          return engine->id == duckduckgo.id;
++                        });
++  return base::ToVector(engines, &PrepopulatedEngineToTemplateURLData);
+ }
+ 
+ std::unique_ptr<TemplateURLData> GetPrepopulatedEngine(
+@@ -318,7 +330,7 @@ std::unique_ptr<TemplateURLData> GetPrepopulatedFallbackSearch(
+     const std::vector<raw_ptr<const PrepopulatedEngine>>&
+         regional_prepopulated_engines) {
+   return FindPrepopulatedEngineInternal(prefs, regional_prepopulated_engines,
+-                                        google.id,
++                                        duckduckgo.id,
+                                         /*use_first_as_fallback=*/true);
+ }
+ 

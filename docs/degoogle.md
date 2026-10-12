@@ -22,7 +22,7 @@ Strategy order per item: (1) GN arg in `build/args/linux-*.gn`, (2) runtime defa
 | 14 | Widevine CDM download | GN `enable_widevine=false` (OPEN QUESTION for DRM video) | `build/args` | specified |
 | 15 | RLZ | not built on Linux | n/a | verified (RLZ buildflag 0) |
 | 16 | Doodles / NTP search promos | n/a: Corvid NTP (`corvid://newtab`) replaces the stock NTP | `ui/pages/newtab` | specified |
-| 17 | Search defaults | configurable engine list, DuckDuckGo placeholder default, no Google-owned default; Google not in the shipped list | `ui/chrome/omnibox.ts` | NOT done: the prepopulated default search engine is still Google (needs the user: see M3-G2 report question 1) |
+| 17 | Search defaults | configurable engine list, DuckDuckGo placeholder default, no Google-owned default; Google not in the shipped list | `ui/chrome/omnibox.ts` | specified: `patches/debrand/0196-*` drops Google, DuckDuckGo first + fallback (CR-8); UNBUILT, applies cleanly, needs build + idle capture |
 | 18 | Pre-resolve/preconnect to Google hosts | patch: remove hard-coded hosts (e.g. NTP/omnibox warm-ups) | `patches/debrand/0160-*` | verified (kPreconnectToSearch off) |
 | 19 | WebRTC: no hard-coded Google STUN | audit: grep built binary for `stun.l.google.com`; none contacted unless a site or the user supplies a server; default IP policy `default_public_interface_only`, mDNS candidates on | settings `privacy.webrtc*`, `patches/debrand/0170-*` | verified (no stun host in tree; policy default) |
 | 20 | Extension store / update URLs | extension update URL is user-configurable; no Chrome Web Store default (CR-2 open) | `patches/extensions/`, `extensions/preinstalled.toml` | specified |
