@@ -1,0 +1,15 @@
+# Unit tests for Corvid's search-engine patches (patches/debrand/0196, 0197). Upstream tests that assume a Google
+# default are listed in tests/chromium-expected-failures.txt and replaced by these.
+import("//testing/test.gni")
+
+source_set("unit_tests") {
+  testonly = true
+  sources = [ "search_defaults_unittest.cc" ]
+  deps = [
+    "//base",
+    "//components/search_engines",
+    "//components/sync_preferences:test_support",
+    "//testing/gtest",
+    "//third_party/search_engines_data:prepopulated_engines",
+  ]
+}

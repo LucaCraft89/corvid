@@ -1,0 +1,37 @@
+# Upstream Chromium unit tests that fail BECAUSE of Corvid patches 0196 (DuckDuckGo default, no Google in the
+# prepopulated list) and 0197 (no Gemini / AI Mode starter-pack entries). They assert the behaviour we removed on
+# purpose; they are not edited (rebase cost). Replaced by //corvid/search:unit_tests (src-overlay/corvid/search).
+# Source: PC run of components_unittests, Chromium 155.0.8059.39, filter
+# TemplateURL*:*Prepopulate*:*StarterPack*:*SearchEngine*:FeaturedSearchProviderTest*:AutocompleteControllerTest*:*KeywordProvider*
+# Baseline (unpatched): 2 failed, 508 ok. Patched: 87 failed, 401 ok. Newly failing: 85 (76 from 0196, 9 from 0197).
+# Full names: /mnt/project-files/search-engine-test-failures.txt. Use as: --gtest_filter=<positive>:-$(this file joined with ':').
+# UNVERIFIED: that the patterns below select exactly the 85; recheck on the PC after the next patch change.
+# Pre-existing, NOT ours (fail on an unpatched tree too): AutocompleteControllerTest.ExtraHeaders,
+#   AutocompleteControllerTest.ShouldRunProvider_LimitKeywordModeSuggestions
+FeedApiTest.GetRequestMetadataWithDefaultSearchEngine
+SearchEngineChoiceEligibilityTest.*
+SearchEngineChoiceServiceTest.RecordChoiceMade*
+SearchEngineChoiceServiceTest.UpdatesDefaultSearchEngineManagerForGuestMode
+SearchEngineSplitTemplateURLServiceNonSplitRegionTest.SearchEngineSplitProfileLoadMetrics_NonSplitRegion
+SearchEngineSplitTemplateURLServiceSplitRegionTest.SearchEngineSplitProfileLoadMetrics_SplitRegion
+SearchEngineUtilTemplateUrlTest.GetFixedUpSearchEngineUrl
+SearchEngineUtilTemplateUrlTest.GetUrlForAim_QsubtsFlag
+SearchEngineUtilTemplateUrlTest.IsSearchEngineKeywordValidToUse
+SearchEngineUtilTemplateUrlTest.IsSearchEngineURLValidToUse
+*TemplateURLPrepopulateDataListTest.QuickEeaEngineListIsRandomPerCountry*
+TemplateURLPrepopulateDataTest.ClearProvidersFromPrefs
+TemplateURLPrepopulateDataTest.EntriesPerCountryConsistency
+TemplateURLPrepopulateDataTest.FindGoogleAsFallback
+TemplateURLPrepopulateDataTest.GetPrepopulatedEngineFromFullList
+TemplateURLPrepopulateDataTest.NumberOfEntriesPerCountryConsistency
+TemplateURLPrepopulateDataTest.ProvidersFromPrepopulated
+TemplateURLServiceUnitTest.GetCategorizedTemplateURLs_PrepopulatedPrioritizedAndOrdered
+TemplateURLServiceUtilLoadTest.GetSearchProvidersUsingLoadedEngines_InEea
+TemplateURLServiceUtilLoadTest.GetSearchProvidersUsingLoadedEngines_OutOfEea
+AutocompleteControllerTest.UpdateAssociatedKeywords
+FeaturedSearchProviderTest.FeaturedEnterpriseSearch
+FeaturedSearchProviderTest.OffTheRecord_FeaturedEnterpriseSearch
+FeaturedSearchProviderTest.StarterPack*
+FeaturedSearchProviderTest.ZeroSuggestEnterpriseSearchAggregatorIPHSuggestion
+FeaturedSearchProviderTest.ZeroSuggestFeaturedEnterpriseSiteSearchIPHSuggestion
+FeaturedSearchProviderTest.ZeroSuggestStarterPackIPHSuggestion
