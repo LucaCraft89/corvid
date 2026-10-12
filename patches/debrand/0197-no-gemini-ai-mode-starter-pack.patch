@@ -1,0 +1,39 @@
+Purpose: Do not offer the Google-linked omnibox starter-pack entries "Gemini" (@gemini) and "Google AI Mode" (@aimode); item 17 follow-up.
+Area: debrand
+Files: components/search_engines/template_url_starter_pack_data.cc
+Rebase risk: low because one array and two attribute additions in a data file
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/components/search_engines/template_url_starter_pack_data.cc b/components/search_engines/template_url_starter_pack_data.cc
+index 4ad0bb0..9a57fb9 100644
+--- a/components/search_engines/template_url_starter_pack_data.cc
++++ b/components/search_engines/template_url_starter_pack_data.cc
+@@ -57,7 +57,7 @@ const StarterPackEngine tabs = {
+     .type = SEARCH_ENGINE_STARTER_PACK_TABS,
+ };
+ 
+-const StarterPackEngine gemini = {
++[[maybe_unused]] const StarterPackEngine gemini = {
+     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_GEMINI_NAME,
+     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_GEMINI_KEYWORD,
+     .favicon_url = nullptr,
+@@ -77,7 +77,7 @@ const StarterPackEngine page = {
+     .type = SEARCH_ENGINE_STARTER_PACK_PAGE,
+ };
+ 
+-const StarterPackEngine ai_mode = {
++[[maybe_unused]] const StarterPackEngine ai_mode = {
+     .name_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_AI_MODE_NAME,
+     .keyword_message_id = IDS_SEARCH_ENGINES_STARTER_PACK_AI_MODE_KEYWORD,
+     .favicon_url = nullptr,
+@@ -92,8 +92,9 @@ const StarterPackEngine ai_mode = {
+     .type = SEARCH_ENGINE_STARTER_PACK_AI_MODE,
+ };
+ 
++// Corvid: Gemini and Google AI Mode are Google services; not offered.
+ const StarterPackEngine* engines[] = {
+-    &bookmarks, &history, &tabs, &gemini, &page, &ai_mode,
++    &bookmarks, &history, &tabs, &page,
+ };
+ 
+ int GetDataVersion() {
