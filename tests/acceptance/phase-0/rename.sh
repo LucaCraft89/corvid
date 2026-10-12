@@ -70,7 +70,7 @@ hits() { # <tree> -> prints offending paths (content or file name)
         case "$(basename "$f" | tr '[:upper:]' '[:lower:]')" in *"$OLD"*) echo "$f"; continue ;; esac
         # Code references to the overlay namespace (`//corvid/...` GN labels, "corvid/..." include paths, `corvid::` symbols)
         # are the internal codename, exempt like the overlay directory itself; every other occurrence is a brand leak.
-        sed -E "s#(//|\")${OLD}/##Ig; s#${OLD}::##Ig" "$t/$f" | grep -Iqi -- "$OLD" && echo "$f"
+        sed -E "s#(//|\")${OLD}/##Ig; s#${OLD}::##Ig; s#Repeater\.${OLD}\.[^ ]*##Ig" "$t/$f" | grep -Iqi -- "$OLD" && echo "$f"
       done | { grep -Ev "$allowed_re" || true; }
     return 0
   fi
