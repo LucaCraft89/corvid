@@ -1,7 +1,6 @@
 # Copyright 2026 The Corvid Authors. BSD-3-Clause.
-# Built in M2: mojom, ring_buffer (+ its gtest). NOT built yet: `collectors` (hang_collector.cc / net_collector.cc need
-# event_bus.h and stack_sampler.h, which are Phase 2 work). The collectors target is kept so the intent is visible,
-# but nothing depends on it.
+# Built in M2: mojom, ring_buffer (+ its gtest). Written for G4, UNBUILT: event_bus (+ stack_sampler), collectors
+# (hang only), event_bus_unittest. Compile order: ring_buffer -> event_bus -> collectors -> unit_tests.
 import("//mojo/public/tools/bindings/mojom.gni")
 
 mojom("mojom") {
@@ -15,13 +14,29 @@ source_set("ring_buffer") {
   ]
 }
 
+source_set("event_bus") {
+  sources = [
+    "event_bus.cc",
+    "event_bus.h",
+    "stack_sampler.cc",
+    "stack_sampler.h",
+  ]
+  public_deps = [
+    ":ring_buffer",
+    "//base",
+  ]
+  deps = [ "//content/public/browser" ]
+}
+
+# net_collector.cc is a sketch (class declared in the .cc, OnAddEntry not written): kept out of the compile until
+# it is finished (docs/notes/g4-spec.md, step: net events).
 source_set("collectors") {
   sources = [
     "hang_collector.cc",
     "hang_collector.h",
-    "net_collector.cc",
   ]
   deps = [
+    ":event_bus",
     ":mojom",
     ":ring_buffer",
     "//content/public/browser",
@@ -31,10 +46,16 @@ source_set("collectors") {
 
 source_set("unit_tests") {
   testonly = true
-  sources = [ "ring_buffer_unittest.cc" ]
+  sources = [
+    "event_bus_unittest.cc",
+    "ring_buffer_unittest.cc",
+  ]
   defines = [ "CORVID_GTEST" ]
   deps = [
+    ":collectors",
+    ":event_bus",
     ":ring_buffer",
+    "//base/test:test_support",
     "//testing/gtest",
   ]
 }

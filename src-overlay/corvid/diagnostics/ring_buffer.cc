@@ -36,6 +36,24 @@ uint64_t RingBuffer::Add(Event e) {
   return id;
 }
 
+bool RingBuffer::Update(uint64_t id, const std::function<void(Event&)>& fn) {
+  // Ids are assigned in increasing order and events_ is in insertion order: binary search.
+  size_t lo = 0, hi = events_.size();
+  while (lo < hi) {
+    size_t mid = lo + (hi - lo) / 2;
+    if (events_[mid].id < id) lo = mid + 1; else hi = mid;
+  }
+  if (lo == events_.size() || events_[lo].id != id) return false;
+  Event& e = events_[lo];
+  bytes_ -= Cost(e);
+  const uint64_t keep_id = e.id;
+  fn(e);
+  e.id = keep_id;
+  bytes_ += Cost(e);
+  Evict();
+  return true;
+}
+
 void RingBuffer::Evict() {
   const int64_t cutoff = now_ms_() - retention_.max_age_ms;
   while (!events_.empty() && (bytes_ > retention_.max_bytes || events_.size() > retention_.max_events ||
