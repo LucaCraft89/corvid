@@ -1,6 +1,17 @@
 # Copyright 2026 The Corvid Authors. BSD-3-Clause.
 # UNBUILT (G4). software_authenticator.h is still a header-only design; it has no target yet.
-# Compile order: vault -> vault_unittest. vault_crypto_boringssl needs //third_party/argon2, which is NOT vendored yet.
+# Compile order: vault -> authenticator_core -> unit_tests. vault_crypto_boringssl needs //third_party/argon2, which is NOT vendored yet.
+source_set("authenticator_core") {
+  sources = [
+    "authenticator_core.cc",
+    "authenticator_core.h",
+  ]
+  deps = [
+    ":vault",
+    "//base",
+  ]
+}
+
 source_set("vault") {
   sources = [
     "vault.cc",
@@ -26,8 +37,12 @@ source_set("vault_crypto_boringssl") {
 
 source_set("unit_tests") {
   testonly = true
-  sources = [ "vault_unittest.cc" ]
+  sources = [
+    "authenticator_core_unittest.cc",
+    "vault_unittest.cc",
+  ]
   deps = [
+    ":authenticator_core",
     ":vault",
     "//base",
     "//testing/gtest",

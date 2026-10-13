@@ -9,6 +9,7 @@
 #include "base/base64url.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/test/bind.h"
 #include "base/values.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -75,8 +76,8 @@ std::unique_ptr<Vault> NewVault(FakeCrypto* c, const std::string& pw = "correct 
   return v;
 }
 
-base::Value::Dict Parse(const std::string& s) {
-  std::optional<base::Value> v = base::JSONReader::Read(s);
+base::DictValue Parse(const std::string& s) {
+  std::optional<base::Value> v = base::JSONReader::Read(s, base::JSON_PARSE_RFC);
   EXPECT_TRUE(v && v->is_dict());
   return std::move(*v).TakeDict();
 }
@@ -117,7 +118,7 @@ TEST(CorvidVaultTest, TamperingWithAnyFieldRejected) {
   FakeCrypto c;
   auto v = NewVault(&c);
   v->Add(Cred("a"));
-  base::Value::Dict good = Parse(v->Serialize());
+  base::DictValue good = Parse(v->Serialize());
   Vault::OpenOptions oo; oo.passphrase = "correct horse";
 
   auto flip = [](const std::string& b64) {
@@ -126,17 +127,17 @@ TEST(CorvidVaultTest, TamperingWithAnyFieldRejected) {
     return out;
   };
   for (const char* key : {"body", "wrappedKey", "bodyNonce", "wrapNonce"}) {
-    base::Value::Dict f = good.Clone();
+    base::DictValue f = good.Clone();
     f.Set(key, flip(*f.FindString(key)));
     std::unique_ptr<Vault> w;
     EXPECT_EQ(Vault::Open(&c, base::WriteJson(f).value(), oo, &w), VaultError::kAuthFailed) << key;
   }
   {  // revision and kdf salt are bound by the AAD
-    base::Value::Dict f = good.Clone();
+    base::DictValue f = good.Clone();
     f.Set("revision", 99);
     std::unique_ptr<Vault> w;
     EXPECT_EQ(Vault::Open(&c, base::WriteJson(f).value(), oo, &w), VaultError::kAuthFailed);
-    base::Value::Dict g = good.Clone();
+    base::DictValue g = good.Clone();
     g.FindDict("kdf")->Set("salt", flip(*g.FindDict("kdf")->FindString("salt")));
     EXPECT_EQ(Vault::Open(&c, base::WriteJson(g).value(), oo, &w), VaultError::kAuthFailed);
   }
@@ -149,7 +150,7 @@ TEST(CorvidVaultTest, KdfFloorAndShapeEnforced) {
   EXPECT_EQ(Vault::Create(&c, o, &v), VaultError::kKdfTooWeak);
 
   auto good = NewVault(&c);
-  base::Value::Dict f = Parse(good->Serialize());
+  base::DictValue f = Parse(good->Serialize());
   f.FindDict("kdf")->Set("m", 1024);  // downgrade by file edit
   std::unique_ptr<Vault> w;
   Vault::OpenOptions oo; oo.passphrase = "correct horse";
@@ -160,7 +161,7 @@ TEST(CorvidVaultTest, KdfFloorAndShapeEnforced) {
 TEST(CorvidVaultTest, SerializeBumpsRevisionWithFreshNonces) {
   FakeCrypto c;
   auto v = NewVault(&c);
-  base::Value::Dict a = Parse(v->Serialize()), b = Parse(v->Serialize());
+  base::DictValue a = Parse(v->Serialize()), b = Parse(v->Serialize());
   EXPECT_EQ(v->revision(), 2u);
   EXPECT_NE(*a.FindString("bodyNonce"), *b.FindString("bodyNonce"));
   EXPECT_NE(*a.FindString("wrapNonce"), *b.FindString("wrapNonce"));

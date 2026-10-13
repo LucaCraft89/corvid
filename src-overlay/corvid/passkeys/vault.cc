@@ -66,8 +66,8 @@ VaultError DeriveKek(VaultCrypto* c, UnlockMode mode, const std::string& pass, c
   return VaultError::kOk;
 }
 
-base::Value::Dict CredToDict(const Credential& c) {
-  base::Value::Dict d;
+base::DictValue CredToDict(const Credential& c) {
+  base::DictValue d;
   d.Set("id", c.id);
   d.Set("rpId", c.rp_id);
   d.Set("userHandle", c.user_handle);
@@ -82,7 +82,7 @@ base::Value::Dict CredToDict(const Credential& c) {
   return d;
 }
 
-bool DictToCred(const base::Value::Dict& d, Credential* c) {
+bool DictToCred(const base::DictValue& d, Credential* c) {
   const std::string *id = d.FindString("id"), *rp = d.FindString("rpId"), *uh = d.FindString("userHandle"),
                     *un = d.FindString("userName"), *dn = d.FindString("displayName"),
                     *pk = d.FindString("privateKey");
@@ -141,10 +141,10 @@ VaultError Vault::Create(VaultCrypto* crypto, const CreateOptions& opts, std::un
 // static
 VaultError Vault::Open(VaultCrypto* crypto, const std::string& file_json, const OpenOptions& opts,
                        std::unique_ptr<Vault>* out) {
-  std::optional<base::Value> parsed = base::JSONReader::Read(file_json);
+  std::optional<base::Value> parsed = base::JSONReader::Read(file_json, base::JSON_PARSE_RFC);
   if (!parsed || !parsed->is_dict()) return VaultError::kBadFormat;
-  const base::Value::Dict& f = parsed->GetDict();
-  const base::Value::Dict* kdf = f.FindDict("kdf");
+  const base::DictValue& f = parsed->GetDict();
+  const base::DictValue* kdf = f.FindDict("kdf");
   const std::string* mode_s = f.FindString("mode");
   if (f.FindInt("v") != 1 || !kdf || !mode_s) return VaultError::kBadFormat;
   const std::string* alg = kdf->FindString("alg");
@@ -173,9 +173,9 @@ VaultError Vault::Open(VaultCrypto* crypto, const std::string& file_json, const 
   std::optional<Bytes> vault_key = crypto->Open(v->kek_, wrap_nonce, aad, wrapped);
   std::optional<Bytes> plain = vault_key ? crypto->Open(*vault_key, body_nonce, aad, body) : std::nullopt;
   if (!plain) return VaultError::kAuthFailed;
-  std::optional<base::Value> bv = base::JSONReader::Read(std::string(plain->begin(), plain->end()));
+  std::optional<base::Value> bv = base::JSONReader::Read(std::string(plain->begin(), plain->end()), base::JSON_PARSE_RFC);
   Wipe(*plain);
-  const base::Value::List* creds = bv && bv->is_dict() ? bv->GetDict().FindList("credentials") : nullptr;
+  const base::ListValue* creds = bv && bv->is_dict() ? bv->GetDict().FindList("credentials") : nullptr;
   if (!creds) return VaultError::kAuthFailed;
   for (const base::Value& cv : *creds) {
     Credential c;
@@ -194,20 +194,20 @@ std::string Vault::Serialize() {
   const Bytes aad = ToBytes(HeaderAad(revision));
   const Bytes wrap_nonce = crypto_->Random(24), body_nonce = crypto_->Random(24);
 
-  base::Value::List creds;
+  base::ListValue creds;
   for (const Credential& c : credentials_) creds.Append(CredToDict(c));
-  base::Value::Dict body;
+  base::DictValue body;
   body.Set("credentials", std::move(creds));
   body.Set("revision", static_cast<double>(revision));
   std::string body_json = base::WriteJson(body).value_or("{}");
 
-  base::Value::Dict kdf;
+  base::DictValue kdf;
   kdf.Set("alg", "argon2id");
   kdf.Set("m", static_cast<int>(kdf_.m));
   kdf.Set("t", static_cast<int>(kdf_.t));
   kdf.Set("p", static_cast<int>(kdf_.p));
   kdf.Set("salt", B64(salt_));
-  base::Value::Dict f;
+  base::DictValue f;
   f.Set("v", 1);
   f.Set("mode", UnlockModeName(mode_));
   f.Set("kdf", std::move(kdf));
