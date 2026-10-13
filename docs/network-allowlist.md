@@ -48,6 +48,14 @@ libblink_modules.so  play.google.com
 libblink_core.so  developers.google.com
 # XMP namespace URIs inside Skia (http://ns.google.com/photos/1.0/container/...): identifiers, never fetched.
 libskia.so  ns.google.com
+# E. String-only hits found by tracing (approved by Luca, 2026-10-13: "yes allowlist 3"). Nothing here is a connection target.
+# Bare ".google.com": Content-Security-Policy strings for stock WebUI pages (frame-src/child-src https://*.google.com) and a domain suffix next to "crash-reporting".
+chrome  .google.com
+libcontent.so  .google.com
+# Log text: "PSA: https://groups.google.com/g/discuss-webrtc/..." (VP9 quality scaling message).
+libthird_party_webrtc_overrides_webrtc_component.so  groups.google.com
+# Not a host: "show_tab_groups" immediately followed by "google.com/recapimage/..."; two adjacent strings in the string pool.
+chrome  groupsgoogle.com
 ```
 
 ## User-initiated exceptions
