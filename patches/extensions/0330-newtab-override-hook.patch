@@ -13,3 +13,87 @@ Change (exact edits; extension_web_ui.cc no longer exists upstream, the old file
 
 Verify:
 - 08-newtab.mjs
+
+diff --git a/chrome/browser/extensions/extension_url_overrides.cc b/chrome/browser/extensions/extension_url_overrides.cc
+index fe6cd3abf0cd..e36a1723a361 100644
+--- a/chrome/browser/extensions/extension_url_overrides.cc
++++ b/chrome/browser/extensions/extension_url_overrides.cc
+@@ -21,6 +21,7 @@
+ #include "base/task/single_thread_task_runner.h"
+ #include "base/values.h"
+ #include "chrome/browser/extensions/extension_tab_util.h"
++#include "corvid/extensions/ntp_override.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/extensions/extension_constants.h"
+@@ -40,6 +41,7 @@
+ #include "extensions/browser/extension_util.h"
+ #include "extensions/browser/image_loader.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "extensions/common/constants.h"
+ #include "extensions/common/extension.h"
+ #include "extensions/common/extension_resource.h"
+ #include "extensions/common/icons/extension_icon_set.h"
+@@ -459,6 +461,44 @@ bool ExtensionUrlOverrides::HandleChromeURLOverride(
+     return false;
+   }
+ 
++  if (url->host() == chrome::kChromeUINewTabHost) {
++    // Corvid: resolve the new tab page through corvid::ResolveNewTab. The
++    // candidates keep upstream priority order (most recent first); no pick is
++    // stored yet, so the choice is automatic.
++    std::vector<GURL> all =
++        GetOverridesForChromeURL(*url, browser_context, /*get_all=*/true);
++    Profile* profile = Profile::FromBrowserContext(browser_context);
++    std::vector<corvid::NtpCandidate> candidates;
++    for (size_t i = 0; i < all.size(); ++i) {
++      if (!all[i].SchemeIs(extensions::kExtensionScheme)) {
++        continue;
++      }
++      corvid::NtpCandidate candidate;
++      candidate.extension_id = all[i].host();
++      candidate.enabled_at = base::Time::FromSecondsSinceUnixEpoch(
++          static_cast<double>(all.size() - i));
++      candidate.overrides_newtab = true;
++      candidate.incognito_allowed = extensions::util::IsIncognitoEnabled(
++          candidate.extension_id, profile);
++      candidates.push_back(std::move(candidate));
++    }
++    corvid::NtpResolution resolution =
++        corvid::ResolveNewTab(candidates, /*picked=*/std::nullopt,
++                              profile->IsOffTheRecord(),
++                              /*force_default=*/false);
++    if (!resolution.extension_id) {
++      // Leave chrome://newtab for the Corvid new tab page.
++      return false;
++    }
++    for (const GURL& candidate_url : all) {
++      if (candidate_url.host() == *resolution.extension_id) {
++        *url = candidate_url;
++        return true;
++      }
++    }
++    return false;
++  }
++
+   std::vector<GURL> overrides =
+       GetOverridesForChromeURL(*url, browser_context, /*get_all=*/false);
+   if (overrides.empty()) {
+diff --git a/chrome/browser/search/search.cc b/chrome/browser/search/search.cc
+index 6d3e318b62f1..c1da304e4a00 100644
+--- a/chrome/browser/search/search.cc
++++ b/chrome/browser/search/search.cc
+@@ -164,6 +164,13 @@ struct NewTabURLDetails {
+       : url(url), state(state) {}
+ 
+   static NewTabURLDetails ForProfile(Profile* profile) {
++    // Corvid: every profile, incognito included, uses chrome://newtab; the
++    // extension override and the Corvid new tab page are applied from there.
++    // Untested for the incognito NTP.
++    if (profile) {
++      return NewTabURLDetails(chrome::ChromeUINewTabPageURLAsGURL(),
++                              NEW_TAB_URL_VALID);
++    }
+     // Incognito and Guest profiles have their own New Tab.
+     // This function may also be called by other off-the-record profiles that
+     // can exceptionally open a browser window.

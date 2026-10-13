@@ -19,3 +19,45 @@ Change (exact edits):
 
 Verify:
 - 07-ubo.mjs
+
+diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
+index 563383fc71d7..f6cd7723dd71 100644
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -489,6 +489,8 @@ source_set("extensions") {
+     "//chrome/browser/ui/toolbar",
+   ]
+   deps = [
++    "//corvid/extensions:extensions",
++    "//corvid/extensions:preinstalled_loader",
+     "//base",
+     "//chrome/app:command_ids",
+     "//chrome/app/theme:chrome_unscaled_resources",
+diff --git a/chrome/browser/extensions/external_provider_impl.cc b/chrome/browser/extensions/external_provider_impl.cc
+index bee47cfc1551..d62dc15dd9d7 100644
+--- a/chrome/browser/extensions/external_provider_impl.cc
++++ b/chrome/browser/extensions/external_provider_impl.cc
+@@ -47,6 +47,7 @@
+ #include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/crx_file/id_util.h"
++#include "corvid/extensions/preinstalled_loader.h"
+ #include "components/policy/core/common/policy_logger.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/browser/browser_thread.h"
+@@ -935,6 +936,15 @@ void ExternalProviderImpl::CreateExternalProviders(
+   drive_migration_provider->set_auto_acknowledge(true);
+   provider_list->push_back(std::move(drive_migration_provider));
+ 
++  // Corvid: preinstalled extensions (extensions/preinstalled.toml). The
++  // location is kExternalPref, so users can disable or remove them and
++  // removal is remembered by extensions.external_uninstalls.
++  provider_list->push_back(std::make_unique<ExternalProviderImpl>(
++      service, base::MakeRefCounted<corvid::PreinstalledExtensionsLoader>(),
++      profile, ManifestLocation::kExternalPref,
++      ManifestLocation::kExternalPrefDownload,
++      Extension::WAS_INSTALLED_BY_DEFAULT));
++
+   provider_list->push_back(std::make_unique<ExternalProviderImpl>(
+       service, base::MakeRefCounted<ExternalComponentLoader>(profile), profile,
+       ManifestLocation::kInvalidLocation, ManifestLocation::kExternalComponent,

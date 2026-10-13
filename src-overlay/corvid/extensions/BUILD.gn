@@ -16,3 +16,14 @@ source_set("unit_tests") {
     "//testing/gtest",
   ]
 }
+
+source_set("preinstalled_loader") {
+  sources = [
+    "preinstalled_loader.cc",
+    "preinstalled_loader.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/extensions:external_loader",
+  ]
+}
