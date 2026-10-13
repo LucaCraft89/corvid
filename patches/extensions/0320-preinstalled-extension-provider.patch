@@ -1,19 +1,20 @@
 Purpose: Install extensions listed in extensions/preinstalled.toml via an external-provider-style loader (user-removable, removal sticky).
 Area: extensions
-Files: chrome/browser/extensions/external_provider_impl.cc; chrome/browser/extensions/external_loader.h
+Files: chrome/browser/extensions/external_provider_impl.{h,cc} (CreateExternalProviders at .h:58 and .cc:703); src-overlay/corvid/extensions/ (new loader)
 Rebase risk: medium
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: UNVERIFIED intent patch. No Chromium checkout existed when this was written, so there are NO diff hunks and file
-        paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
-        the real diff with scripts/refresh-patches.sh.
+Status: SPEC (exact edits from the VM builder's read-only greps on 155.0.8059.39, relayed 2026-10-13). Still NO diff hunks and the edits are not applied or built. Generate the diff on the tree with scripts/refresh-patches.sh.
 
 Tree findings (reported by the VM builder, read-only; not re-checked):
 - ExternalProviderImpl and ExternalPrefLoader live in chrome/browser/extensions/external_provider_impl.{h,cc}; related: preinstalled_extensions.cc, extension_management.cc, extension_migrator.cc.
 - Still to grep: ExternalProviderImpl::CreateExternalProviders (hook point and arguments), the 'uninstalled external extensions' pref (ExtensionPrefs::IsExternalExtensionUninstalled), the external-extension install flags (Manifest::EXTERNAL_PREF, whether user may disable/remove), and whether non-store (self-hosted CRX/update URL) installs need the update URL allowlist from extension_management.cc.
 
-Change:
-- Add corvid::PreinstalledExtensionsLoader (overlay) as an ExternalLoader; hook it in ExternalProviderImpl::CreateExternalProviders.
-- Honor the profile's 'uninstalled external extensions' list so removal sticks.
+Change (exact edits):
+1. Add corvid::PreinstalledExtensionsLoader in src-overlay/corvid/extensions/ as a subclass of ExternalLoader (reads the JSON emitted from extensions/preinstalled.toml; src-overlay/corvid/extensions/preinstalled_extensions.cc is the intended reader, confirm it exists before use).
+2. In ExternalProviderImpl::CreateExternalProviders(VisitorInterface* service, Profile* profile, ProviderCollection* provider_list) (external_provider_impl.cc:703) append one ExternalProviderImpl built on the new loader to provider_list, location EXTERNAL_PREF (so the user can disable/uninstall), creation flags without FROM_BOOKMARK/WAS_INSTALLED_BY_DEFAULT only if the grep of Extension::InitFromValueFlags shows they are needed for uBO to be removable.
+3. Sticky removal: no new code. The existing pref extensions.external_uninstalls (extension_prefs.cc:217) is written on uninstall and read via ExtensionPrefs::IsExternalExtensionUninstalled (used at extension_registrar.cc:1080, pending_extension_manager.cc:181, extension_prefs.cc:1499), so a removed uBO stays removed.
+4. Add the loader's BUILD.gn dep; header include in external_provider_impl.cc.
+Open (grep before writing the hunk): the exact ExternalProviderImpl constructor arguments at .cc:703 region, and whether extension_management.cc requires the update URL of a non-store uBO CRX to be allowed (extension_management.cc / install_sources).
 
 Verify:
 - 07-ubo.mjs

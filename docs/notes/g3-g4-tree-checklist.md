@@ -6,7 +6,7 @@ Drafting happens on a COPY of the tree (separate directory or git worktree, neve
 | Patch | Question | Grep |
 |---|---|---|
 | 0300 | Does 155 still contain MV2 code and the experiment manager, or was it deleted? If deleted the patch becomes a restore into `src-overlay/corvid/extensions_mv2/` (large). Biggest schedule risk of G3. | `rg -l "ManifestV2|mv2_experiment|kExtensionManifestV2" chrome extensions` |
-| 0310 | Is blocking `webRequest` for MV2 still in `extensions/browser/api/web_request`? | `rg "kWebRequestBlocking|webRequestBlocking" extensions` |
+| 0310 | DROPPED: _permission_features.json already allows MV2 blocking webRequest (see mv2-gates.md) | n/a |
 | 0320 | External/preinstalled provider hook | `rg "ExternalProviderImpl|ExternalPrefLoader" chrome/browser/extensions` |
 | 0330 | NTP override: how `chrome_url_overrides.newtab` is resolved | `rg "newtab" chrome/browser/extensions/extension_web_ui.cc` |
 | 2001/2002 | Diagnostics WebUI registration, error page detail hook | `rg "LocalizedError::GetStrings"`, `chrome_web_ui_controller_factory.cc` |
