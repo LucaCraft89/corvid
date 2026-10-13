@@ -37,6 +37,17 @@ libnet.so  *
 *  type.googleapis.com
 # C. Help links and bundled page text in resource packs. Followed only if the user clicks a link in a page; the stock pages are hidden by the stock-page rewriter. Limit: this also allows any Google host string in the packs.
 *.pak  *
+# D. Links and identifiers found by tracing the string in the binary (approved by Luca, 2026-10-13: "yes allowlist"). None is fetched at idle.
+# Link URLs shown to the user (a user click is needed to follow them): password_manager_util.cc settings link, autofill/wallet privacy link.
+chrome  wallet.google.com
+chrome  policies.google.com
+# Payment Request method identifiers in payment_request.cc (compared as strings; only matter if a site requests those methods).
+libblink_modules.so  pay.google.com
+libblink_modules.so  play.google.com
+# Console warning text in document.cc (document.write intervention).
+libblink_core.so  developers.google.com
+# XMP namespace URIs inside Skia (http://ns.google.com/photos/1.0/container/...): identifiers, never fetched.
+libskia.so  ns.google.com
 ```
 
 ## User-initiated exceptions
