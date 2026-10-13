@@ -20,3 +20,5 @@ Open decisions that need the user: see `docs/CHANGE-REQUESTS.md` (CR-11 Widevine
 Decisions already made are in the Resolved table there.
 
 Remaining steps to the end of Phase 1 and what each waits on: `docs/notes/path-to-end.md` (2026-10-13).
+
+Plan of record (2026-10-13, Luca): target Thursday 2026-10-15 is Corvid 0.1 without custom chrome (G2-G5, M4 checks, M6 packaging). M5 chrome shell is research only for now. Schedule and per-day list: `docs/notes/path-to-end.md`. Design draft: `docs/DESIGN.md`.

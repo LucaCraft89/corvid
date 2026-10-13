@@ -1,3 +1,5 @@
+> PLAN OF RECORD (Luca chose option 1, 2026-10-13): Thursday 2026-10-15 target is "Corvid 0.1 without custom chrome": G2 to G5, M4 acceptance checks and M6 packaging. M5 (WebUI chrome shell) starts as research only (`docs/notes/chrome-shell-approach.md`, ask Luca before coding). See the per-day task list at the end.
+
 # Path to the end of Phase 1 Linux (written 2026-10-13, from the repo state at 48deab2)
 
 Ordered list of what remains, and what each step waits on. "No tree" means it cannot be done in a sandbox without the Chromium checkout. Nothing here is a test result.
@@ -70,3 +72,25 @@ Recommendation: option 1, with M5 started in parallel as research on the cloud s
 - 4-core VM is the slow path; move everything but the in-flight GnDebug build to the 16 vCPU VM.
 - A bad cache config (modules, args mismatch) turns a 1 h build into 15 h. Check cache hit rate in the first build log.
 - Rebuilds after test failures (the item 17 pattern) are not in the estimates above.
+
+---
+
+# Per-day task list (plan of record)
+
+Rules: one ninja per machine and per out dir; G3 code stays out of the build tree until the G2 checks (host check 01b + idle capture on out/GnDebug) pass; cache needs identical source and GN args (use_clang_modules=false).
+
+## Tue 10-13
+- 4-core VM: finish out/GnDebug (G1+G2 only). Do nothing else heavy on it.
+- 16 vCPU VM: set up (clone, sccache Azure, `CORVID_JOBS`), fetch the tree at the pin, apply G1+G2, build out/GnDebug as a cache-warm run and TIME it. Write the number to `docs/build-host.md`.
+- Azure builder: group D/E host triage (traces and proposed patches, no allowlist edits without Luca's words); storage follow-ups.
+- Cloud sessions: DESIGN.md draft (done), overlay/UI/tests work, G3/G4 patch drafts as notes on branch `claude/corvid-prep` (no build tree).
+## Wed 10-14
+- Morning, 4-core VM: host check 01b + 15-min idle capture on out/GnDebug (with 0197); G2 report `docs/reports/M3-G2-<date>.md`; flip degoogle items.
+- When G2 passes: apply G3 patches (0300 to 0330, real hunks from a tree copy) on the 16 vCPU VM, build, run acceptance 06/07/08, `scripts/pin-ubo.sh`.
+- Then G4 (2001 to 2004, vendor Argon2) in the same build if the G3 build is green, else next.
+- Cloud: M5 research note; G5 branding prep (icons, strings via `branding/config.toml`).
+## Thu 10-15
+- G5 branding + rename test (CORVID_REUSE_BUILD=1).
+- M4 sweep: acceptance 01 to 12 (03/04 layout and modules use the existing G1 pages, not the custom chrome), fix product not tests.
+- M6: `scripts/package.sh linux`, install check on what exists; mark Fedora/X11/Wayland combos SKIPPED if not run.
+- Report `docs/reports/M3-G3..G5`, M4, M6 with PASS/FAIL/SKIPPED honestly.
