@@ -12,6 +12,8 @@ allowed="$(awk '/^```binary-allowlist/{f=1;next}/^```/{f=0}f' "$repo/docs/networ
 cd "$out"
 for f in chrome *.so *.pak *.dat *.bin; do
   [ -f "$f" ] || continue
+  # Test-only libraries (e.g. libtest_trace_processor.so) are built when a test target shares the out dir; they do not ship.
+  case "$f" in *test*) continue ;; esac
   { grep -aoE "$pat" "$f" 2>/dev/null || true; } | tr '[:upper:]' '[:lower:]' | sort | uniq -c | while read -r n h; do
     ok=no; grep -qxF "$h" <<<"$allowed" && ok=yes
     printf '%s\t%s\t%s\t%s\n' "$h" "$f" "$n" "$ok"
