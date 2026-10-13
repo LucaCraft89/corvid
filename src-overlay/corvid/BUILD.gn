@@ -19,6 +19,7 @@ test("corvid_phase1_unittests") {
     "//corvid/diagnostics:unit_tests",
     "//corvid/extensions:unit_tests",
     "//corvid/modules:unit_tests",
+    "//corvid/passkeys:unit_tests",
     "//corvid/search:unit_tests",
     "//corvid/theme:unit_tests",
     "//corvid/webui:unit_tests",
