@@ -1,0 +1,21 @@
+Purpose: Web Speech cloud recognition never reaches Google: point the service base URL at an unresolvable host.
+Area: debrand
+Files: content/browser/speech/network_speech_recognition_engine_impl.cc
+Rebase risk: low because one constant or one function body
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/content/browser/speech/network_speech_recognition_engine_impl.cc b/content/browser/speech/network_speech_recognition_engine_impl.cc
+index b6dc9ea..14640fe 100644
+--- a/content/browser/speech/network_speech_recognition_engine_impl.cc
++++ b/content/browser/speech/network_speech_recognition_engine_impl.cc
+@@ -35,8 +35,9 @@
+ namespace content {
+ namespace {
+ 
++// Corvid: Google's cloud speech service is not used; this fails closed (unresolvable host).
+ const char kWebServiceBaseUrl[] =
+-    "https://www.google.com/speech-api/full-duplex/v1";
++    "https://speech.invalid/full-duplex/v1";
+ const char kDownstreamUrl[] = "/down?";
+ const char kUpstreamUrl[] = "/up?";
+ 
