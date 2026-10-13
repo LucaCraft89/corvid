@@ -7,6 +7,11 @@ Status: UNVERIFIED intent patch. No Chromium checkout existed when this was writ
         paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
         the real diff with scripts/refresh-patches.sh.
 
+Tree findings (reported by the VM builder, read-only; not re-checked):
+- APIPermissionID::kWebRequestBlocking is still present in extensions/browser/api/web_request/web_request_api.cc (lines 175, 577, 1399), declared in extensions_api_permissions.cc and _permission_features.json, used in event_router.cc.
+- NOT yet checked: whether MV3 gating or a 'policy-installed only' / Manifest-version check blocks it for MV2 extensions. This patch may turn out to be unnecessary; it exists only if the check shows a gate.
+- Still to grep: webRequestBlocking in extensions/common/api/_permission_features.json (platform/manifest_version constraints), WebRequestPermissions::CanExtensionAccessURL and HasWebRequestScheme, and any 'kExtensionsSkipBlocking'-style feature. Result decides: no patch, or a small _permission_features.json / permission-check hunk.
+
 Change:
 - Remove the policy-installed-only restriction on blocking for MV2.
 - MV3 behavior unchanged.

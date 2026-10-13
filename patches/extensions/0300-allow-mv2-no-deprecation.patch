@@ -7,7 +7,17 @@ Status: UNVERIFIED intent patch. No Chromium checkout existed when this was writ
         paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
         the real diff with scripts/refresh-patches.sh.
 
-Change:
+Tree findings (reported by the VM builder on 155.0.8059.39, read-only; not re-checked by the author of this draft):
+- ManifestV2ExperimentManager no longer exists; MV2 code is NOT deleted, so no restore into src-overlay is needed.
+- extensions/common/extension.cc:60 kMinimumSupportedManifestVersion = 2, so MV2 extensions still load.
+- extensions/browser/manifest_v2_handler.{h,cc} (348 lines) disables MV2 extensions with DISABLE_UNSUPPORTED_MANIFEST_VERSION when manifest_v2_util::IsExtensionAffected() is true; manifest_v2_util.{h,cc} and the deprecation UI also remain.
+
+Change (revised plan, hunks still to be generated on the tree):
+- Preferred: make manifest_v2_util::IsExtensionAffected() return false (the registrar and policy code also call it). Fallback: no-op the disable loop in ManifestV2Handler. Pick after the greps below.
+- Hide the deprecation UI (warning banner, extensions-page notice) via the same predicate or the stock-page rewrite.
+- Still to grep: ExtensionManifestV2Availability policy (components/policy, chrome/browser/extensions/*policy*), every caller of IsExtensionAffected, features kExtensionManifestV2* in extensions/common/extension_features.cc, and the 'Change' bullets below that name the old ExperimentManager (obsolete).
+
+Original intent (partly obsolete):
 - Record exact gate locations in docs/notes/mv2-gates.md after applying.
 - ManifestV2 experiment stage forced to 'unsupported -> never'; kExtensionManifestV2Unsupported / Disabled features off by default; no disable/warning UI.
 - If upstream deleted MV2 code outright, restore from the last version that had it into src-overlay/corvid/extensions_mv2/.

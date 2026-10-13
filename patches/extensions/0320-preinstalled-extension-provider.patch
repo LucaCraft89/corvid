@@ -7,6 +7,10 @@ Status: UNVERIFIED intent patch. No Chromium checkout existed when this was writ
         paths/symbols are recalled from memory of recent Chromium. Make the edits below on the pinned tree, then generate
         the real diff with scripts/refresh-patches.sh.
 
+Tree findings (reported by the VM builder, read-only; not re-checked):
+- ExternalProviderImpl and ExternalPrefLoader live in chrome/browser/extensions/external_provider_impl.{h,cc}; related: preinstalled_extensions.cc, extension_management.cc, extension_migrator.cc.
+- Still to grep: ExternalProviderImpl::CreateExternalProviders (hook point and arguments), the 'uninstalled external extensions' pref (ExtensionPrefs::IsExternalExtensionUninstalled), the external-extension install flags (Manifest::EXTERNAL_PREF, whether user may disable/remove), and whether non-store (self-hosted CRX/update URL) installs need the update URL allowlist from extension_management.cc.
+
 Change:
 - Add corvid::PreinstalledExtensionsLoader (overlay) as an ExternalLoader; hook it in ExternalProviderImpl::CreateExternalProviders.
 - Honor the profile's 'uninstalled external extensions' list so removal sticks.
