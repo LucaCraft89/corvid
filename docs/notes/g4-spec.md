@@ -36,3 +36,14 @@ Overlay C++ writing: cloud, in parallel, today. First compile of the overlay: We
 - 2026-10-13 piece 1 READY TO COMPILE: `ring_buffer` gained `Update(id, fn)` (std only; standalone test PASSES on this sandbox: `g++ -std=c++17 ring_buffer.cc ring_buffer_unittest.cc && ./a.out` printed OK) .
 - piece 2 READY TO COMPILE: `event_bus.{h,cc}`, `stack_sampler.{h,cc}`, `event_bus_unittest.cc` (gtest), BUILD.gn targets `event_bus`, `collectors` (hang only), `unit_tests` updated. Stack backend is injectable; with none registered hangs report stackCaptured=false. The real backend (crashpad dump-without-crash or renderer-side sampler) is NOT written; check `rg DumpProcessStack content/public/browser` on the tree first.
 - Not done: NetCollector (sketch only, excluded from `collectors`), DiagnosticsService Mojo implementation, corvid://diagnostics WebUI C++ side, freeze detector, passkeys C++ (VaultStore, SoftwareAuthenticator, SoftwareDiscovery), Argon2 vendoring.
+
+## Stack-capture finding (Azure builder, read-only, 2026-10-13)
+`rg DumpProcessStack content/public/browser`: only `render_process_host.h:450` `virtual void DumpProcessStack() = 0;` inside `#if BUILDFLAG(IS_ANDROID)` (lines 426-451); implementations behind it in child_process_launcher.cc:335, gpu_process_host.cc:1298, browser_child_process_host_impl.cc:367 (Android-only status of those three unchecked). So desktop Linux has no ready backend.
+
+Options for a Linux backend (none written; all need a tree, none verified):
+| Option | How | Cost / risk |
+|---|---|---|
+| R. Renderer-side sampler (recommended if the acceptance is kept) | New patch `diagnostics/2005`: on renderer startup a small thread/IO-sequence-bound Mojo interface (`CaptureMainThreadStack`) uses `base::StackSamplingProfiler` on the renderer main thread (the IO thread still runs while main is hung); browser `StackSampler` backend calls it from `OnRendererUnresponsive` and amends the hang event with the frames | Touches content/renderer (high rebase risk), sandbox/unwinding on release builds needs symbols; est. 1 to 2 days with 2 build cycles |
+| C. Crashpad dump of the hung renderer | handler-side dump of another pid | not known to be exposed on Linux; needs research |
+| K. Cheap fallback | read `/proc/<pid>/task/<tid>/{wchan,stat}` for state only | no stack, not the acceptance |
+Decision for Luca: keep the Phase 2 acceptance "hang produces a captured stack within 5 s" (needs option R, a new renderer patch) or accept that the hang EVENT and report are delivered but the stack is empty for 0.1 (acceptance item reported FAIL/SKIPPED honestly). Recommendation: for Thursday ship the event without stack (already built), do R after.
