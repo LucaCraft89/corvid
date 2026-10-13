@@ -30,6 +30,10 @@ DOMAINS = r"(?:google|googleapis|gstatic|googleusercontent|gvt1|gvt2|googlesyndi
 HOST = re.compile(r"(?<![A-Za-z0-9])((?:[A-Za-z0-9_-]+\.)*(?:" + DOMAINS + r"))(?![A-Za-z0-9-])", re.I)
 TLD = re.compile(r"\.(com|net)$", re.I)
 MANIFEST = ".domain-substituted"
+# Files in skipped dirs that must still be rewritten. net/third_party/quiche/src is a git submodule: patches cannot
+# reach it (git apply refuses paths inside a submodule), so its one live Google endpoint is rewritten here.
+EXTRA = ["net/third_party/quiche/src/quiche/blind_sign_auth/blind_sign_auth.cc"]
+SUBMODULES = ["net/third_party/quiche/src"]
 
 
 def keep_set(path):
@@ -61,6 +65,19 @@ def candidates(tree):
         if Path(rel).suffix not in SUFFIXES or any(s in p for s in SKIP_PARTS) or SKIP_NAME.search(Path(rel).name):
             continue
         yield rel
+    for rel in EXTRA:
+        if (Path(tree) / rel).exists():
+            yield rel
+
+
+def checkout(tree, files):
+    for sm in SUBMODULES:
+        inside = [f[len(sm) + 1:] for f in files if f.startswith(sm + "/")]
+        if inside:
+            subprocess.run(["git", "-C", str(Path(tree) / sm), "checkout", "--"] + inside, check=True)
+    outside = [f for f in files if not any(f.startswith(sm + "/") for sm in SUBMODULES)]
+    for i in range(0, len(outside), 500):
+        subprocess.run(["git", "-C", tree, "checkout", "--"] + outside[i:i + 500], check=True)
 
 
 def main():
@@ -74,8 +91,7 @@ def main():
     if a.revert:
         if man.exists():
             files = [l for l in man.read_text().splitlines() if l]
-            for i in range(0, len(files), 500):
-                subprocess.run(["git", "-C", tree, "checkout", "--"] + files[i:i + 500], check=True)
+            checkout(tree, files)
             man.unlink()
             print(f"domain-substitute: reverted {len(files)} file(s)")
         return 0
@@ -93,6 +109,9 @@ def main():
         if new != text:
             p.write_text(new, encoding="utf-8")
             changed.append(rel)
+    # Re-running must not forget files rewritten by an earlier run (--revert relies on the manifest).
+    prev = [l for l in man.read_text().splitlines() if l] if man.exists() else []
+    changed = sorted(set(prev) | set(changed))
     man.write_text("\n".join(changed) + "\n")
     print(f"domain-substitute: rewrote {len(changed)} file(s); manifest {man}")
     return 0
