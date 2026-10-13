@@ -16,10 +16,10 @@ StackSampler::Backend& BackendStorage() {
 }
 }  // namespace
 
-base::Value::List FramesToValue(const std::vector<StackFrame>& frames) {
-  base::Value::List out;
+base::ListValue FramesToValue(const std::vector<StackFrame>& frames) {
+  base::ListValue out;
   for (const StackFrame& f : frames) {
-    base::Value::Dict d;
+    base::DictValue d;
     d.Set("fn", f.fn);
     if (!f.module.empty()) d.Set("module", f.module);
     if (!f.file.empty()) d.Set("file", f.file);

@@ -29,7 +29,7 @@ struct StackFrame {
   std::string addr;
 };
 
-base::Value::List FramesToValue(const std::vector<StackFrame>& frames);
+base::ListValue FramesToValue(const std::vector<StackFrame>& frames);
 
 class StackSampler {
  public:

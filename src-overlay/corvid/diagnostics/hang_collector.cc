@@ -26,17 +26,17 @@ void HangCollector::OnRendererUnresponsive(content::RenderProcessHost* host) {
   hang_started_ = base::TimeTicks::Now();
   // Capture BEFORE emitting so the event carries the stack; sampler is async, so emit now with
   // stackCaptured=false and a follow-up update event keyed by the same hang id.
-  base::Value::Dict d;
+  base::DictValue d;
   d.Set("durationMs", 0);
   d.Set("stackCaptured", false);
   d.Set("recovered", false);
   d.Set("renderPid", static_cast<int>(host->GetProcess().Pid()));
-  d.Set("stack", base::Value::List());
+  d.Set("stack", base::ListValue());
   uint64_t id = bus_->Emit({.kind = "hang", .severity = "error", .source = "renderer",
                             .tab_id = TabIdFor(web_contents()), .data = std::move(d)});
   StackSampler::CaptureMainThread(host, base::BindOnce(
       [](EventBus* bus, uint64_t id, std::vector<StackFrame> frames) {
-        bus->Amend(id, [&](base::Value::Dict& d) {
+        bus->Amend(id, [&](base::DictValue& d) {
           d.Set("stackCaptured", !frames.empty());
           d.Set("stack", FramesToValue(frames));
         });
@@ -45,11 +45,11 @@ void HangCollector::OnRendererUnresponsive(content::RenderProcessHost* host) {
 
 void HangCollector::OnRendererResponsive(content::RenderProcessHost*) {
   if (hang_started_.is_null()) return;
-  base::Value::Dict d;
+  base::DictValue d;
   d.Set("durationMs", static_cast<int>((base::TimeTicks::Now() - hang_started_).InMilliseconds()));
   d.Set("recovered", true);
   d.Set("stackCaptured", false);
-  d.Set("stack", base::Value::List());
+  d.Set("stack", base::ListValue());
   d.Set("renderPid", 0);
   bus_->Emit({.kind = "hang", .severity = "info", .source = "renderer",
               .tab_id = TabIdFor(web_contents()), .data = std::move(d)});
@@ -59,11 +59,11 @@ void HangCollector::OnRendererResponsive(content::RenderProcessHost*) {
 void HangCollector::PrimaryMainFrameRenderProcessGone(base::TerminationStatus status) {
   // Local-only crash record. Minidump path comes from the crashpad database, which Corvid
   // configures with uploads disabled (Phase 1.1 debrand-and-degoogle task). Symbolization runs locally via CrashSymbolizer.
-  base::Value::Dict d;
+  base::DictValue d;
   d.Set("reason", base::StringPrintf("%d", static_cast<int>(status)));
   d.Set("uploaded", false);
   d.Set("symbolizedSummary", "");
-  d.Set("stack", base::Value::List());
+  d.Set("stack", base::ListValue());
   bus_->Emit({.kind = "crash", .severity = "fatal", .source = "renderer",
               .tab_id = TabIdFor(web_contents()), .data = std::move(d)});
 }
@@ -73,7 +73,7 @@ void HangCollector::OnDidAddMessageToConsole(content::RenderFrameHost*,
                                              const std::u16string& message, int32_t line_no,
                                              const std::u16string& source_id,
                                              const std::optional<std::u16string>& stack) {
-  base::Value::Dict d;
+  base::DictValue d;
   using Level = blink::mojom::ConsoleMessageLevel;
   d.Set("level", level == Level::kVerbose ? "verbose" : level == Level::kInfo ? "info" : level == Level::kWarning ? "warning" : "error");
   d.Set("message", base::UTF16ToUTF8(message));

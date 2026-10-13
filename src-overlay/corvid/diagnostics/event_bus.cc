@@ -31,7 +31,11 @@ class TabId : public content::WebContentsUserData<TabId> {
 std::atomic<int> TabId::next_{0};
 WEB_CONTENTS_USER_DATA_KEY_IMPL(TabId);
 
+<<<<<<< HEAD
 std::string Serialize(const base::Value::Dict& d) {
+=======
+std::string Serialize(const base::DictValue& d) {
+>>>>>>> origin/claude/busy-rubin-t8bloc
   return base::WriteJson(d).value_or("{}");
 }
 
@@ -67,14 +71,24 @@ uint64_t EventBus::Emit(EventRecord record) {
   return id;
 }
 
+<<<<<<< HEAD
 bool EventBus::Amend(uint64_t id, base::FunctionRef<void(base::Value::Dict&)> fn) {
+=======
+bool EventBus::Amend(uint64_t id, base::FunctionRef<void(base::DictValue&)> fn) {
+>>>>>>> origin/claude/busy-rubin-t8bloc
   Event amended;
   {
     base::AutoLock l(lock_);
     bool ok = ring_.Update(id, [&](Event& e) {
+<<<<<<< HEAD
       std::optional<base::Value> v = base::JSONReader::Read(e.data_json);
       if (!v || !v->is_dict()) return;
       base::Value::Dict d = std::move(*v).TakeDict();
+=======
+      std::optional<base::Value> v = base::JSONReader::Read(e.data_json, base::JSON_PARSE_RFC);
+      if (!v || !v->is_dict()) return;
+      base::DictValue d = std::move(*v).TakeDict();
+>>>>>>> origin/claude/busy-rubin-t8bloc
       fn(d);
       e.data_json = Serialize(d);
       amended = e;

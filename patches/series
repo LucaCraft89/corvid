@@ -16,3 +16,5 @@ debrand/0190-disable-gcm-connection.patch
 debrand/0195-no-baked-in-domain-reliability-configs.patch
 debrand/0196-default-search-duckduckgo.patch
 debrand/0197-no-gemini-ai-mode-starter-pack.patch
+debrand/0198-no-cloud-speech-recognition.patch
+debrand/0199-private-ai-never-starts.patch

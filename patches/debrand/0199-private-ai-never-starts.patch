@@ -1,0 +1,21 @@
+Purpose: Private AI (blind-sign token issuer ipprotection-ppissuer.googleapis.com) never starts, even if a key is passed on the command line.
+Area: debrand
+Files: components/private_ai/private_ai_service.cc
+Rebase risk: low because one constant or one function body
+Origin: original (written for Corvid; no third-party patch text reused)
+
+diff --git a/components/private_ai/private_ai_service.cc b/components/private_ai/private_ai_service.cc
+index 196f197..bb3e2f4 100644
+--- a/components/private_ai/private_ai_service.cc
++++ b/components/private_ai/private_ai_service.cc
+@@ -33,8 +33,8 @@ std::string PrivateAiService::GetApiKey(version_info::Channel channel) {
+ 
+ // static
+ bool PrivateAiService::CanPrivateAiBeEnabled(version_info::Channel channel) {
+-  return base::FeatureList::IsEnabled(kPrivateAi) &&
+-         !GetApiKey(channel).empty();
++  // Corvid: Private AI (blind-sign issuer on googleapis.com) never starts, even with a command-line key.
++  return false;
+ }
+ 
+ PrivateAiService::PrivateAiService(
