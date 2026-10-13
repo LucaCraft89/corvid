@@ -31,3 +31,8 @@ Phase 2 browser-needing items (docs/specs/phase-2.md): induced renderer hang -> 
 
 ## Honest estimate for Thursday
 Overlay C++ writing: cloud, in parallel, today. First compile of the overlay: Wed. Full browser acceptance of the hang test and vault: Thu at the earliest; the passkey end-to-end on webauthn.io is unlikely to fit and should be reported SKIPPED rather than faked if it does not.
+
+## Progress log (overlay C++, all UNBUILT unless stated)
+- 2026-10-13 piece 1 READY TO COMPILE: `ring_buffer` gained `Update(id, fn)` (std only; standalone test PASSES on this sandbox: `g++ -std=c++17 ring_buffer.cc ring_buffer_unittest.cc && ./a.out` printed OK) .
+- piece 2 READY TO COMPILE: `event_bus.{h,cc}`, `stack_sampler.{h,cc}`, `event_bus_unittest.cc` (gtest), BUILD.gn targets `event_bus`, `collectors` (hang only), `unit_tests` updated. Stack backend is injectable; with none registered hangs report stackCaptured=false. The real backend (crashpad dump-without-crash or renderer-side sampler) is NOT written; check `rg DumpProcessStack content/public/browser` on the tree first.
+- Not done: NetCollector (sketch only, excluded from `collectors`), DiagnosticsService Mojo implementation, corvid://diagnostics WebUI C++ side, freeze detector, passkeys C++ (VaultStore, SoftwareAuthenticator, SoftwareDiscovery), Argon2 vendoring.

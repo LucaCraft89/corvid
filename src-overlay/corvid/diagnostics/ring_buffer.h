@@ -42,6 +42,8 @@ class RingBuffer {
   explicit RingBuffer(Retention r = {}, std::function<int64_t()> now_ms = nullptr);
   ~RingBuffer();
   uint64_t Add(Event e);  // returns assigned id
+  // Applies fn to the event with this id if still retained; byte accounting is re-done. False if evicted.
+  bool Update(uint64_t id, const std::function<void(Event&)>& fn);
   std::vector<Event> Snapshot() const;
   size_t size() const { return events_.size(); }
   uint64_t byte_size() const { return bytes_; }

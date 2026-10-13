@@ -46,7 +46,20 @@ static void RunAll() {
     Retention r; r.max_events = 2; rb.SetRetention(r);
     CHECK(rb.size() == 2);
   }
-  {  // redaction
+  {  {  // Update: amend in place, ids kept, bytes re-accounted, evicted ids report false
+    Retention r; r.max_events = 3;
+    RingBuffer rb(r, [&] { return now; });
+    uint64_t a = rb.Add(Ev(1000, "{}"));
+    uint64_t before = rb.byte_size();
+    CHECK(rb.Update(a, [](Event& e) { e.data_json = "{\"stackCaptured\":true}"; e.id = 999; }));
+    CHECK(rb.Snapshot().front().id == a);
+    CHECK(rb.Snapshot().front().data_json.size() > 2);
+    CHECK(rb.byte_size() > before);
+    for (int i = 0; i < 3; i++) rb.Add(Ev(1000));
+    CHECK(!rb.Update(a, [](Event&) {}));
+    CHECK(!rb.Update(123456, [](Event&) {}));
+  }
+  // redaction
     std::string s = RedactString("GET https://a.example/x?y=1 at /home/alice/.cfg from 192.168.0.5 ok", true, true, true);
     CHECK(s.find("a.example") == std::string::npos); CHECK(s.find("alice") == std::string::npos);
     CHECK(s.find("192.168") == std::string::npos); CHECK(s.find("[url]") != std::string::npos);

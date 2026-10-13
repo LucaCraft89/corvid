@@ -1,8 +1,12 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// UNVERIFIED (uncompiled). See hang_collector.h.
+// UNBUILT (uncompiled). See hang_collector.h. Depends on event_bus.h and stack_sampler.h (now written, also unbuilt).
 #include "corvid/diagnostics/hang_collector.h"
 
 #include "base/json/json_writer.h"
+#include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
