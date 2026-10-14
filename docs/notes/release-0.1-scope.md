@@ -28,6 +28,11 @@ No Google as far as possible, but without trading away daily-driver usability: p
 | Widevine DRM, codecs, name trademark (CR-11, CR-3/10, CR-4) | legal, Luca's decisions | blocks public release, not a private daily driver |
 | Windows, Android, sync server (phases 3-5) | out of scope for 0.1 | n/a |
 
+## DECISION (Luca, 2026-10-14): 0.1 = Linux + Windows + Android
+Recorded as CR-0.1-scope in docs/CHANGE-REQUESTS.md. Order stays Linux, Windows, Android. Linux 0.1 candidate is still the Thursday target; 0.1 as a release is complete only when Windows and Android also pass. Neither has ever been built; no date is promised for them.
+
+Passkeys/Google (coordinator, from Luca's rule): the Google enclave and caBLE/hybrid discoveries in ConfigureDiscoveries default to DISABLED in Corvid; hybrid only on explicit user click (CR-5).
+
 ## The one decision for Luca
 Ship 0.1 on Thursday WITHOUT built-in passkeys (hardware keys and everything else working), and finish passkeys + the custom shell as 0.2? Or hold the "complete build" until passkeys work (realistic: a few days after Thursday)? Recommendation: ship what is stable on Thursday as 0.1, passkeys next as the first 0.2 item, because a daily driver that is stable beats a late one, and passkeys code is the least-tested piece.
 
