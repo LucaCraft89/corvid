@@ -18,3 +18,6 @@ debrand/0196-default-search-duckduckgo.patch
 debrand/0197-no-gemini-ai-mode-starter-pack.patch
 debrand/0198-no-cloud-speech-recognition.patch
 debrand/0199-private-ai-never-starts.patch
+extensions/0300-allow-mv2-no-deprecation.patch
+extensions/0320-preinstalled-extension-provider.patch
+extensions/0330-newtab-override-hook.patch
