@@ -1,5 +1,7 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// NOT COMPILED (no BUILD target yet). Chromium-side software authenticator. The behavior contract is the
+// NOT COMPILED (no BUILD target yet; DESIGN of the thin adapter only). The logic now lives in authenticator_core.{h,cc} and
+// vault.{h,cc} (UNBUILT but syntax-checked against stubs); this adapter only translates device::Ctap* requests/responses
+// to them and drives the WebUI prompts. Chromium-side software authenticator. The behavior contract is the
 // verified TS reference (reference/authenticator.ts + vault.ts, 20 passing tests); this C++ must
 // reproduce its byte-level outputs (test vectors: reference/test/*.test.ts).
 //

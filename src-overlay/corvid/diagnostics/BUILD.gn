@@ -28,12 +28,29 @@ source_set("event_bus") {
   deps = [ "//content/public/browser" ]
 }
 
-# net_collector.cc is a sketch (class declared in the .cc, OnAddEntry not written): kept out of the compile until
-# it is finished (docs/notes/g4-spec.md, step: net events).
+# net_collector.cc (NetLog observer sketch) was replaced by navigation_error_collector: the network stack runs in the
+# network service process, so a browser-side NetLog observer would not see page requests.
+source_set("service") {
+  sources = [
+    "diagnostics_service.cc",
+    "diagnostics_service.h",
+  ]
+  public_deps = [
+    ":event_bus",
+    ":mojom",
+  ]
+  deps = [
+    "//base",
+    "//mojo/public/cpp/bindings",
+  ]
+}
+
 source_set("collectors") {
   sources = [
     "hang_collector.cc",
     "hang_collector.h",
+    "navigation_error_collector.cc",
+    "navigation_error_collector.h",
   ]
   deps = [
     ":event_bus",
@@ -47,7 +64,9 @@ source_set("collectors") {
 source_set("unit_tests") {
   testonly = true
   sources = [
+    "diagnostics_service_unittest.cc",
     "event_bus_unittest.cc",
+    "navigation_error_collector_unittest.cc",
     "ring_buffer_unittest.cc",
   ]
   defines = [ "CORVID_GTEST" ]
@@ -55,6 +74,7 @@ source_set("unit_tests") {
     ":collectors",
     ":event_bus",
     ":ring_buffer",
+    ":service",
     "//base/test:test_support",
     "//testing/gtest",
   ]
