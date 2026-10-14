@@ -1,59 +1,35 @@
 Purpose: Install extensions listed in extensions/preinstalled.toml via an external-provider-style loader (user-removable, removal sticky).
 Area: extensions
-Files: chrome/browser/extensions/external_provider_impl.{h,cc} (CreateExternalProviders at .h:58 and .cc:703); src-overlay/corvid/extensions/ (new loader)
+Files: chrome/browser/extensions/external_provider_impl.cc (CreateExternalProviders, one ExternalPrefLoader provider on DIR_EXTERNAL_EXTENSIONS)
 Rebase risk: medium
 Origin: original (written for Corvid; no third-party patch text reused)
-Status: SPEC (exact edits from the VM builder's read-only greps on 155.0.8059.39, relayed 2026-10-13). Still NO diff hunks and the edits are not applied or built. Generate the diff on the tree with scripts/refresh-patches.sh.
+Status: BUILT and tested on 155.0.8059.39 (option A, 2026-10-14). Unit tests pass; on a fresh profile under Xvfb uBlock Origin 1.75.0 (MV2) installs from <exe dir>/extensions/<id>.json and runs. Not tested: removal staying removed after a restart, in-browser updates (the CRX update path for a non-store extension is untraced).
 
-Tree findings (reported by the VM builder, read-only; not re-checked):
-- ExternalProviderImpl and ExternalPrefLoader live in chrome/browser/extensions/external_provider_impl.{h,cc}; related: preinstalled_extensions.cc, extension_management.cc, extension_migrator.cc.
-- Still to grep: ExternalProviderImpl::CreateExternalProviders (hook point and arguments), the 'uninstalled external extensions' pref (ExtensionPrefs::IsExternalExtensionUninstalled), the external-extension install flags (Manifest::EXTERNAL_PREF, whether user may disable/remove), and whether non-store (self-hosted CRX/update URL) installs need the update URL allowlist from extension_management.cc.
-
-Change (exact edits):
-1. Add corvid::PreinstalledExtensionsLoader in src-overlay/corvid/extensions/ as a subclass of ExternalLoader (reads the JSON emitted from extensions/preinstalled.toml; src-overlay/corvid/extensions/preinstalled_extensions.cc is the intended reader, confirm it exists before use).
-2. In ExternalProviderImpl::CreateExternalProviders(VisitorInterface* service, Profile* profile, ProviderCollection* provider_list) (external_provider_impl.cc:703) append one ExternalProviderImpl built on the new loader to provider_list, location EXTERNAL_PREF (so the user can disable/uninstall), creation flags without FROM_BOOKMARK/WAS_INSTALLED_BY_DEFAULT only if the grep of Extension::InitFromValueFlags shows they are needed for uBO to be removable.
-3. Sticky removal: no new code. The existing pref extensions.external_uninstalls (extension_prefs.cc:217) is written on uninstall and read via ExtensionPrefs::IsExternalExtensionUninstalled (used at extension_registrar.cc:1080, pending_extension_manager.cc:181, extension_prefs.cc:1499), so a removed uBO stays removed.
-4. Add the loader's BUILD.gn dep; header include in external_provider_impl.cc.
-5. Constructor (second grep round, Azure VM tree, line numbers +/-2): ExternalProviderImpl(VisitorInterface* service, scoped_refptr<ExternalLoader> loader, Profile* profile, mojom::ManifestLocation crx_location, mojom::ManifestLocation download_location, int creation_flags) at external_provider_impl.h:45-50 / .cc:146-152; body is DCHECK(profile_); loader_->Init(this). Model the new call on the existing one at .cc:927-934 (kExternalPref, kExternalPrefDownload, FROM_WEBSTORE | WAS_INSTALLED_BY_DEFAULT). Use kExternalPref / kExternalPrefDownload and WAS_INSTALLED_BY_DEFAULT; drop FROM_WEBSTORE only if uBO is installed from a non-store CRX (decide with the pin: extensions/preinstalled.toml).
-6. Update URL: the provider has no update-URL restriction. extension_management.cc GetEffectiveUpdateURL (:259-276) only changes the URL when policy sets override_update_url (DCHECK at :274 against the webstore URL), so Corvid sets no such policy. Not traced: the CRX update path beyond that (how a non-store, self-hosted update URL is fetched and verified); check before claiming uBO updates work (acceptance 07).
+Change: in ExternalProviderImpl::CreateExternalProviders, after the Drive migration provider, add one ExternalProviderImpl on an ExternalPrefLoader(chrome::DIR_EXTERNAL_EXTENSIONS, NONE, nullptr) with location kExternalPref / kExternalPrefDownload and flags WAS_INSTALLED_BY_DEFAULT (no FROM_WEBSTORE: the CRX is not from the store). DIR_EXTERNAL_EXTENSIONS is <module dir>/extensions on Linux (/opt/<slug>/extensions in packages). The stock per-user and system-wide external extension directories stay disabled by debrand/0180; this adds only the install directory. Loader format: <id>.json = {"external_crx": "<file in that dir>", "external_version": "x.y.z"}; relative CRX paths resolve against the directory. Removal is remembered by the existing extensions.external_uninstalls pref.
+Build step: docs/notes/preinstalled-build-step.md; scripts/gen-preinstalled.py emits the JSON; scripts/package.sh copies the JSON and CRX into <install dir>/extensions.
+Key custody: the extension id derives from the packing key; test packages use a throwaway key and must not be distributed.
 
 Verify:
 - 07-ubo.mjs
 
-diff --git a/chrome/browser/extensions/BUILD.gn b/chrome/browser/extensions/BUILD.gn
-index 563383fc71d7..f6cd7723dd71 100644
---- a/chrome/browser/extensions/BUILD.gn
-+++ b/chrome/browser/extensions/BUILD.gn
-@@ -489,6 +489,8 @@ source_set("extensions") {
-     "//chrome/browser/ui/toolbar",
-   ]
-   deps = [
-+    "//corvid/extensions:extensions",
-+    "//corvid/extensions:preinstalled_loader",
-     "//base",
-     "//chrome/app:command_ids",
-     "//chrome/app/theme:chrome_unscaled_resources",
 diff --git a/chrome/browser/extensions/external_provider_impl.cc b/chrome/browser/extensions/external_provider_impl.cc
-index bee47cfc1551..d62dc15dd9d7 100644
+index bee47cfc1551..73a2f31574f0 100644
 --- a/chrome/browser/extensions/external_provider_impl.cc
 +++ b/chrome/browser/extensions/external_provider_impl.cc
-@@ -47,6 +47,7 @@
- #include "chrome/common/extensions/extension_constants.h"
- #include "chrome/common/pref_names.h"
- #include "components/crx_file/id_util.h"
-+#include "corvid/extensions/preinstalled_loader.h"
- #include "components/policy/core/common/policy_logger.h"
- #include "components/prefs/pref_service.h"
- #include "content/public/browser/browser_thread.h"
-@@ -935,6 +936,15 @@ void ExternalProviderImpl::CreateExternalProviders(
+@@ -935,6 +935,20 @@ void ExternalProviderImpl::CreateExternalProviders(
    drive_migration_provider->set_auto_acknowledge(true);
    provider_list->push_back(std::move(drive_migration_provider));
  
-+  // Browser patch: preinstalled extensions (extensions/preinstalled.toml). The
-+  // location is kExternalPref, so users can disable or remove them and
-+  // removal is remembered by extensions.external_uninstalls.
++  // Browser patch: preinstalled extensions. One provider reads the install
++  // directory's "extensions" folder (<module dir>/extensions: <id>.json files
++  // with external_crx and external_version). The location is kExternalPref, so
++  // users can disable or remove them and removal is remembered by
++  // extensions.external_uninstalls. The stock per-user and system-wide
++  // directories stay disabled (see the Linux branch above).
 +  provider_list->push_back(std::make_unique<ExternalProviderImpl>(
-+      service, base::MakeRefCounted<corvid::PreinstalledExtensionsLoader>(),
++      service,
++      base::MakeRefCounted<ExternalPrefLoader>(
++          chrome::DIR_EXTERNAL_EXTENSIONS, ExternalPrefLoader::NONE, nullptr),
 +      profile, ManifestLocation::kExternalPref,
 +      ManifestLocation::kExternalPrefDownload,
 +      Extension::WAS_INSTALLED_BY_DEFAULT));
