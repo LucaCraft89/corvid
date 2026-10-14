@@ -36,5 +36,9 @@ Tab strip (vertical default `desktop-vertical-tabs`, horizontal option), toolbar
 ## 10. Content rules
 Plain language, sentence case, no jargon in headlines; error pages and diagnostics may show technical detail below the summary.
 
-## 11. Open points for Luca
-Default seed color and typeface; default density; whether tab strip defaults vertical on all window widths.
+## 11. Defaults chosen (2026-10-14, coordinator relay of Luca's go-ahead; Luca can change any of them)
+- Style: Material You 3 Expressive, rounded shapes, airy spacing. Default density: comfortable.
+- Default seed color: a muted blue-violet (`#5B6BC0`) until Luca picks one; follow-system accent (GTK/KDE) on by default where the provider exists, with the seed as fallback and manual override.
+- Typeface: the system UI font (no bundled font in 0.1).
+- Tabs: horizontal by default (Chromium's native strip); vertical tabs optional, only through Chromium's own vertical tab strip if the pinned tree has it. A custom WebUI tab strip is M5, not 0.1.
+- Customization in 0.1: theme color/scheme, density, Corvid pages and side panels, extensions. Free drag-and-drop layout of the chrome itself is M5 (0.2+).
