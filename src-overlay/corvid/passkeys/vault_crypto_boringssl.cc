@@ -1,5 +1,5 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// UNBUILT. Verify on the tree: EVP_aead_xchacha20_poly1305 (openssl/aead.h), HKDF (openssl/hkdf.h), crypto::RandBytes
+// Built and tested on the 155 tree (vault_crypto_boringssl_unittest.cc). Original note: verify on the tree: EVP_aead_xchacha20_poly1305 (openssl/aead.h), HKDF (openssl/hkdf.h), crypto::RandBytes
 // (crypto/random.h), and the vendored Argon2 header/function (argon2id_hash_raw in the reference implementation's
 // argon2.h; the include path below is a guess).
 #include "corvid/passkeys/vault_crypto_boringssl.h"
@@ -8,7 +8,7 @@
 
 #include "base/check.h"
 #include "crypto/random.h"
-#include "third_party/argon2/src/include/argon2.h"  // TODO(tree): confirm path once vendored
+#include "third_party/argon2/include/argon2.h"
 #include "third_party/boringssl/src/include/openssl/aead.h"
 #include "third_party/boringssl/src/include/openssl/digest.h"
 #include "third_party/boringssl/src/include/openssl/hkdf.h"

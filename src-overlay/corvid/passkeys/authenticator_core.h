@@ -12,6 +12,11 @@
 #include <string>
 #include <vector>
 
+<<<<<<< HEAD
+=======
+#include "base/memory/raw_ptr.h"
+
+>>>>>>> origin/claude/vm-builder-g3-g5
 #include "corvid/passkeys/vault.h"
 
 namespace corvid::passkeys {
@@ -76,9 +81,15 @@ class AuthenticatorCore {
   CtapError GetAssertion(const GetAssertionRequest& req, GetAssertionResponse* out);
 
  private:
+<<<<<<< HEAD
   Vault* vault_;
   UserGate* gate_;
   AuthenticatorCrypto* crypto_;
+=======
+  raw_ptr<Vault> vault_;
+  raw_ptr<UserGate> gate_;
+  raw_ptr<AuthenticatorCrypto> crypto_;
+>>>>>>> origin/claude/vm-builder-g3-g5
 };
 
 // Deterministic CBOR for exactly the shapes WebAuthn needs (exposed for tests).

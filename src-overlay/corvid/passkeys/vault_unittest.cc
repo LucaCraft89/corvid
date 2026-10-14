@@ -6,6 +6,7 @@
 
 #include <functional>
 
+#include "base/check.h"
 #include "base/base64url.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
@@ -122,7 +123,8 @@ TEST(CorvidVaultTest, TamperingWithAnyFieldRejected) {
   Vault::OpenOptions oo; oo.passphrase = "correct horse";
 
   auto flip = [](const std::string& b64) {
-    std::string raw; base::Base64UrlDecode(b64, base::Base64UrlDecodePolicy::DISALLOW_PADDING, &raw);
+    std::string raw;
+    CHECK(base::Base64UrlDecode(b64, base::Base64UrlDecodePolicy::DISALLOW_PADDING, &raw));
     raw[0] ^= 1; std::string out; base::Base64UrlEncode(raw, base::Base64UrlEncodePolicy::OMIT_PADDING, &out);
     return out;
   };

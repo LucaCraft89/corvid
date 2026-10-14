@@ -1,0 +1,28 @@
+# Reference Argon2 (P-H-C/phc-winner-argon2 tag 20190702, commit 62358ba2123a). Portable ref.c implementation, no threads.
+# Licensed CC0-1.0 OR Apache-2.0; Corvid uses it under Apache-2.0 (see README.chromium and docs/PATCH-PROVENANCE.md).
+config("argon2_config") {
+  include_dirs = [ "include" ]
+}
+
+static_library("argon2") {
+  sources = [
+    "include/argon2.h",
+    "src/argon2.c",
+    "src/blake2/blake2-impl.h",
+    "src/blake2/blake2.h",
+    "src/blake2/blake2b.c",
+    "src/blake2/blamka-round-ref.h",
+    "src/core.c",
+    "src/core.h",
+    "src/encoding.c",
+    "src/encoding.h",
+    "src/ref.c",
+    "src/thread.c",
+    "src/thread.h",
+  ]
+  include_dirs = [ "src" ]
+  defines = [ "ARGON2_NO_THREADS" ]
+  public_configs = [ ":argon2_config" ]
+  configs -= [ "//build/config/compiler:chromium_code" ]
+  configs += [ "//build/config/compiler:no_chromium_code" ]
+}

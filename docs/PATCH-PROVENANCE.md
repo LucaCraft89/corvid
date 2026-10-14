@@ -35,3 +35,9 @@ No upstream code or patches have been copied into this repo. The rows below reco
 | Date | Decision |
 |---|---|
 | 2026-10-09 | Reuse policy above APPROVED by the user as proposed. The user favors open source, but this is not a blanket approval to relicense: Corvid stays BSD-3-Clause (locked decision), and each GPL/MPL item (Helium, Brave, uBlock Origin) still needs its own explicit ask. |
+
+## Vendored third-party code
+
+| Component | Source | License used | Notes |
+|---|---|---|---|
+| Argon2 (reference implementation, portable ref.c, no threads) | https://github.com/P-H-C/phc-winner-argon2 tag 20190702, commit 62358ba2123abd17fccf2a108a301d4b52c01a7c | Apache-2.0 (the work is CC0-1.0 OR Apache-2.0) | `src-overlay/third_party/argon2/`, unmodified files plus our BUILD.gn and README.chromium. Used by `corvid/passkeys/vault_crypto_boringssl.cc` for vault key derivation. Vendoring approved by Luca 2026-10-10 (orchestrator-resume.md). Checked with the reference test vector (argon2id v19, t=2, m=65536, p=1, "password"/"somesalt") in `vault_crypto_boringssl_unittest.cc`. |

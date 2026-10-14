@@ -1,0 +1,16 @@
+Name: Argon2 (reference implementation)
+URL: https://github.com/P-H-C/phc-winner-argon2
+Version: 20190702
+Revision: 62358ba2123abd17fccf2a108a301d4b52c01a7c
+License: Apache-2.0
+License File: LICENSE
+Security Critical: yes
+Shipped: yes
+
+Description:
+Argon2 password hashing (Argon2id used for the Corvid passkey vault key derivation). Dual licensed CC0-1.0 or
+Apache-2.0; Corvid takes the Apache-2.0 side. Only the portable reference code (ref.c) is vendored: no SIMD (opt.c),
+no threads (ARGON2_NO_THREADS), no tests, no CLI.
+
+Local Modifications:
+None. Files are unmodified copies of: include/argon2.h, src/{argon2,core,encoding,ref,thread}.{c,h}, src/blake2/*.
