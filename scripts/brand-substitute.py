@@ -44,6 +44,13 @@ FILES = [
     "components/privacy_sandbox_strings.grd",
     "extensions/strings/extensions_chromium_strings.grdp",
 ]
+# Phrases that name the browser as "Chrome" in shared strings (not the "Chromium" brand strings). Only these exact phrases
+# are renamed, so "Chrome Web Store", "Google Chrome", Chrome Enterprise and ChromeOS stay untouched.
+PHRASES = (
+    "Customize Chrome", "Chrome settings", "Default Chrome", "Chrome Colors", "Chrome Panels", "Make Chrome your own",
+    "Make Chrome Yours", "Chrome tip", "Chrome was updated", "Remove from Chrome", "Your Chrome profile",
+    "Chrome reset these settings", "Remove this info from Chrome autofill", "Open in Chrome", "Stay in Chrome",
+)
 KEEP = ("Chromium Authors", "Chromium Embedded", "Chromium Projects", "Chromium Project")
 WORD = re.compile(r"(?<![A-Za-z0-9_/.-])Chromium(?![A-Za-z0-9_-])")
 TAG = re.compile(r"(<[^>]*>)", re.S)
@@ -62,6 +69,8 @@ def substitute(text, name):
             protected[token] = k
             part = part.replace(k, token)
         part = WORD.sub(name, part)
+        for phrase in PHRASES:
+            part = part.replace(phrase, phrase.replace("Chrome", name))
         for token, k in protected.items():
             part = part.replace(token, k)
         out.append(part)
