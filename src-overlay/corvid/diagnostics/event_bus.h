@@ -1,10 +1,6 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
 // UNBUILT: written without a Chromium tree. Compile in dependency order (ring_buffer -> event_bus -> stack_sampler
-<<<<<<< HEAD
-// -> collectors). Chromium API names used here (base::Lock, base::ObserverListThreadSafe, base::Value::Dict,
-=======
 // -> collectors). Chromium API names used here (base::Lock, base::ObserverListThreadSafe, base::DictValue,
->>>>>>> origin/claude/busy-rubin-t8bloc
 // base::WriteJson, base::NoDestructor, content::WebContentsUserData) are long-stable; verify only if the compile fails.
 #ifndef CORVID_DIAGNOSTICS_EVENT_BUS_H_
 #define CORVID_DIAGNOSTICS_EVENT_BUS_H_
@@ -33,11 +29,7 @@ struct EventRecord {
   std::string severity;  // "debug" | "info" | "warning" | "error" | "fatal"
   std::string source;    // "renderer", "browser", "network", ...
   int tab_id = -1;
-<<<<<<< HEAD
-  base::Value::Dict data;  // kind-specific payload, serialized once into Event::data_json
-=======
   base::DictValue data;  // kind-specific payload, serialized once into Event::data_json
->>>>>>> origin/claude/busy-rubin-t8bloc
 };
 
 // Process-wide, thread-safe, local-only event hub. Emits write to a RingBuffer under a lock and then notify observers
@@ -62,11 +54,7 @@ class EventBus {
   uint64_t Emit(EventRecord record);
   // Re-serializes the payload of a retained event after fn edits it. False if the event was already evicted or its
   // payload is not a JSON object. Observers are told again with the amended event (same id).
-<<<<<<< HEAD
-  bool Amend(uint64_t id, base::FunctionRef<void(base::Value::Dict&)> fn);
-=======
   bool Amend(uint64_t id, base::FunctionRef<void(base::DictValue&)> fn);
->>>>>>> origin/claude/busy-rubin-t8bloc
 
   std::vector<Event> Snapshot() const;
   void SetRetention(Retention r);

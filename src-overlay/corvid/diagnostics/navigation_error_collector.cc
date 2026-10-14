@@ -30,11 +30,7 @@ std::string PhaseForNetError(int e) {
     case net::ERR_NAME_RESOLUTION_FAILED:
     case net::ERR_DNS_TIMED_OUT:
     case net::ERR_DNS_MALFORMED_RESPONSE:
-<<<<<<< HEAD
-    case net::ERR_DNS_SERVER_FAILED:
-=======
     case net::ERR_DNS_SERVER_FAILURE:
->>>>>>> origin/claude/vm-builder-g3-g5
     case net::ERR_DNS_SERVER_REQUIRES_TCP:
     case net::ERR_DNS_SORT_ERROR:
       return "dns";

@@ -12,11 +12,8 @@
 #include <string>
 #include <vector>
 
-<<<<<<< HEAD
-=======
 #include "base/memory/raw_ptr.h"
 
->>>>>>> origin/claude/vm-builder-g3-g5
 namespace corvid::passkeys {
 
 using Bytes = std::vector<uint8_t>;
@@ -98,11 +95,7 @@ class Vault {
  private:
   Vault(VaultCrypto* crypto);
   std::string HeaderAad(uint64_t revision) const;  // canonical bytes, see vault.ts headerAad
-<<<<<<< HEAD
-  VaultCrypto* crypto_;
-=======
   raw_ptr<VaultCrypto> crypto_;
->>>>>>> origin/claude/vm-builder-g3-g5
   UnlockMode mode_ = UnlockMode::kPassphrase;
   KdfParams kdf_;
   Bytes salt_;

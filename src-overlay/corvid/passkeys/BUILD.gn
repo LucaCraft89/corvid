@@ -20,11 +20,7 @@ source_set("vault") {
   deps = [ "//base" ]
 }
 
-<<<<<<< HEAD
-# Enabled only once third_party/argon2 is vendored (docs/notes/g4-spec.md). Nothing depends on it yet.
-=======
 # Real VaultCrypto: BoringSSL + vendored reference Argon2 (third_party/argon2).
->>>>>>> origin/claude/vm-builder-g3-g5
 source_set("vault_crypto_boringssl") {
   sources = [
     "vault_crypto_boringssl.cc",
@@ -35,11 +31,7 @@ source_set("vault_crypto_boringssl") {
     "//base",
     "//crypto",
     "//third_party/boringssl",
-<<<<<<< HEAD
-    # "//third_party/argon2",  # TODO: vendor, then uncomment
-=======
     "//third_party/argon2",
->>>>>>> origin/claude/vm-builder-g3-g5
   ]
 }
 
@@ -47,20 +39,14 @@ source_set("unit_tests") {
   testonly = true
   sources = [
     "authenticator_core_unittest.cc",
-<<<<<<< HEAD
-=======
     "vault_crypto_boringssl_unittest.cc",
->>>>>>> origin/claude/vm-builder-g3-g5
     "vault_unittest.cc",
   ]
   deps = [
     ":authenticator_core",
     ":vault",
-<<<<<<< HEAD
-=======
     ":vault_crypto_boringssl",
     "//third_party/argon2",
->>>>>>> origin/claude/vm-builder-g3-g5
     "//base",
     "//testing/gtest",
   ]
