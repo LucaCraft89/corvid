@@ -1,5 +1,5 @@
 # Reference Argon2 (P-H-C/phc-winner-argon2 tag 20190702, commit 62358ba2123a). Portable ref.c implementation, no threads.
-# Licensed CC0-1.0 OR Apache-2.0; Corvid uses it under Apache-2.0 (see README.chromium and docs/PATCH-PROVENANCE.md).
+# Licensed CC0-1.0 OR Apache-2.0; this project uses it under Apache-2.0 (see README.chromium and docs/PATCH-PROVENANCE.md).
 config("argon2_config") {
   include_dirs = [ "include" ]
 }
