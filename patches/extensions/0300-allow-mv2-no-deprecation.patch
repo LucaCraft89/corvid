@@ -14,3 +14,48 @@ Unit tests: upstream tests asserting IsExtensionAffected true will fail; list th
 
 Verify:
 - MV2 fixture loads and persists; no deprecation text (06).
+
+diff --git a/extensions/browser/manifest_v2_util.cc b/extensions/browser/manifest_v2_util.cc
+index 08d7786b3bb0..cf89d1a0418b 100644
+--- a/extensions/browser/manifest_v2_util.cc
++++ b/extensions/browser/manifest_v2_util.cc
+@@ -12,36 +12,15 @@ static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+ 
+ namespace extensions::manifest_v2_util {
+ 
++// Browser patch: Manifest V2 stays enabled, so no extension is ever "affected".
+ bool IsExtensionAffected(const Extension& extension) {
+-  return IsExtensionAffected(extension.manifest_version(), extension.GetType(),
+-                             extension.location());
++  return false;
+ }
+ 
+ bool IsExtensionAffected(int manifest_version,
+                          Manifest::Type manifest_type,
+                          mojom::ManifestLocation manifest_location) {
+-  // Only extensions < MV3.
+-  if (manifest_version >= 3) {
+-    return false;
+-  }
+-
+-  // Only extensions (not platform apps, etc). User scripts are treated as
+-  // extensions for the sake of APIs and in presentation to the user, so we
+-  // include them here.
+-  if (manifest_type != Manifest::Type::kExtension &&
+-      manifest_type != Manifest::Type::kLoginScreenExtension &&
+-      manifest_type != Manifest::Type::kUserScript) {
+-    return false;
+-  }
+-
+-  // Ignore component extensions (they're implementation details of Chrome).
+-  if (Manifest::IsComponentLocation(manifest_location)) {
+-    return false;
+-  }
+-
+-  // The extension is an MV2 (or lower) extension; we should warn the user
+-  // about it.
+-  return true;
++  return false;
+ }
+ 
+ }  // namespace extensions::manifest_v2_util

@@ -30,7 +30,7 @@ index 4ad0bb0..9a57fb9 100644
      .type = SEARCH_ENGINE_STARTER_PACK_AI_MODE,
  };
  
-+// Corvid: Gemini and Google AI Mode are Google services; not offered.
++// Browser patch: Gemini and Google AI Mode are Google services; not offered.
  const StarterPackEngine* engines[] = {
 -    &bookmarks, &history, &tabs, &gemini, &page, &ai_mode,
 +    &bookmarks, &history, &tabs, &page,

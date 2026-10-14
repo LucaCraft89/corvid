@@ -24,3 +24,10 @@ Source: read-only greps by the VM builder, relayed 2026-10-13; the draft author 
 - `ExternalProviderImpl::CreateExternalProviders(VisitorInterface*, Profile*, ProviderCollection*)` at external_provider_impl.h:58 / .cc:703; pref `extensions.external_uninstalls` (extension_prefs.cc:217).
 - NTP: `ExtensionUrlOverrides::HandleChromeURLOverride` extension_url_overrides.cc:455, called from chrome_web_ui_controller_factory.cc:284, reverse at :473; `search::GetNewTabPageURL` search.cc:337 untraced; extension_web_ui.cc removed upstream.
 - Third round (Azure VM, 2026-10-13): ExternalProviderImpl ctor has 6 args (.h:45-50, .cc:146-152), example call .cc:927-934; GetEffectiveUpdateURL (extension_management.cc:259-276) only acts on policy override_update_url; NewTabURLDetails::ForProfile search.cc:166 (OTR check :170, local_url :188-194, provider URL :206-225). Specs for 0320/0330 are final as text. Untraced: CRX update path for a non-store uBO; whether an early return in ForProfile breaks the incognito NTP.
+
+## G3 build result (20-vCPU VM, 2026-10-13)
+- 0300 as applied: replace the bodies of both `IsExtensionAffected` overloads with `return false;`. Do not add an early `return false;` and leave the old code below it: that fails the build with `-Werror=unreachable-code` and `-Werror=unreachable-code-return`.
+- 0300, 0320 and 0330 built on Chromium 155.0.8059.39 and `corvid_phase1_unittests` passed 64 of 64. No browser or acceptance test (06, 07, 08) has been run yet.
+- 0320 reads `<exe dir>/corvid/preinstalled_extensions.json` (id -> external_crx + external_version, or external_update_url); nothing emits that file yet.
+- 0330: the new tab priority is upstream's override order (most recent first), no picked extension is stored, and `NewTabURLDetails::ForProfile` returns chrome://newtab early. The incognito NTP and extension override bypass are untested. The uBO update path is untraced.
+- Tree drift: the VM's 13-commit tree has no 0196 and 0197, and 0130 differs by one line from the repo; the series on this branch is unchanged.

@@ -19,6 +19,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PLACEHOLDER = re.compile(r"@@([A-Z0-9_]+)@@")
 ICON_DEST = "chrome/app/theme/brand/product_logo.svg"
+# Stock Chromium product-logo PNGs replaced by branding/icons/<size>.png: (tree-relative path, icon size in px).
+# Only files that already exist in the tree are overwritten (never added). Not replaced: product_logo.ai, chromium.ai,
+# product_logo_animation.svg, product_logo_32.xpm, product_logo_22_mono.png and product_logo_name_22*.png (a wordmark).
+ICON_PNGS = (
+    [(f"chrome/app/theme/chromium/product_logo_{n}.png", n) for n in (16, 24, 48, 64, 128, 256)]
+    + [(f"chrome/app/theme/chromium/linux/product_logo_{n}.png", n) for n in (24, 48, 64, 128, 256)]
+    + [("chrome/app/theme/default_100_percent/chromium/product_logo_16.png", 16),
+       ("chrome/app/theme/default_100_percent/chromium/product_logo_32.png", 32),
+       ("chrome/app/theme/default_100_percent/chromium/linux/product_logo_16.png", 16),
+       ("chrome/app/theme/default_100_percent/chromium/linux/product_logo_32.png", 32),
+       ("chrome/app/theme/default_200_percent/chromium/product_logo_16.png", 32),
+       ("chrome/app/theme/default_200_percent/chromium/product_logo_32.png", 64)]
+)
 
 
 def variables(cfg):
@@ -88,7 +101,17 @@ def main():
     icon_out = tree / ICON_DEST
     icon_out.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(icon_src, icon_out)
-    print(f"render-branding: rendered {count} template(s) + icon into {tree}")
+    icon_dir = icon_src.parent
+    pngs = 0
+    for rel, size in ICON_PNGS:
+        dest = tree / rel
+        src = icon_dir / f"{size}.png"
+        if dest.is_file():
+            if not src.is_file():
+                sys.exit(f"render-branding: {src} missing")
+            shutil.copyfile(src, dest)
+            pngs += 1
+    print(f"render-branding: rendered {count} template(s) + icon + {pngs} PNG logo(s) into {tree}")
 
 
 if __name__ == "__main__":

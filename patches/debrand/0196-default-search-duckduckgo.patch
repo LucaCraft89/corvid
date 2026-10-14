@@ -14,7 +14,7 @@ index 85b0c960533ac..1a31022a315ae 100644
  
 -  return base::ToVector(regional_prepopulated_engines,
 -                        &PrepopulatedEngineToTemplateURLData);
-+  // Corvid: no Google-owned default. Drop Google and put DuckDuckGo first (the
++  // Browser patch: no Google-owned default. Drop Google and put DuckDuckGo first (the
 +  // first entry is the default). shortcut: if DuckDuckGo is not in a region's
 +  // list the first remaining engine becomes the default.
 +  std::vector<raw_ptr<const PrepopulatedEngine>> engines;

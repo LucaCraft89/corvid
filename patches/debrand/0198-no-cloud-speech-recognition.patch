@@ -12,7 +12,7 @@ index b6dc9ea..14640fe 100644
  namespace content {
  namespace {
  
-+// Corvid: Google's cloud speech service is not used; this fails closed (unresolvable host).
++// Browser patch: Google's cloud speech service is not used; this fails closed (unresolvable host).
  const char kWebServiceBaseUrl[] =
 -    "https://www.google.com/speech-api/full-duplex/v1";
 +    "https://speech.invalid/full-duplex/v1";
