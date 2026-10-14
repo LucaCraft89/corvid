@@ -14,3 +14,7 @@ Repo state: `branding/config.toml` (name, ids, user agent token, icon source `br
 2. Tools: Ubuntu VM has `dpkg-deb`; `rpmbuild` and `appimagetool` probably not (check, install only with Luca's approval for sudo). Missing tools are SKIPPED in the report by design.
 3. Install tests (acceptance 10): needs Debian/Ubuntu and Fedora VMs, X11 and Wayland; only what actually runs gets PASS; the rest SKIPPED with reason.
 4. Phase 1 full run: `scripts/verify.sh --phase 1 --platform linux`; reports `docs/reports/M3-G4..G5`, `M4`, `M6`.
+
+## Update 2026-10-13
+- PNG icons 16 to 256 are generated and committed by the Azure builder (`branding/icons/*.png`; busy-rubin 6bb7a88). Remaining for the rename: extend `scripts/render-branding.py` to copy them into the tree's `chrome/app/theme/chromium/product_logo_*.png` (verify the list on the tree), then run the rename acceptance with `CORVID_REUSE_BUILD=1`.
+- Preinstalled extension build step: see `docs/notes/preinstalled-build-step.md`; `scripts/package.sh` must copy `corvid-preinstalled/` and the CRX into the package (not done).
