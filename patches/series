@@ -3,6 +3,7 @@
 # Maintained by scripts/refresh-patches.sh. Phase 0 has no patches yet.
 ui/0200-corvid-webui-scheme-and-registry.patch
 ui/0220-block-or-redirect-stock-webui.patch
+ui/0240-default-theme-seed.patch
 debrand/0100-disable-metrics-and-crash-upload.patch
 debrand/0110-disable-variations-seed-fetch.patch
 debrand/0120-disable-safe-browsing-network.patch
