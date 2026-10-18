@@ -35,6 +35,46 @@ source_set("vault_crypto_boringssl") {
   ]
 }
 
+source_set("authenticator_crypto_boringssl") {
+  sources = [
+    "authenticator_crypto_boringssl.cc",
+    "authenticator_crypto_boringssl.h",
+  ]
+  deps = [
+    ":authenticator_core",
+    "//base",
+    "//third_party/boringssl",
+  ]
+}
+
+source_set("vault_store") {
+  sources = [
+    "vault_store.cc",
+    "vault_store.h",
+  ]
+  deps = [ "//base" ]
+}
+
+# The device::FidoAuthenticator adapter + SoftwareDiscovery. Depended on by //device/fido (patch 2003) so it must not
+# depend on //chrome.
+source_set("software_authenticator") {
+  sources = [
+    "passkey_service.cc",
+    "passkey_service.h",
+    "software_authenticator.cc",
+    "software_authenticator.h",
+  ]
+  deps = [
+    ":authenticator_core",
+    ":authenticator_crypto_boringssl",
+    ":vault",
+    ":vault_crypto_boringssl",
+    ":vault_store",
+    "//base",
+    "//device/fido",
+  ]
+}
+
 source_set("unit_tests") {
   testonly = true
   sources = [

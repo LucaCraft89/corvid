@@ -1,14 +1,29 @@
-Purpose: Register Corvid's software authenticator as the platform (internal) discovery on Linux.
+Purpose: Register Corvid's software authenticator as the platform (internal) discovery on Linux and Windows-without-Hello.
 Area: passkeys
-Files: device/fido/fido_discovery_factory.cc (hook in Create for kInternal / platform path), device/fido/BUILD.gn (dep on //corvid/passkeys)
-Rebase risk: medium because FidoDiscoveryFactory API has been reshaped several times
+Files: device/fido/fido_discovery_factory.cc (kInternal case of Create), device/fido/BUILD.gn (dep on //corvid/passkeys:software_authenticator)
+Rebase risk: medium because FidoDiscoveryFactory has been reshaped several times
 Origin: original
-Status: UNVERIFIED SKETCH.
+Status: HUNKS WRITTEN FROM docs/notes/fido-api-155.md (verbatim 155 source); NOT yet applied on a tree. Builder: apply, fix context lines, build.
 
 --- a/device/fido/fido_discovery_factory.cc
 +++ b/device/fido/fido_discovery_factory.cc
-@@ std::unique_ptr<FidoDiscoveryBase> FidoDiscoveryFactory::Create(FidoTransportProtocol transport) @@
+@@ case FidoTransportProtocol::kInternal: {
+       std::vector<std::unique_ptr<FidoDiscoveryBase>> discoveries;
+ #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
+       discoveries = MaybeCreatePlatformDiscovery();
++#elif BUILDFLAG(IS_LINUX)
++      discoveries.push_back(
++          std::make_unique<corvid::passkeys::SoftwareDiscovery>());
+ #endif
+       return discoveries;
+     }
+
+Also at the top of the file:
 +#if BUILDFLAG(IS_LINUX)
-+  if (transport == FidoTransportProtocol::kInternal)
-+    return std::make_unique<corvid::passkeys::SoftwareDiscovery>();
++#include "corvid/passkeys/software_authenticator.h"
 +#endif
+and in device/fido/BUILD.gn, under the DEVICE_FIDO component deps:
++  if (is_linux) { deps += [ "//corvid/passkeys:software_authenticator" ] }
+(circular-dependency check: //corvid/passkeys:software_authenticator depends on //device/fido. If gn reports a cycle,
+split the factory hook into a //device/fido:corvid_platform_discovery source_set that takes a factory callback registered
+at startup instead. Decide on the first gn gen.)

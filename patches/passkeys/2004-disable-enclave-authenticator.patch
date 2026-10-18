@@ -4,3 +4,14 @@ Files: device/fido/features.cc (default state of the enclave-related base::Featu
 Rebase risk: medium because feature names change between milestones
 Origin: original
 Status: UNVERIFIED SKETCH, no hunks. Find the enclave feature flags on the pinned tree (grep -i enclave device/fido/features.cc chrome/browser/webauthn/) and set FEATURE_DISABLED_BY_DEFAULT; additionally add the enclave service hostnames to the debrand allow-list check (scripts/check-hosts) so any residual contact fails the idle network capture. Verification: idle capture + a passkey create showing no request to Google hosts.
+
+UPDATE 2026-10-18 (from docs/notes/fido-api-155.md, ChromeAuthenticatorRequestDelegate::ConfigureDiscoveries @155):
+Do NOT flip webauthn_ui_enabled() (that also hides the dialog we need). Instead make two small edits in
+chrome/browser/webauthn/chrome_authenticator_request_delegate.cc ConfigureDiscoveries:
+  1. the enclave block ("Configure the enclave authenticator", starts where enclave_create_enabled is computed):
+     force `enclave_create_enabled = false` so neither PasskeyUpgradeRequestController nor GPMEnclaveController is created;
+  2. the caBLE/hybrid block (starts at qr_generator_key / CableLinkingEventHandler): skip it unless the user has turned
+     hybrid on in Corvid settings (CR-5: only on explicit click, never at idle). Default build: skip entirely, i.e. return
+     before `discovery_factory->set_cable_data(...)`.
+Verification: idle capture unchanged AND a passkey create + sign-in on webauthn.io with the capture running shows no
+connection to a Google host. Hunks must be written on the tree (context lines are not in the note).

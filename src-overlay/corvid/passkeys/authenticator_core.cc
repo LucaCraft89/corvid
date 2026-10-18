@@ -167,6 +167,7 @@ CtapError AuthenticatorCore::GetAssertion(const GetAssertionRequest& req, GetAss
   Append(message, req.client_data_hash);
   out->signature = crypto_->SignEs256Der(priv, message);
   std::fill(priv.begin(), priv.end(), 0);
+  if (out->signature.empty()) return CtapError::kInvalidParameter;
 
   UnB64(chosen->id, &out->credential_id);
   out->auth_data = std::move(auth_data);
