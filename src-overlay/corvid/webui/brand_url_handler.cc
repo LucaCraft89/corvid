@@ -25,7 +25,8 @@ std::string TailOf(const GURL& url) {
 
 bool HandleBrandUrl(GURL* url, content::BrowserContext*) {
   bool changed = false;
-  if (std::optional<GURL> stock = RewriteStockUrl(*url)) {
+  const bool stock_fallback = url->SchemeIs("chrome") && IsStockFallbackHost(url->host());
+  if (std::optional<GURL> stock = stock_fallback ? std::nullopt : RewriteStockUrl(*url)) {
     *url = *stock;  // corvid://<page>/... or corvid://blocked/?url=...
     changed = true;
   }

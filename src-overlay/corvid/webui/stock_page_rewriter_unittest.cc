@@ -16,9 +16,9 @@ class StockPageRewriterTest : public testing::Test {
 };
 
 TEST_F(StockPageRewriterTest, HandlerRewritesInPlace) {
-  GURL url("chrome://history/");
+  GURL url("chrome://newtab/");
   EXPECT_TRUE(HandleStockUrl(&url, nullptr));
-  EXPECT_EQ(url.spec(), "corvid://history/");
+  EXPECT_EQ(url.spec(), "corvid://newtab/");
 }
 
 TEST_F(StockPageRewriterTest, HandlerLeavesWebUrlsAlone) {

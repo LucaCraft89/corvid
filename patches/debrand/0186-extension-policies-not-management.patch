@@ -1,0 +1,22 @@
+Purpose: Extension (3rdparty) policies no longer make the browser look enterprise-managed. Corvid uses a policy file only to configure preinstalled extensions (uBO autoUpdate off); without this the menu, the extensions page and settings show "Managed by your organization".
+Area: debrand
+Files: components/policy/core/browser/browser_policy_connector.cc (BrowserPolicyConnector::ProviderHasPolicies)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-18): with /etc/corvid/policies/managed/corvid-preinstalled.json present the extensions page shows no managed banner and the app menu has no managed entry. Real browser-level policies still mark the browser managed.
+
+diff --git a/components/policy/core/browser/browser_policy_connector.cc b/components/policy/core/browser/browser_policy_connector.cc
+index 6f234c0d5d24..0a061d0eba99 100644
+--- a/components/policy/core/browser/browser_policy_connector.cc
++++ b/components/policy/core/browser/browser_policy_connector.cc
+@@ -94,6 +94,10 @@ bool BrowserPolicyConnector::ProviderHasPolicies(
+     return false;
+   }
+   for (const auto& pair : provider->policies()) {
++    // Browser patch: only browser-level (Chrome domain) policies make the browser "managed". Extension policies
++    // (3rdparty), used here to configure preinstalled extensions, do not.
++    if (pair.first.domain != POLICY_DOMAIN_CHROME)
++      continue;
+     if (!pair.second.empty())
+       return true;
+   }

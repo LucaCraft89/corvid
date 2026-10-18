@@ -67,7 +67,8 @@ void RemoveStockWebUIConfigs() {
   content::WebUIConfigMap& map = content::WebUIConfigMap::GetInstance();
   for (const content::WebUIConfigInfo& info : map.GetWebUIConfigList(/*browser_context=*/nullptr)) {
     if (info.origin.scheme() == content::kChromeUIScheme && !info.origin.host().starts_with(kBrandHostPrefix) &&
-        !info.origin.host().ends_with(".top-chrome") && !IsInternalToolHost(info.origin.host())) {
+        !info.origin.host().ends_with(".top-chrome") && !IsInternalToolHost(info.origin.host()) &&
+        !IsStockFallbackHost(info.origin.host())) {
       map.RemoveConfig(info.origin.GetURL());
     }
   }

@@ -34,3 +34,7 @@ enabled_by_default = true
 user_removable = true                    # removal must persist across updates
 allowed_in_incognito = "ask-at-first-run"  # default: on for normal windows
 modify_source = false                    # never patch uBO inside the Corvid tree
+# Managed-storage settings written to <policy dir>/managed/corvid-preinstalled.json (policy dir: /etc/corvid/policies, patch
+# debrand/0185). uBO updates its filter lists and the public suffix list from github.io, jsdelivr, yoyo.org and publicsuffix.org
+# about 40 s after start unless auto-update is off; that breaks the idle-network gate (acceptance 01). Lists stay as bundled.
+managed_user_settings = [["autoUpdate", "false"]]

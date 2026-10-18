@@ -30,9 +30,17 @@ TEST_F(BrandUrlHandlerTest, CorvidUrlLoadsInternalHost) {
 }
 
 TEST_F(BrandUrlHandlerTest, StockUrlGoesStraightToCorvidPage) {
-  GURL url("chrome://history/");
+  GURL url("chrome://newtab/");
   EXPECT_TRUE(HandleBrandUrl(&url, nullptr));
-  EXPECT_EQ(url.spec(), "chrome://corvid-history/");
+  EXPECT_EQ(url.spec(), "chrome://corvid-newtab/");
+}
+
+TEST_F(BrandUrlHandlerTest, StockFallbackPagesStayStock) {
+  for (const char* in : {"chrome://settings/", "chrome://history/", "chrome://extensions/", "chrome://downloads/"}) {
+    GURL url(in);
+    EXPECT_FALSE(HandleBrandUrl(&url, nullptr)) << in;
+    EXPECT_EQ(url.spec(), in);
+  }
 }
 
 TEST_F(BrandUrlHandlerTest, StockBlockedAndUnknownHostsGoToBlockedPage) {

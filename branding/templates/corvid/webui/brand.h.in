@@ -2,6 +2,9 @@
 #ifndef CORVID_WEBUI_BRAND_H_
 #define CORVID_WEBUI_BRAND_H_
 
+// String-literal form of the URL scheme, for compile-time concatenation in files outside the overlay (policy dir path).
+#define BRAND_URL_SCHEME_STR "@@URL_SCHEME@@"
+
 namespace corvid {
 
 // User-visible URL scheme (branding url_scheme): <scheme>://settings.

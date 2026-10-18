@@ -38,6 +38,15 @@ bool IsInternalToolHost(std::string_view host) {
   return host == "headless";
 }
 
+bool IsStockFallbackHost(std::string_view host) {
+  static constexpr std::string_view kHosts[] = {"settings",         "extensions", "history",  "downloads", "bookmarks",
+                                                "password-manager", "certificate-manager", "version", "management"};
+  for (std::string_view h : kHosts) {
+    if (host == h) return true;
+  }
+  return false;
+}
+
 std::optional<GURL> RewriteStockUrl(const GURL& url) {
   if (!url.SchemeIs("chrome") && !url.SchemeIs("chrome-untrusted") && !url.SchemeIs("chrome-search")) {
     return std::nullopt;

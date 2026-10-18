@@ -1,0 +1,30 @@
+Purpose: Read enterprise-style policy files from /etc/<brand>/policies instead of /etc/chromium/policies (the folder Chromium installs share), so Corvid's own preinstalled-extension settings never apply to, or come from, another browser.
+Area: debrand
+Files: components/policy/core/common/policy_paths.cc (kPolicyPath, Linux, non-Google branding)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-18): with a policy file in the brand policy folder (/etc/<brand>/policies/managed) a 240 s idle capture is clean and uBO does not update its lists.
+
+diff --git a/components/policy/core/common/policy_paths.cc b/components/policy/core/common/policy_paths.cc
+index 7c15eeaa4f87..880833d34eaf 100644
+--- a/components/policy/core/common/policy_paths.cc
++++ b/components/policy/core/common/policy_paths.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "components/policy/core/common/policy_paths.h"
+ 
++#include "corvid/webui/brand.h"
++
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
+ 
+@@ -18,7 +20,8 @@ const char kPolicyPath[] = "/etc/opt/chrome/policies";
+ #elif BUILDFLAG(GOOGLE_CHROME_FOR_TESTING_BRANDING)
+ const char kPolicyPath[] = "/etc/opt/chrome_for_testing/policies";
+ #else
+-const char kPolicyPath[] = "/etc/chromium/policies";
++// Browser patch: policies live in the browser's own directory, not the one shared with Chromium installs.
++const char kPolicyPath[] = "/etc/" BRAND_URL_SCHEME_STR "/policies";
+ #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
+ #endif  // BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_MAC)
+ 

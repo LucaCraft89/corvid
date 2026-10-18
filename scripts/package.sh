@@ -53,6 +53,12 @@ if [[ -d "$src/corvid-preinstalled" ]]; then
   mkdir -p "$root/opt/$slug/extensions"
   cp "$src"/corvid-preinstalled/*.json "$src"/corvid-preinstalled/*.crx "$root/opt/$slug/extensions/" 2>/dev/null || true
   rm -f "$root/opt/$slug/extensions/preinstalled.manifest.json"
+  # Managed-storage settings for the preinstalled extensions (see extensions/preinstalled.toml).
+  if [[ -f "$src/corvid-preinstalled/managed-policy.json" ]]; then
+    mkdir -p "$root/etc/corvid/policies/managed"
+    cp "$src/corvid-preinstalled/managed-policy.json" "$root/etc/corvid/policies/managed/corvid-preinstalled.json"
+    rm -f "$root/opt/$slug/extensions/managed-policy.json"
+  fi
   # The generator writes the build-machine path of the CRX; the installed JSON must point at the CRX next to it.
   python3 - "$root/opt/$slug/extensions" <<'PY'
 import json, os, shutil, sys
@@ -136,6 +142,7 @@ cp -a $root/. %{buildroot}/
 /usr/bin/$slug
 /usr/share/applications/$desktop_id.desktop
 /usr/share/icons/hicolor/256x256/apps/*
+$([[ -d "$root/etc/corvid" ]] && echo /etc/corvid)
 EOF
   rpmbuild --define "_topdir $topdir" -bb "$topdir/SPECS/$slug.spec" >/dev/null
   cp "$topdir"/RPMS/*/*.rpm "$dist/"

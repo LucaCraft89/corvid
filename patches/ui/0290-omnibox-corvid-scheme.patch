@@ -1,0 +1,31 @@
+Purpose: Typed corvid:// addresses are URLs for the omnibox, not search queries (without this "corvid://settings" is sent to the default search engine).
+Area: ui
+Files: chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc (GetInputTypeForScheme)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-18): typing corvid://settings in the omnibox opens the Corvid settings page.
+
+diff --git a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+index 2f7ea50b69a4..cc2fd18681ec 100644
+--- a/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
++++ b/chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/autocomplete/chrome_autocomplete_scheme_classifier.h"
+ 
++#include "corvid/webui/brand.h"
++
+ #include "base/notreached.h"
+ #include "base/strings/string_util.h"
+ #include "build/build_config.h"
+@@ -72,7 +74,9 @@ ChromeAutocompleteSchemeClassifier::GetInputTypeForScheme(
+       (ProfileIOData::IsHandledProtocol(scheme) ||
+        base::EqualsCaseInsensitiveASCII(scheme, content::kViewSourceScheme) ||
+        base::EqualsCaseInsensitiveASCII(scheme, url::kJavaScriptScheme) ||
+-       base::EqualsCaseInsensitiveASCII(scheme, url::kDataScheme))) {
++       base::EqualsCaseInsensitiveASCII(scheme, url::kDataScheme) ||
++       // Browser patch: typed addresses in the brand scheme are URLs, not searches.
++       base::EqualsCaseInsensitiveASCII(scheme, corvid::kBrandScheme))) {
+     return metrics::OmniboxInputType::URL;
+   }
+ 

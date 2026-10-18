@@ -60,6 +60,12 @@ def main() -> int:
     manifest[a.slug] = {"id": ext_id, "version": e["version"], "crx_sha256": hashlib.sha256(crx.read_bytes()).hexdigest(),
                         "upstream_zip_sha256": e.get("sha256", "")}
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    msets = e.get("managed_user_settings")
+    if msets:
+        pol_path = out / "managed-policy.json"
+        pol = json.loads(pol_path.read_text()) if pol_path.exists() else {"3rdparty": {"extensions": {}}}
+        pol["3rdparty"]["extensions"][ext_id] = {"userSettings": msets}
+        pol_path.write_text(json.dumps(pol, indent=2, sort_keys=True) + "\n")
     print(f"{a.slug}: id {ext_id} -> {out / (ext_id + '.json')}")
     return 0
 

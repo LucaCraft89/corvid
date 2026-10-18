@@ -5,6 +5,7 @@ ui/0200-corvid-webui-scheme-and-registry.patch
 ui/0220-block-or-redirect-stock-webui.patch
 ui/0240-default-theme-seed.patch
 ui/0270-hide-stock-menu-items.patch
+ui/0290-omnibox-corvid-scheme.patch
 debrand/0100-disable-metrics-and-crash-upload.patch
 debrand/0110-disable-variations-seed-fetch.patch
 debrand/0120-disable-safe-browsing-network.patch
@@ -14,6 +15,8 @@ debrand/0150-component-updater-configurable-source.patch
 debrand/0160-disable-network-time-geolocation-doh-preconnect.patch
 debrand/0170-webrtc-privacy-defaults.patch
 debrand/0180-no-external-extension-dirs-linux.patch
+debrand/0185-policy-dir-corvid.patch
+debrand/0186-extension-policies-not-management.patch
 debrand/0190-disable-gcm-connection.patch
 debrand/0195-no-baked-in-domain-reliability-configs.patch
 debrand/0196-default-search-duckduckgo.patch
