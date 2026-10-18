@@ -1,0 +1,29 @@
+Purpose: Remove the "Visit Chrome Web Store" entry from the Extensions submenu of the app menu (it opens a Google service; extension sources are user-configured).
+Area: ui
+Files: chrome/browser/ui/toolbar/app_menu_model.cc (ExtensionsMenuModel::Build)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-14): the Extensions submenu shows only "Manage extensions"; the toolbar extensions popup already had no web store entry. Not checked: the page context menu (Lens overlay entry) and the More tools submenu; the main app menu shows no Lens or other Google-bound entry.
+
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+index f8f6a64f3560..a7cab2375e10 100644
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -1176,16 +1176,7 @@ void ExtensionsMenuModel::Build(BrowserWindowInterface* browser) {
+   SetElementIdentifierAt(
+       GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_MANAGE_EXTENSIONS).value(),
+       kManageExtensionsMenuItem);
+-  AddItemWithStringId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                      IDS_EXTENSIONS_SUBMENU_CHROME_WEBSTORE_ITEM);
+-  SetElementIdentifierAt(
+-      GetIndexOfCommandId(IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE)
+-          .value(),
+-      kVisitChromeWebStoreMenuItem);
+-#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+-  SetCommandIcon(this, IDC_EXTENSIONS_SUBMENU_VISIT_CHROME_WEB_STORE,
+-                 vector_icons::kGoogleChromeWebstoreIcon);
+-#endif
++  // Browser patch: no "Visit Chrome Web Store" entry; extension sources are configured by the user.
+ }
+ 
+ ////////////////////////////////////////////////////////////////////////////////

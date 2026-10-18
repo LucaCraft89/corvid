@@ -8,8 +8,8 @@ Security Critical: yes
 Shipped: yes
 
 Description:
-Argon2 password hashing (Argon2id used for the Corvid passkey vault key derivation). Dual licensed CC0-1.0 or
-Apache-2.0; Corvid takes the Apache-2.0 side. Only the portable reference code (ref.c) is vendored: no SIMD (opt.c),
+Argon2 password hashing (Argon2id used for the passkey vault key derivation). Dual licensed CC0-1.0 or
+Apache-2.0; this project takes the Apache-2.0 side. Only the portable reference code (ref.c) is vendored: no SIMD (opt.c),
 no threads (ARGON2_NO_THREADS), no tests, no CLI.
 
 Local Modifications:

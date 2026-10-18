@@ -84,6 +84,12 @@ if [ "${CORVID_NO_DOMAIN_SUBSTITUTION:-0}" != 1 ]; then
   python3 -I "$CORVID_ROOT/scripts/domain-substitute.py" --tree "$CORVID_SRC" --allowlist "$CORVID_ROOT/docs/network-allowlist.md"
 fi
 
+# User-visible "Chromium" in the string sources becomes the product name (same config as the branding step).
+if [ "${CORVID_NO_BRAND_SUBSTITUTION:-0}" != 1 ]; then
+  brand_name="$(python3 -I "$CORVID_ROOT/scripts/render-branding.py" --get name --config "${CORVID_BRANDING_CONFIG:-$CORVID_ROOT/branding/config.toml}")"
+  python3 -I "$CORVID_ROOT/scripts/brand-substitute.py" --tree "$CORVID_SRC" --name "$brand_name"
+fi
+
 stray="$(stray_reject_files)"
 if [ -n "$stray" ]; then
   printf '%s\n' "$stray" >&2

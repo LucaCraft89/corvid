@@ -1,0 +1,24 @@
+Purpose: Default the browser theme seed to Corvid's brand color (#5B6BC0) so the native toolbar and tabs take Material-3 tonal colors; no new UI.
+Area: ui
+Files: chrome/browser/themes/theme_service.cc (default of the kUserColor pref)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-14): a fresh profile under Xvfb shows a lavender tab strip and toolbar and an indigo omnibox focus ring (screenshot), no crash. Baseline in ThemeService means "no user color", so a profile that sets the color to transparent (reset to classic theme) gets the stock look. Not checked: dark mode, other platforms.
+
+diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/theme_service.cc
+index cb1dd91e6d83..70bcd75bb131 100644
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -320,7 +320,11 @@ void ThemeService::RegisterProfilePrefs(
+   registry->RegisterIntegerPref(
+       prefs::kDeprecatedUserColorDoNotUse, SK_ColorTRANSPARENT,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+-  registry->RegisterIntegerPref(prefs::kUserColor, SK_ColorTRANSPARENT);
++  // Browser patch: the default theme seed is the browser's brand color
++  // (#5B6BC0) instead of "no color". Baseline means "no user color", so the
++  // native toolbar and tabs now take tonal colors from this seed until the
++  // user picks another color or resets to the classic theme.
++  registry->RegisterIntegerPref(prefs::kUserColor, SkColorSetRGB(0x5B, 0x6B, 0xC0));
+   registry->RegisterIntegerPref(
+       prefs::kDeprecatedBrowserColorVariantDoNotUse,
+       static_cast<int>(ui::mojom::BrowserColorVariant::kSystem),
