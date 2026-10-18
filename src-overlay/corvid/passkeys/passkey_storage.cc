@@ -6,6 +6,7 @@
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
 #include "base/logging.h"
+#include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 
 namespace corvid::passkeys {
@@ -40,7 +41,13 @@ VaultError PasskeyStorage::OpenOrCreate(std::unique_ptr<Vault>* out) {
     if (!secret) return VaultError::kKeyringMissing;
     Vault::OpenOptions oo;
     oo.keyring_secret = *secret;
-    return Vault::Open(crypto_, vault_json, oo, out);
+    VaultError e = Vault::Open(crypto_, vault_json, oo, out);
+    if (e == VaultError::kOk && (*out)->revision() < HighestRevision(vault_path())) {
+      LOG(ERROR) << "passkey vault: file is older than the last revision written (rollback); refusing to open it";
+      out->reset();
+      return VaultError::kBadFormat;
+    }
+    return e;
   }
   if (have_vault != have_key) {
     // Half a vault is unusable and must never be overwritten silently: the user may still hold the other half.
@@ -63,13 +70,30 @@ VaultError PasskeyStorage::OpenOrCreate(std::unique_ptr<Vault>* out) {
   return VaultError::kOk;
 }
 
+namespace {
+base::FilePath RevPath(const base::FilePath& vault_path) { return vault_path.AddExtension(FILE_PATH_LITERAL("rev")); }
+}  // namespace
+
 // static
-bool PasskeyStorage::WriteVaultFile(const base::FilePath& path, const std::string& json) {
-  return !json.empty() && WritePrivate(path, json);
+uint64_t PasskeyStorage::HighestRevision(const base::FilePath& vault_path) {
+  std::string s;
+  uint64_t r = 0;
+  if (base::ReadFileToString(RevPath(vault_path), &s) && base::StringToUint64(s, &r)) return r;
+  return 0;
+}
+
+// static
+bool PasskeyStorage::WriteVaultFile(const base::FilePath& path, const std::string& json, uint64_t revision) {
+  if (json.empty() || revision < HighestRevision(path)) return false;
+  if (!WritePrivate(path, json)) return false;
+  // If this second write fails the vault is still valid; the rollback floor just stays one revision behind.
+  WritePrivate(RevPath(path), base::NumberToString(revision));
+  return true;
 }
 
 bool PasskeyStorage::Save(Vault* vault) {
-  return WriteVaultFile(vault_path(), vault->Serialize());
+  const std::string json = vault->Serialize();
+  return WriteVaultFile(vault_path(), json, vault->revision());
 }
 
 }  // namespace corvid::passkeys

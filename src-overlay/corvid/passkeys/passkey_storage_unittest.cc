@@ -106,5 +106,27 @@ TEST(CorvidPasskeyStorageTest, HalfAVaultIsNeverOverwritten) {
   EXPECT_FALSE(base::PathExists(storage.key_path()));
 }
 
+TEST(CorvidPasskeyStorageTest, ReplacingTheVaultWithAnOlderCopyIsRefused) {
+  base::ScopedTempDir dir;
+  ASSERT_TRUE(dir.CreateUniqueTempDir());
+  auto crypto = CreateBoringSslVaultCrypto();
+  XorCipher cipher(0x33);
+  PasskeyStorage storage(dir.GetPath().AppendASCII("Passkeys"), crypto.get(), &cipher);
+  std::unique_ptr<Vault> v;
+  ASSERT_EQ(storage.OpenOrCreate(&v), VaultError::kOk);
+  std::string old_copy;
+  ASSERT_TRUE(base::ReadFileToString(storage.vault_path(), &old_copy));  // revision 1: no passkeys yet
+
+  ASSERT_EQ(v->Add(Cred("a")), VaultError::kOk);
+  ASSERT_TRUE(storage.Save(v.get()));  // revision 2
+  ASSERT_TRUE(base::WriteFile(storage.vault_path(), old_copy));  // an attacker (or a bad restore) puts the old file back
+
+  std::unique_ptr<Vault> w;
+  EXPECT_EQ(storage.OpenOrCreate(&w), VaultError::kBadFormat);
+  EXPECT_FALSE(w);
+  // And an old revision can no longer be written over a newer one.
+  EXPECT_FALSE(PasskeyStorage::WriteVaultFile(storage.vault_path(), old_copy, 1));
+}
+
 }  // namespace
 }  // namespace corvid::passkeys

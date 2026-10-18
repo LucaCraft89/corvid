@@ -144,8 +144,10 @@ void PasskeysService::Persist() {
     writer_ = base::ThreadPool::CreateSequencedTaskRunner(
         {base::MayBlock(), base::TaskPriority::USER_VISIBLE, base::TaskShutdownBehavior::BLOCK_SHUTDOWN});
   }
+  const std::string json = vault_->Serialize();
+  const uint64_t revision = vault_->revision();
   writer_->PostTask(FROM_HERE, base::BindOnce(base::IgnoreResult(&PasskeyStorage::WriteVaultFile),
-                                              storage_->vault_path(), vault_->Serialize()));
+                                              storage_->vault_path(), json, revision));
 }
 
 bool PasskeysService::Presence(const std::string& rp_id, Purpose purpose) {

@@ -30,7 +30,10 @@ class PasskeyStorage {
   bool Save(Vault* vault);
 
   // Atomic 0600 write of an already serialized vault; safe to run on a blocking-capable thread pool task.
-  static bool WriteVaultFile(const base::FilePath& path, const std::string& json);
+  // `revision` is the vault revision the file contains; a write below the highest revision ever written is refused
+  // (rollback protection: replacing the vault with an older copy is detected on open).
+  static bool WriteVaultFile(const base::FilePath& path, const std::string& json, uint64_t revision);
+  static uint64_t HighestRevision(const base::FilePath& vault_path);
 
   base::FilePath vault_path() const;
   base::FilePath key_path() const;

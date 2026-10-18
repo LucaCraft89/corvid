@@ -1,6 +1,110 @@
-Purpose: Gate off Chrome's Google Password Manager enclave authenticator (Google dependency); code retained.
+Purpose: The Google Password Manager enclave authenticator and the hybrid (phone, caBLE) transport are off: both relay through Google-run servers. The enclave is never offered; hybrid is off unless --enable-passkey-hybrid is given (until a settings toggle exists), so it is never used at idle or without an explicit choice.
 Area: passkeys
-Files: device/fido/features.cc (default state of the enclave-related base::Feature(s)), chrome/browser/webauthn/enclave_manager* (not edited)
-Rebase risk: medium because feature names change between milestones
-Origin: original
-Status: UNVERIFIED SKETCH, no hunks. Find the enclave feature flags on the pinned tree (grep -i enclave device/fido/features.cc chrome/browser/webauthn/) and set FEATURE_DISABLED_BY_DEFAULT; additionally add the enclave service hostnames to the debrand allow-list check (scripts/check-hosts) so any residual contact fails the idle network capture. Verification: idle capture + a passkey create showing no request to Google hosts.
+Files: chrome/browser/webauthn/chrome_authenticator_request_delegate.cc (ConfigureDiscoveries: enclave condition, hybrid block), chrome/browser/webauthn/BUILD.gn (dep on //corvid/passkeys:google_features)
+Rebase risk: medium (ConfigureDiscoveries changes between milestones)
+Origin: original (written for Corvid; no third-party patch text reused); approach from the plan thread's note (do not flip webauthn_ui_enabled: it also hides the dialog)
+Status: BUILT and run on 155.0.8059.39 (2026-10-18): the create dialog offers only "This device" and "USB security key"; passkey create and sign-in work. Not yet captured: a network capture during a passkey flow on a real site.
+
+diff --git a/chrome/browser/webauthn/BUILD.gn b/chrome/browser/webauthn/BUILD.gn
+index d339292a8c4d..449ece33360f 100644
+--- a/chrome/browser/webauthn/BUILD.gn
++++ b/chrome/browser/webauthn/BUILD.gn
+@@ -98,6 +98,7 @@ source_set("impl") {
+   ]
+ 
+   deps = [
++    "//corvid/passkeys:google_features",
+     "//base",
+     "//chrome/browser/password_manager",
+     "//chrome/browser/profiles:profile",
+diff --git a/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc b/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+index 3f6cbfbe449f..0b03c9ffd180 100644
+--- a/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
++++ b/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/webauthn/chrome_authenticator_request_delegate.h"
++#include "corvid/passkeys/google_features.h"
+ 
+ #include <algorithm>
+ #include <array>
+@@ -515,7 +516,9 @@ void ChromeAuthenticatorRequestDelegate::ConfigureDiscoveries(
+   }
+ 
+   // Configure the enclave authenticator.
+-  if (browser_provided_passkeys_available && !IsVirtualEnvironmentEnabled() &&
++  // Browser patch: the Google Password Manager enclave is never offered.
++  if (corvid::passkeys::GoogleEnclaveEnabled() &&
++      browser_provided_passkeys_available && !IsVirtualEnvironmentEnabled() &&
+       request_source == RequestSource::kWebAuthentication) {
+     // Creating credentials in GPM can be disabled by policy, but get() is
+     // always allowed.
+@@ -563,36 +566,39 @@ void ChromeAuthenticatorRequestDelegate::ConfigureDiscoveries(
+     }
+   }
+ 
+-  std::array<uint8_t, device::cablev2::kQRKeySize> qr_generator_key;
+-  crypto::RandBytes(qr_generator_key);
+-  std::string qr_string =
+-      device::cablev2::qr::Encode(qr_generator_key, request_type);
+-
+-  auto linking_handler = std::make_unique<CableLinkingEventHandler>(profile());
+-  discovery_factory->set_cable_event_callback(
+-      base::BindRepeating(&ChromeAuthenticatorRequestDelegate::OnCableEvent,
+-                          weak_ptr_factory_.GetWeakPtr()));
+-
+-  dialog_controller_->set_cable_transport_info(qr_string);
+-
+-#if BUILDFLAG(ENABLE_DICE_SUPPORT)
+-  if (IsChromeSigninPage(GetRenderFrameHost())) {
+-    content::WebContents* web_contents =
+-        content::WebContents::FromRenderFrameHost(
+-            content::RenderFrameHost::FromID(render_frame_host_id_));
+-    if (web_contents) {
+-      SigninQRCodeModel::GetOrCreateForWebContents(web_contents)
+-          ->SetQrCode(qr_string);
+-    }
+-#if BUILDFLAG(IS_WIN)
+-    if (switches::IsMagiChromePasskeyAutofillEnabled()) {
+-      discovery_factory->set_force_hybrid_discovery(true);
++  // Browser patch: hybrid (phone) transport relays through Google-run servers, so it is off unless enabled.
++  if (corvid::passkeys::HybridDiscoveryEnabled()) {
++    std::array<uint8_t, device::cablev2::kQRKeySize> qr_generator_key;
++    crypto::RandBytes(qr_generator_key);
++    std::string qr_string =
++        device::cablev2::qr::Encode(qr_generator_key, request_type);
++
++    auto linking_handler = std::make_unique<CableLinkingEventHandler>(profile());
++    discovery_factory->set_cable_event_callback(
++        base::BindRepeating(&ChromeAuthenticatorRequestDelegate::OnCableEvent,
++                            weak_ptr_factory_.GetWeakPtr()));
++
++    dialog_controller_->set_cable_transport_info(qr_string);
++
++  #if BUILDFLAG(ENABLE_DICE_SUPPORT)
++    if (IsChromeSigninPage(GetRenderFrameHost())) {
++      content::WebContents* web_contents =
++          content::WebContents::FromRenderFrameHost(
++              content::RenderFrameHost::FromID(render_frame_host_id_));
++      if (web_contents) {
++        SigninQRCodeModel::GetOrCreateForWebContents(web_contents)
++            ->SetQrCode(qr_string);
++      }
++  #if BUILDFLAG(IS_WIN)
++      if (switches::IsMagiChromePasskeyAutofillEnabled()) {
++        discovery_factory->set_force_hybrid_discovery(true);
++      }
++  #endif  // BUILDFLAG(IS_WIN)
+     }
+-#endif  // BUILDFLAG(IS_WIN)
+-  }
+-#endif
++  #endif
+ 
+-  discovery_factory->set_cable_data(request_type, qr_generator_key);
++    discovery_factory->set_cable_data(request_type, qr_generator_key);
++  }
+ 
+   if (SystemNetworkContextManager::GetInstance()) {
+     // caBLE and the enclave depend on the network context factory.

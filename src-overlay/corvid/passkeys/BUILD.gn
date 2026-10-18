@@ -99,8 +99,17 @@ source_set("software_authenticator") {
   ]
 }
 
+source_set("google_features") {
+  sources = [
+    "google_features.cc",
+    "google_features.h",
+  ]
+  deps = [ "//base" ]
+}
+
 group("browser_parts") {
   public_deps = [
+    ":google_features",
     ":authenticator_core",
     ":p256_crypto",
     ":software_authenticator",
