@@ -26,3 +26,4 @@ debrand/0199-private-ai-never-starts.patch
 extensions/0300-allow-mv2-no-deprecation.patch
 extensions/0320-preinstalled-extension-provider.patch
 extensions/0330-newtab-override-hook.patch
+passkeys/2003-fido-discovery-software-authenticator.patch

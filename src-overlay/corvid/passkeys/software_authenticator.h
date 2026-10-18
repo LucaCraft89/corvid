@@ -1,21 +1,7 @@
 // Copyright 2026 The Corvid Authors. BSD-3-Clause.
-// NOT COMPILED (no BUILD target yet; DESIGN of the thin adapter only). The logic now lives in authenticator_core.{h,cc} and
-// vault.{h,cc} (UNBUILT but syntax-checked against stubs); this adapter only translates device::Ctap* requests/responses
-// to them and drives the WebUI prompts. Chromium-side software authenticator. The behavior contract is the
-// verified TS reference (reference/authenticator.ts + vault.ts, 20 passing tests); this C++ must
-// reproduce its byte-level outputs (test vectors: reference/test/*.test.ts).
-//
-// Integration shape (FIDO names verified @155, docs/notes/chromium-api-m2.md; Argon2 is NOT in the tree, see that note):
-//  * device::FidoDiscoveryFactory::Create(FidoTransportProtocol) is the single place discoveries are
-//    made. Corvid adds a hook that, for kInternal on Linux, returns SoftwareDiscovery below.
-//  * SoftwareDiscovery is a device::FidoDiscoveryBase that reports exactly one FidoAuthenticator
-//    (SoftwareAuthenticator : device::FidoAuthenticator) once the vault is unlocked, and an
-//    "unlock required" signal otherwise, surfaced through AuthenticatorRequestDelegate so the
-//    existing WebAuthn dialog (replaced by Corvid WebUI) can ask for the passphrase.
-//  * Vault crypto must use BoringSSL-available primitives for the Chromium build: Argon2id
-//    (third_party/boringssl lacks Argon2: use third_party/argon2 (CC0/Apache-2.0, already in
-//    Chromium for password manager? VERIFY) and XChaCha20-Poly1305 (BoringSSL EVP_AEAD_xchacha20_poly1305).
-//    The file format is IDENTICAL to reference/vault.ts so the two implementations cross-test.
+// Chromium-side adapter for the built-in passkey authenticator. The logic lives in authenticator_core.{h,cc} and vault.{h,cc};
+// this file only translates device::Ctap* requests and responses and reports the authenticator to the WebAuthn request
+// handler through SoftwareDiscovery (transport kInternal, hooked into FidoDiscoveryFactory on Linux by a patch).
 #ifndef CORVID_PASSKEYS_SOFTWARE_AUTHENTICATOR_H_
 #define CORVID_PASSKEYS_SOFTWARE_AUTHENTICATOR_H_
 
@@ -23,37 +9,74 @@
 #include <string>
 #include <vector>
 
+#include "base/functional/callback.h"
+#include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
+#include "corvid/passkeys/authenticator_core.h"
+#include "device/fido/authenticator_supported_options.h"
 #include "device/fido/fido_authenticator.h"
 #include "device/fido/fido_discovery_base.h"
 
 namespace corvid::passkeys {
 
-class VaultStore;  // file-backed, atomic write (tmp + fsync + rename), 0600, mirrors vault.ts
+// What the authenticator needs from its owner (the browser service, or fakes in tests).
+class PasskeyBackend {
+ public:
+  virtual ~PasskeyBackend() = default;
+  virtual AuthenticatorCore* core() = 0;
+  virtual Vault* vault() = 0;
+  // Called after every operation that changed the vault (new credential, sign counter).
+  virtual void Persist() = 0;
+};
+
+// Hands out the backend once the vault is open. `callback` gets nullptr when the vault cannot be opened.
+class PasskeyBackendProvider {
+ public:
+  virtual ~PasskeyBackendProvider() = default;
+  virtual void WhenReady(base::OnceCallback<void(PasskeyBackend*)> callback) = 0;
+};
 
 class SoftwareAuthenticator : public device::FidoAuthenticator {
  public:
-  explicit SoftwareAuthenticator(VaultStore* vault);
+  explicit SoftwareAuthenticator(PasskeyBackend* backend);
   ~SoftwareAuthenticator() override;
+
   void InitializeAuthenticator(base::OnceClosure callback) override;
   void MakeCredential(device::CtapMakeCredentialRequest request,
                       device::MakeCredentialOptions options,
                       MakeCredentialCallback callback) override;
-  void GetAssertion(device::CtapGetAssertionRequest request, device::CtapGetAssertionOptions options,
+  void GetAssertion(device::CtapGetAssertionRequest request,
+                    device::CtapGetAssertionOptions options,
                     GetAssertionCallback callback) override;
-  // Properties: attestation "none", AAGUID all-zero, ES256 only, rk=true, uv=true (vault unlock).
+  void GetPlatformCredentialInfoForRequest(const device::CtapGetAssertionRequest& request,
+                                           const device::CtapGetAssertionOptions& options,
+                                           GetPlatformCredentialInfoForRequestCallback callback) override;
+  void Cancel() override;
+  std::string GetId() const override;
+  std::string GetDisplayName() const override;
   const device::AuthenticatorSupportedOptions& Options() const override;
   std::optional<device::FidoTransportProtocol> AuthenticatorTransport() const override;
-  std::string GetId() const override { return "corvid-software-authenticator"; }
+  device::AuthenticatorType GetType() const override;
   base::WeakPtr<device::FidoAuthenticator> GetWeakPtr() override;
+
  private:
-  raw_ptr<VaultStore> vault_;
+  raw_ptr<PasskeyBackend> backend_;
+  device::AuthenticatorSupportedOptions options_;
   base::WeakPtrFactory<SoftwareAuthenticator> weak_factory_{this};
 };
 
 class SoftwareDiscovery : public device::FidoDiscoveryBase {
  public:
-  SoftwareDiscovery();
+  explicit SoftwareDiscovery(PasskeyBackendProvider* provider);
+  ~SoftwareDiscovery() override;
   void Start() override;
+
+ private:
+  void OnBackend(PasskeyBackend* backend);
+
+  raw_ptr<PasskeyBackendProvider> provider_;
+  std::unique_ptr<SoftwareAuthenticator> authenticator_;
+  base::WeakPtrFactory<SoftwareDiscovery> weak_factory_{this};
 };
 
 }  // namespace corvid::passkeys

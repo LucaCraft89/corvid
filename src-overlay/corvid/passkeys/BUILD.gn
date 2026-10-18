@@ -39,15 +39,73 @@ source_set("unit_tests") {
   testonly = true
   sources = [
     "authenticator_core_unittest.cc",
+    "passkey_storage_unittest.cc",
+    "software_authenticator_unittest.cc",
     "vault_crypto_boringssl_unittest.cc",
     "vault_unittest.cc",
   ]
   deps = [
     ":authenticator_core",
+    ":p256_crypto",
+    ":software_authenticator",
+    ":storage",
     ":vault",
     ":vault_crypto_boringssl",
+    "//components/cbor",
+    "//crypto",
+    "//device/fido",
     "//third_party/argon2",
     "//base",
     "//testing/gtest",
+  ]
+}
+
+# Pieces linked into chrome/browser (passkeys_service.{h,cc} are compiled there: they use browser UI and the OS keyring).
+source_set("storage") {
+  sources = [
+    "passkey_storage.cc",
+    "passkey_storage.h",
+  ]
+  deps = [
+    ":vault",
+    "//base",
+  ]
+}
+
+source_set("p256_crypto") {
+  sources = [
+    "crypto_p256_boringssl.cc",
+    "crypto_p256_boringssl.h",
+  ]
+  deps = [
+    ":authenticator_core",
+    "//base",
+    "//crypto",
+    "//third_party/boringssl",
+  ]
+}
+
+source_set("software_authenticator") {
+  sources = [
+    "software_authenticator.cc",
+    "software_authenticator.h",
+  ]
+  deps = [
+    ":authenticator_core",
+    ":vault",
+    "//base",
+    "//components/cbor",
+    "//device/fido",
+  ]
+}
+
+group("browser_parts") {
+  public_deps = [
+    ":authenticator_core",
+    ":p256_crypto",
+    ":software_authenticator",
+    ":storage",
+    ":vault",
+    ":vault_crypto_boringssl",
   ]
 }

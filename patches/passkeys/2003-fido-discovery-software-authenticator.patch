@@ -1,14 +1,104 @@
-Purpose: Register Corvid's software authenticator as the platform (internal) discovery on Linux.
+Purpose: Make the built-in passkey authenticator (corvid/passkeys) the Linux platform authenticator: a settable hook in FidoDiscoveryFactory for the kInternal transport, registered at browser start, plus the sources and deps that compile the browser-side service into chrome/browser.
 Area: passkeys
-Files: device/fido/fido_discovery_factory.cc (hook in Create for kInternal / platform path), device/fido/BUILD.gn (dep on //corvid/passkeys)
-Rebase risk: medium because FidoDiscoveryFactory API has been reshaped several times
-Origin: original
-Status: UNVERIFIED SKETCH.
+Files: device/fido/fido_discovery_factory.{h,cc} (SetLinuxPlatformDiscoveryFactory, kInternal case on Linux), chrome/browser/chrome_browser_main.cc (RegisterLinuxPlatformDiscovery in PostBrowserStart), chrome/browser/BUILD.gn (core target: passkeys_service sources and //corvid/passkeys:browser_parts)
+Rebase risk: medium because FidoDiscoveryFactory has been reshaped several times; the hook is a function pointer so //device/fido does not depend on the embedder
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and run on 155.0.8059.39 (2026-10-18): in a real browser navigator.credentials.create() offers "This device", asks for confirmation, stores the passkey (vault and key files 0600), and navigator.credentials.get() lists it in the account picker, asks again and returns a signature; the vault reopens after a restart. Unit tests verify the ES256 signature against the attested public key. Not tested: user verification beyond the confirmation dialog, conditional UI (autofill), cross-device sync, other sites.
 
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index f7f20dd8112c..7c00686b36e9 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -839,6 +839,8 @@ source_set("core") {
+     "chrome_browser_interface_binders_webui.h",
+     "chrome_browser_interface_binders_webui_parts_features.cc",
+     "chrome_browser_main.cc",
++    "//corvid/passkeys/passkeys_service.cc",
++    "//corvid/passkeys/passkeys_service.h",
+     "chrome_content_browser_client.cc",
+     "chrome_content_browser_client_binder_policies.cc",
+     "chrome_content_browser_client_binder_policies.h",
+@@ -879,6 +881,7 @@ source_set("core") {
+   }
+ 
+   deps = [
++    "//corvid/passkeys:browser_parts",
+     ":active_use_util",
+     ":after_startup_task_utils",
+     ":bad_message",
+diff --git a/chrome/browser/chrome_browser_main.cc b/chrome/browser/chrome_browser_main.cc
+index cbf3b6c56309..ebe8f8697ff0 100644
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/chrome_browser_main.h"
++#include "corvid/passkeys/passkeys_service.h"
+ 
+ #include <memory>
+ #include <string>
+@@ -1739,6 +1740,9 @@ void ChromeBrowserMainParts::PostBrowserStart() {
+ 
+   browser_process_->browser_policy_connector()->OnBrowserStarted();
+ 
++  // Browser patch: the built-in passkey authenticator is the Linux platform authenticator.
++  corvid::passkeys::RegisterLinuxPlatformDiscovery();
++
+ #if BUILDFLAG(ENABLE_PROCESS_SINGLETON)
+   // Allow ProcessSingleton to process messages.
+   // This is done here instead of just relying on the main message loop's start
+diff --git a/device/fido/fido_discovery_factory.cc b/device/fido/fido_discovery_factory.cc
+index 2e8b50bfb802..5c7803f6bef1 100644
 --- a/device/fido/fido_discovery_factory.cc
 +++ b/device/fido/fido_discovery_factory.cc
-@@ std::unique_ptr<FidoDiscoveryBase> FidoDiscoveryFactory::Create(FidoTransportProtocol transport) @@
-+#if BUILDFLAG(IS_LINUX)
-+  if (transport == FidoTransportProtocol::kInternal)
-+    return std::make_unique<corvid::passkeys::SoftwareDiscovery>();
-+#endif
+@@ -43,6 +43,10 @@ namespace device {
+ FidoDiscoveryFactory::FidoDiscoveryFactory() = default;
+ FidoDiscoveryFactory::~FidoDiscoveryFactory() = default;
+ 
++namespace {
++FidoDiscoveryFactory::LinuxPlatformDiscoveryFactory g_linux_platform_discovery_factory = nullptr;
++}  // namespace
++
+ std::vector<std::unique_ptr<FidoDiscoveryBase>> FidoDiscoveryFactory::Create(
+     FidoTransportProtocol transport) {
+   switch (transport) {
+@@ -103,6 +107,10 @@ std::vector<std::unique_ptr<FidoDiscoveryBase>> FidoDiscoveryFactory::Create(
+       std::vector<std::unique_ptr<FidoDiscoveryBase>> discoveries;
+ #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_CHROMEOS)
+       discoveries = MaybeCreatePlatformDiscovery();
++#elif BUILDFLAG(IS_LINUX)
++      if (g_linux_platform_discovery_factory) {
++        discoveries.push_back(g_linux_platform_discovery_factory());
++      }
+ #endif
+       return discoveries;
+     }
+@@ -114,6 +122,11 @@ std::vector<std::unique_ptr<FidoDiscoveryBase>> FidoDiscoveryFactory::Create(
+   NOTREACHED() << "Unhandled transport type";
+ }
+ 
++// static
++void FidoDiscoveryFactory::SetLinuxPlatformDiscoveryFactory(LinuxPlatformDiscoveryFactory factory) {
++  g_linux_platform_discovery_factory = factory;
++}
++
+ std::optional<std::unique_ptr<FidoDiscoveryBase>>
+ FidoDiscoveryFactory::MaybeCreateEnclaveDiscovery() {
+   if (!enclave_ui_request_stream_ || !network_context_factory_) {
+diff --git a/device/fido/fido_discovery_factory.h b/device/fido/fido_discovery_factory.h
+index 71a27cf82cb8..21f3c6b32e3b 100644
+--- a/device/fido/fido_discovery_factory.h
++++ b/device/fido/fido_discovery_factory.h
+@@ -48,6 +48,11 @@ class COMPONENT_EXPORT(DEVICE_FIDO) FidoDiscoveryFactory {
+   FidoDiscoveryFactory();
+   virtual ~FidoDiscoveryFactory();
+ 
++  // Browser patch: lets the embedder supply the Linux platform authenticator discovery (the browser's built-in passkey
++  // authenticator). A plain function pointer keeps //device/fido free of a dependency on the embedder.
++  using LinuxPlatformDiscoveryFactory = std::unique_ptr<FidoDiscoveryBase> (*)();
++  static void SetLinuxPlatformDiscoveryFactory(LinuxPlatformDiscoveryFactory factory);
++
+   // Instantiates one or more FidoDiscoveryBases for the given transport.
+   //
+   // FidoTransportProtocol::kUsbHumanInterfaceDevice is not valid on Android.
