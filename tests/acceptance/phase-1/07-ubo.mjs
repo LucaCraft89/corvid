@@ -32,11 +32,29 @@ let b = await launch({ bin, profile, extraArgs: [rules] });
 const page = await b.open('corvid://extensions');
 await sleepMs(1000);
 const state = await page.eval(`JSON.stringify([...document.querySelector('corvid-extensions').exts ?? []].map((e) => ({ name: e.name, enabled: e.enabled })))`);
-c.ok(JSON.parse(state).some((e) => /ublock origin/i.test(e.name) && e.enabled), `uBO present and enabled on a fresh profile (${state})`);
-let r = await adHits(b);
+// The Corvid extensions page has no data layer in stage 1 (the stock page is used), so also read the profile: Preferences
+// lists installed extensions with their manifest name and state (enabled = no disable_reasons).
+function profileHasUbo() {
+  try {
+    const prefs = JSON.parse(readFileSync(join(profile, 'Default', 'Preferences'), 'utf8'));
+    return Object.values(prefs.extensions?.settings ?? {}).some((e) => /ublock origin/i.test(e.manifest?.name ?? '') && !(e.disable_reasons > 0) && e.state !== 0);
+  } catch { return false; }
+}
+for (let t = 0; t < 40 && !profileHasUbo(); t += 2) await sleepMs(2000); // Preferences are flushed some seconds after install
+c.ok(JSON.parse(state).some((e) => /ublock origin/i.test(e.name) && e.enabled) || profileHasUbo(), `uBO present and enabled on a fresh profile (page: ${state}; profile: ${profileHasUbo()})`);
+// uBO compiles its filter lists on a cold start (about 8 s on the build VM); poll instead of a single 3 s check.
+async function adHitsWhenReady(b0, seconds = 60) {
+  let res = await adHits(b0);
+  for (let t = 0; res.adRequests.length > 0 && t < seconds; t += 5) { await sleepMs(5000); res = await adHits(b0); }
+  return res;
+}
+let r = await adHitsWhenReady(b);
 c.ok(r.control, 'control resource loaded (page works)');
 c.ok(r.adRequests.length === 0, `ad/tracker requests blocked (got ${r.adRequests.length}: ${r.adRequests.map((h) => h.host).join(',')})`);
-await page.eval(`(async () => { const e = document.querySelector('corvid-extensions').exts.find((x) => /ublock origin/i.test(x.name)); await window.__corvidTest?.removeExtension?.(e.id); })()`).catch(() => {});
+// Remove uBO through its own background page (the Corvid page has no remove hook yet): same effect as the user's Remove button.
+const bg = await b.attach('chrome-extension://');
+if (bg) { bg.eval(`chrome.management.uninstallSelf({ showConfirmDialog: false })`).catch(() => {}); await sleepMs(4000); } // not awaited: the page goes away with the extension
+c.ok(Boolean(bg), 'uBO background page found for the removal step');
 await b.close({ keepProfile: true });
 
 b = await launch({ bin, profile, extraArgs: [rules] });
