@@ -43,6 +43,14 @@ TEST_F(BrandUrlHandlerTest, StockFallbackPagesStayStock) {
   }
 }
 
+TEST_F(BrandUrlHandlerTest, NativeShellUrlsAreLeftAlone) {
+  for (const char* in : {"chrome://tab-search.top-chrome/", "chrome://side-panel.top-chrome/", "chrome-untrusted://print/"}) {
+    GURL url(in);
+    EXPECT_FALSE(HandleBrandUrl(&url, nullptr)) << in;
+    EXPECT_EQ(url.spec(), in);
+  }
+}
+
 TEST_F(BrandUrlHandlerTest, StockBlockedAndUnknownHostsGoToBlockedPage) {
   for (const char* in : {"chrome://net-internals/", "chrome://no-such-host/", "corvid://no-such-page/"}) {
     GURL url(in);
@@ -60,12 +68,13 @@ TEST_F(BrandUrlHandlerTest, InternalHostsAndWebUrlsAreLeftAlone) {
   EXPECT_FALSE(HandleBrandUrl(&web, nullptr));
 }
 
-TEST_F(BrandUrlHandlerTest, UnlistedTopChromeHostsPassThroughListedOnesAreBlocked) {
-  GURL omnibox("chrome://omnibox-popup.top-chrome/");
-  EXPECT_FALSE(HandleBrandUrl(&omnibox, nullptr));
-  GURL tab_strip("chrome://tab-strip.top-chrome/");
-  EXPECT_TRUE(HandleBrandUrl(&tab_strip, nullptr));
-  EXPECT_EQ(tab_strip.host(), "corvid-blocked");
+TEST_F(BrandUrlHandlerTest, AllTopChromeHostsPassThroughWhileTheNativeShellIsUsed) {
+  // Stage 1 keeps Chromium's native window, so tab search, side panels and the tab strip WebUI must load (a blocked
+  // top-chrome page crashed the browser: tab search, the new tab footer).
+  for (const char* in : {"chrome://omnibox-popup.top-chrome/", "chrome://tab-strip.top-chrome/", "chrome://tab-search.top-chrome/"}) {
+    GURL url(in);
+    EXPECT_FALSE(HandleBrandUrl(&url, nullptr)) << in;
+  }
 }
 
 TEST_F(BrandUrlHandlerTest, HeadlessCommandHostIsNotRewritten) {

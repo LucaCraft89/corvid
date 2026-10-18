@@ -4,6 +4,7 @@
 ui/0200-corvid-webui-scheme-and-registry.patch
 ui/0220-block-or-redirect-stock-webui.patch
 ui/0240-default-theme-seed.patch
+ui/0250-ntp-override-before-brand-handler.patch
 ui/0270-hide-stock-menu-items.patch
 ui/0290-omnibox-corvid-scheme.patch
 debrand/0100-disable-metrics-and-crash-upload.patch
@@ -13,7 +14,6 @@ debrand/0130-disable-sync-and-signin.patch
 debrand/0140-disable-translate-and-spellcheck-downloads.patch
 debrand/0150-component-updater-configurable-source.patch
 debrand/0160-disable-network-time-geolocation-doh-preconnect.patch
-debrand/0170-webrtc-privacy-defaults.patch
 debrand/0180-no-external-extension-dirs-linux.patch
 debrand/0185-policy-dir-corvid.patch
 debrand/0186-extension-policies-not-management.patch

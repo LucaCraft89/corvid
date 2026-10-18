@@ -24,7 +24,7 @@ struct StockPageDecision {
 // Unknown hosts under those schemes are BLOCKED (deny by default).
 std::optional<StockPageDecision> LookupStockPage(std::string_view host);
 
-// Stock hosts that are plumbing, not pages: never shown to users, needed by Chromium itself (the headless command
+// Stock hosts that are plumbing, not pages (also the new tab footer shown under extension new tabs): never shown as pages, needed by Chromium itself (the headless command
 // handler behind --dump-dom/--screenshot/--print-to-pdf, "chrome://headless"). They are neither rewritten nor removed.
 bool IsInternalToolHost(std::string_view host);
 
@@ -32,6 +32,11 @@ bool IsInternalToolHost(std::string_view host);
 // bookmarks, password manager, certificate manager, version, management) stay the stock Chromium pages so the browser is
 // usable as a daily driver. RewriteStockUrl does not look at this; the URL handlers skip the rewrite for these hosts.
 bool IsStockFallbackHost(std::string_view host);
+
+// Stock URLs the browser's native window shell loads itself and must keep working until the Corvid shell exists (M5):
+// the stage-1 fallback pages, every Views-embedded "*.top-chrome" WebUI (tab search, side panels, ...), and chrome-untrusted://
+// resources not explicitly listed in the table (print preview, reading mode, ...). The URL handlers do not rewrite these.
+bool IsNativeShellUrl(const GURL& url);
 
 // Rewrites a stock URL to its Corvid replacement, or to corvid://blocked?url=<original>.
 // Returns nullopt for URLs this policy does not govern (non chrome:// schemes, corvid://, web URLs).

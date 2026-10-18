@@ -7,7 +7,7 @@
 namespace corvid {
 
 bool HandleStockUrl(GURL* url, content::BrowserContext* /*browser_context*/) {
-  if (url->SchemeIs("chrome") && IsStockFallbackHost(url->host())) return false;
+  if (IsNativeShellUrl(*url)) return false;
   std::optional<GURL> rewritten = RewriteStockUrl(*url);
   if (!rewritten) return false;
   *url = *rewritten;

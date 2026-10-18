@@ -1,0 +1,54 @@
+Purpose: An extension's new tab override sees the new tab URL before the brand handler rewrites it to the brand's own new tab page (without this, new tab extensions never apply: the brand handler runs first), and the brand-scheme new tab address (except ?default) goes through the same override.
+Area: ui
+Files: chrome/browser/chrome_content_browser_client.cc (BrowserURLHandlerCreated)
+Rebase risk: low
+Origin: original (written for Corvid; no third-party patch text reused)
+Status: BUILT and checked on 155.0.8059.39 (2026-10-18): acceptance 08 passes 4 of 5 (the picker check needs the Corvid extensions page API, which does not exist yet). Needs the overlay change that keeps the "newtab-footer" WebUI (src-overlay/corvid/webui): without it the browser crashed on an overridden new tab.
+
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index 126ce5431bf5..c7af456bd616 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -208,7 +208,9 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/webid/identity_dialog_controller.h"
+ #include "chrome/browser/ui/webui/chrome_web_ui_controller_factory.h"
++#include "corvid/webui/brand.h"
+ #include "corvid/webui/brand_url_handler.h"
++#include "chrome/browser/extensions/extension_url_overrides.h"
+ #include "chrome/browser/ui/webui/internal_debug_pages_disabled/internal_debug_pages_disabled_ui.h"
+ #include "chrome/browser/ui/webui/log_web_ui_url.h"
+ #include "chrome/browser/universal_web_contents_observers.h"
+@@ -5031,8 +5033,32 @@ bool ChromeContentBrowserClient::
+              prefs.root_scrollbar_theme_color;
+ }
+ 
++// Browser patch: an extension's new tab override must see the new tab URL before the brand handler rewrites it to the
++// brand's own new tab page. Also covers the brand-scheme address (except its "?default" escape hatch).
++static bool HandleNtpExtensionOverride(GURL* url,
++                                       content::BrowserContext* browser_context) {
++  const bool stock = url->SchemeIs(content::kChromeUIScheme) &&
++                     url->host() == chrome::kChromeUINewTabHost;
++  const bool brand = url->SchemeIs(corvid::kBrandScheme) &&
++                     url->host() == chrome::kChromeUINewTabHost &&
++                     url->query() != "default";
++  if (!stock && !brand) {
++    return false;
++  }
++  GURL probe(chrome::kChromeUINewTabURL);
++  if (!ExtensionUrlOverrides::HandleChromeURLOverride(
++          &probe, browser_context)) {
++    return false;
++  }
++  *url = probe;
++  return true;
++}
++
+ void ChromeContentBrowserClient::BrowserURLHandlerCreated(
+     BrowserURLHandler* handler) {
++  handler->AddHandlerPair(&HandleNtpExtensionOverride,
++                          BrowserURLHandler::null_handler());
++
+   // Must run first so no other handler sees a stock chrome:// WebUI URL.
+   corvid::RegisterBrandUrlHandlers(handler);
+ 

@@ -35,14 +35,24 @@ std::optional<StockPageDecision> LookupStockPage(std::string_view host) {
 }
 
 bool IsInternalToolHost(std::string_view host) {
-  return host == "headless";
+  return host == "headless" || host == "newtab-footer";
 }
 
 bool IsStockFallbackHost(std::string_view host) {
   static constexpr std::string_view kHosts[] = {"settings",         "extensions", "history",  "downloads", "bookmarks",
-                                                "password-manager", "certificate-manager", "version", "management"};
+                                                "password-manager", "certificate-manager", "version", "management", "print"};
   for (std::string_view h : kHosts) {
     if (host == h) return true;
+  }
+  return false;
+}
+
+bool IsNativeShellUrl(const GURL& url) {
+  if (url.SchemeIs("chrome")) {
+    return IsStockFallbackHost(url.host()) || url.host().ends_with(".top-chrome");
+  }
+  if (url.SchemeIs("chrome-untrusted")) {
+    return !LookupStockPage(url.host()).has_value();
   }
   return false;
 }
