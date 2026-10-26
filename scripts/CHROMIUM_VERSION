@@ -4,4 +4,6 @@
 # https://versionhistory.googleapis.com/v1/chrome/platforms/linux/channels/stable/versions
 # on 2026-10-09. UNVERIFIED: that this exact tag exists in chromium/src
 # (chromium.googlesource.com was unreachable from the authoring sandbox).
-155.0.8059.39
+# Bumped to 155.0.8059.84 on 2026-10-19 (newest Linux stable then). Tag existence and patch apply
+# are UNVERIFIED (no Chromium tree; googlesource blocked in the sandbox).
+155.0.8059.84
