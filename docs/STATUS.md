@@ -10,6 +10,7 @@ Updated: 2026-10-29
 - Phase 1 on the VM: `docs/PHASES.md`.
 
 ## Gotchas
+- VM has a second 300 GB drive for builds (root disk is 203 GB and filled up once). Checkout, out/ and ccache go on the second drive; path set by CORVID_WORK in build/config.sh.
 - Nothing has been built or run yet. All Helium findings come from reading shallow clones.
 - Helium tracks Chromium 156.0.8078.73; PROJECT.md says 155.
 - Helium has a sync engine in its patches; phases 4 and 7 start from it.
