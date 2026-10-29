@@ -1,0 +1,6 @@
+.env
+.data/
+node_modules/
+build/work/
+build/logs/
+*.log
