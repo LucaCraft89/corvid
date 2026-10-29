@@ -4,4 +4,4 @@ A Chromium-based browser with no Google services, full extension support (includ
 
 Status: planning. Nothing is built yet. Start with `docs/PROJECT.md` (the product), `docs/PHASES.md` (the plan) and `docs/STATUS.md` (where we are).
 
-Corvid is a patch series on top of [Helium](https://github.com/imputnet/helium-chromium)'s patches, not a fork of the Chromium tree. Licence: to be decided, see `docs/decisions/001-base.md`.
+Corvid is a patch series on top of [Helium](https://github.com/imputnet/helium-chromium)'s patches, not a fork of the Chromium tree. Licence: GPL-3.0-or-later, see `LICENSE` and `docs/decisions/001-base.md`.

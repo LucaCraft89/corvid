@@ -1,6 +1,6 @@
 # 001: Patch base for Corvid (phase 0, 2026-10-29)
 
-**Decision (proposed, owner must confirm the licence point): base the desktop browser on Helium's patch set (`imputnet/helium-chromium`).** Our own work is a patch series applied after Helium's. Never a fork of the Chromium tree.
+**Decision (owner confirmed 2026-10-29, whole project is GPL-3.0): base the desktop browser on Helium's patch set (`imputnet/helium-chromium`).** Our own work is a patch series applied after Helium's. Never a fork of the Chromium tree.
 
 ## Findings (read from the repos, shallow clones, not built)
 | Base | Licence | Chromium | Platforms | Notes |
@@ -15,7 +15,7 @@
 - Helium's `AGENTS.md` bans AI-written contributions upstream. So: no PRs to imputnet repos from us, ever.
 
 ## Consequences
-1. **Licence conflict with PROJECT.md principle 9 (BSD-3):** a Helium-based browser and any patch that modifies Helium's patches should be treated as GPL-3.0. Separate programs (the sync server, `webui/` pages developed outside Chromium) can stay BSD-3 or GPL. Owner decides before any release; I am not a lawyer.
+1. **Licence: the whole project is GPL-3.0-or-later** (owner decision, 2026-10-29), because the base is GPL-3.0. PROJECT.md principle 9 updated. New files carry a GPL-3.0 header; imported BSD-3 code (ungoogled-chromium, Chromium) keeps its own licence and notice.
 2. PROJECT.md says "Chromium 155"; the base is on 156. Follow the base's version.
 3. Android needs a different base (Cromite, or ungoogled-chromium-android). Two patch lineages means double the rebase work. Decide in phase 9.
 4. Hardware: dev VM is 20 vCPU Westmere, 96 GB RAM, 203 GB disk. Enlarge to 400 GB before Android.

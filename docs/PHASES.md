@@ -5,7 +5,7 @@ Each phase ends with a prompt for a fresh agent. Open a new session, paste only 
 Order: 0 (done) > 1 > {2, 3, 4} > 5 > 6 > 7 > 8 > 9.
 
 ## Phase 0: decisions and skeleton (DONE, see `docs/decisions/001-base.md`)
-Open for the owner: confirm the GPL-3.0 consequence of building on Helium (PROJECT.md principle 9 says BSD-3).
+Licence decided: whole project GPL-3.0-or-later.
 
 ## Phase 1: VM prep and first Linux build (hours, mostly waiting)
 Grow the VM disk to 400 GB, install build dependencies, fetch the Chromium version Helium tracks, apply Helium's patches, configure a component build with ccache, build in tmux.
@@ -32,7 +32,7 @@ PHASE 3 (webui/ only, independent of Chromium; do not touch patches/ or build/).
 Helium's series has a sync vault engine (`patches/helium/core/sync/`). First learn exactly what exists and what server it speaks to, then decide: reuse its vault format with our own self-hosted server, or write our own protocol.
 Done when: `sync/protocol/SPEC.md` exists, a server binary runs, and two simulated devices converge after offline edits; tampered data and wrong keys are rejected.
 ```text
-PHASE 4 (sync/ only). Section 4.6 of docs/PROJECT.md is the goal. Step 1: read Helium's sync patches (clone imputnet/helium-chromium, patches/helium/core/sync/ and settings/sync-setup-contract.patch) and imputnet/helium-services; write docs/decisions/002-sync.md (<=20 lines): what the vault format, encryption and transport are, what server it expects, whether it works end to end, and a recommendation (reuse the format and write a compatible self-hosted server, or own protocol). Do not copy GPL code into BSD files without saying so in the decision. Step 2: write sync/protocol/SPEC.md (<=3 pages) and implement sync/server in Go with SQLite as one static binary, token registration, Dockerfile, plus a reference client library with test vectors. Tests: two devices converge after offline edits; tampered data and wrong keys are rejected and reported; a revoked device loses access.
+PHASE 4 (sync/ only). Section 4.6 of docs/PROJECT.md is the goal. Step 1: read Helium's sync patches (clone imputnet/helium-chromium, patches/helium/core/sync/ and settings/sync-setup-contract.patch) and imputnet/helium-services; write docs/decisions/002-sync.md (<=20 lines): what the vault format, encryption and transport are, what server it expects, whether it works end to end, and a recommendation (reuse the format and write a compatible self-hosted server, or own protocol). Step 2: write sync/protocol/SPEC.md (<=3 pages) and implement sync/server in Go with SQLite as one static binary, token registration, Dockerfile, plus a reference client library with test vectors. Tests: two devices converge after offline edits; tampered data and wrong keys are rejected and reported; a revoked device loses access.
 ```
 
 ## Phase 5: integrate WebUI and diagnostics into Chromium (Linux)

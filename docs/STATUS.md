@@ -6,8 +6,7 @@ Updated: 2026-10-29
 - Phase 0: repo reset to a fresh root (old work kept in history on branch `claude/busy-rubin-t8bloc`), skeleton created, `docs/PROJECT.md` committed, base researched: `docs/decisions/001-base.md`.
 
 ## Next
-- Owner: confirm that building on Helium means GPL-3.0 for our patches (PROJECT.md principle 9 says BSD-3).
-- Owner: make `main` the default branch on GitHub (Settings > Branches). I cannot change it.
+- Licence decided: GPL-3.0-or-later for everything.
 - Phase 1 on the VM: `docs/PHASES.md`.
 
 ## Gotchas

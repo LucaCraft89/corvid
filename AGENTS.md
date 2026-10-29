@@ -11,3 +11,4 @@ Corvid: a Chromium browser built as a **patch series on top of Helium's patches*
 - No secrets in git. Plain words in user-facing text. The product name lives in one place.
 - Do not send pull requests to imputnet or other upstream repos.
 - Last action of a session: update `docs/STATUS.md` (done / next / gotchas / exact commands) and commit.
+- New source files: GPL-3.0-or-later header. Licence of the whole project is GPL-3.0-or-later (docs/decisions/001-base.md).

@@ -31,7 +31,7 @@ The first and most demanding user is the project owner, who intends to use it as
 6. **Looks modern, stays calm.** Rounded shapes, generous space, few controls visible at once, nothing cramped, nothing flashy.
 7. **Honest and plain.** Plain-language text in the interface and in errors, with technical detail one step down for people who want it. Nothing is reported as working until it was tested.
 8. **Small footprint on upstream.** The browser tracks Chromium stable. Changes to Chromium are kept few and small so that updates stay cheap and security fixes arrive quickly.
-9. **Open and permissive.** BSD-3-Clause, matching Chromium. Bundled third-party pieces keep their own licences and are credited.
+9. **Open and copyleft.** GPL-3.0-or-later (decided 2026-10-29: the base, Helium, is GPL-3.0). Bundled third-party pieces keep their own licences and are credited.
 
 ## 4. What it should do
 
