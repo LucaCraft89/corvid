@@ -18,4 +18,4 @@
 1. **Licence: the whole project is GPL-3.0-or-later** (owner decision, 2026-10-29), because the base is GPL-3.0. PROJECT.md principle 9 updated. New files carry a GPL-3.0 header; imported BSD-3 code (ungoogled-chromium, Chromium) keeps its own licence and notice.
 2. PROJECT.md says "Chromium 155"; the base is on 156. Follow the base's version.
 3. Android needs a different base (Cromite, or ungoogled-chromium-android). Two patch lineages means double the rebase work. Decide in phase 9.
-4. Hardware: dev VM is 20 vCPU Westmere, 96 GB RAM, 203 GB disk. Enlarge to 400 GB before Android.
+4. Hardware: dev VM is 20 vCPU Westmere, 96 GB RAM, 200 GB root disk plus a 300 GB data drive at /work (one Linux tree with build: 24 GB). Check space again before Android.

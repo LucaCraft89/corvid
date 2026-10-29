@@ -7,7 +7,7 @@ Order: 0 (done) > 1 > {2, 3, 4} > 5 > 6 > 7 > 8 > 9.
 ## Phase 0: decisions and skeleton (DONE, see `docs/decisions/001-base.md`)
 Licence decided: whole project GPL-3.0-or-later.
 
-## Phase 1: VM prep and first Linux build (hours, mostly waiting)
+## Phase 1: VM prep and first Linux build (DONE 2026-10-29, see STATUS.md)
 Grow the VM disk to 400 GB, install build dependencies, fetch the Chromium version Helium tracks, apply Helium's patches, configure a component build with ccache, build in tmux.
 Done when: a Helium-based binary launches on Linux; build time, disk use and exact args recorded in STATUS.md.
 ```text

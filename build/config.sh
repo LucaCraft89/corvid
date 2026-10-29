@@ -26,10 +26,14 @@ export CCACHE_DIR="$CORVID_WORK/ccache"
 export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-80G}"
 # Chromium paths differ only by checkout location; make hits path-independent.
 export CCACHE_BASEDIR="$SRC"
-export CCACHE_SLOPPINESS="time_macros,include_file_mtime,include_file_ctime,file_stat_matches"
+# Chromium 156 compiles with Clang modules; ccache refuses 80%+ of calls without "modules" sloppiness and depend mode.
+export CCACHE_SLOPPINESS="modules,time_macros,include_file_mtime,include_file_ctime,file_stat_matches"
+export CCACHE_DEPEND=1   # ccache only caches -fmodules calls in direct + depend mode
 export TMPDIR="$CORVID_WORK/tmp"
 
 mkdir -p "$CORVID_WORK" "$DL_CACHE" "$CCACHE_DIR" "$TMPDIR" "$LOGS"
+# Store the size cap in the cache itself so plain `ccache -s` agrees.
+grep -q '^max_size' "$CCACHE_DIR/ccache.conf" 2>/dev/null || ccache -M "$CCACHE_MAXSIZE" >/dev/null
 
 # Refuse to run if CORVID_WORK is on the root filesystem.
 corvid_check_disk() {
