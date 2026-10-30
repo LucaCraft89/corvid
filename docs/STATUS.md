@@ -1,6 +1,6 @@
 # STATUS
 
-Updated: 2026-10-29
+Updated: 2026-10-30
 
 ## Done
 - Phase 0: repo reset to a fresh root (old work kept in history on branch `claude/busy-rubin-t8bloc`), skeleton created, `docs/PROJECT.md` committed, base researched: `docs/decisions/001-base.md`.
@@ -33,7 +33,7 @@ GN args = Helium's `flags.gn` + `flags.linux.gn` minus the overridden keys, plus
 - ccache: Chromium 156 compiles with Clang modules. ccache 4.11 skips every `-fmodules` call unless sloppiness includes `modules` AND depend mode is on (`CCACHE_DEPEND=1`). Both are now in `config.sh`, but the first build ran without them (90% uncacheable), so the cache is nearly empty. The next full build fills it. Checked: 20 deleted objects rebuilt with 20/20 hits.
 - Chromium won't start as root with the sandbox. There is a local user `tester` for UI tests, or pass `--no-sandbox`.
 - The build uses plain ninja (`use_siso=false`), which is still allowed in 156 without remote execution. Helium's own builds use siso.
-- `/root/chromium` (84 GB) and `/root/depot_tools` on the root disk are from earlier work and unused by these scripts. Delete them if the root disk gets tight (ask the owner first).
+- Old `/root/chromium` (84 GB) and `/root/depot_tools` deleted 2026-10-30 at the owner's request; root disk now 5% used.
 - Helium tracks Chromium 156.0.8078.73; PROJECT.md says 155.
 - Helium has a sync engine in its patches; phases 4 and 7 start from it.
 - Helium bans AI-written upstream PRs; never send PRs upstream.
