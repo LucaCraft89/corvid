@@ -22,6 +22,14 @@ SRC="$CORVID_WORK/src"
 OUT="$SRC/out/Default"
 LOGS="$CORVID_REPO/build/logs"
 
+# Product name and the names derived from it (build/branding.conf).
+. "$CORVID_REPO/build/branding.conf"
+PRODUCT_ID="$(echo "$PRODUCT_NAME" | tr '[:upper:]' '[:lower:]')"
+BINARY="$OUT/$PRODUCT_ID"
+# Git repo tracking only the files our patches touch, work tree = $SRC
+# (build/srcgit.sh, build/refresh-patches.sh).
+SRCGIT="$CORVID_WORK/srcgit"
+
 export CCACHE_DIR="$CORVID_WORK/ccache"
 export CCACHE_MAXSIZE="${CCACHE_MAXSIZE:-80G}"
 # Chromium paths differ only by checkout location; make hits path-independent.

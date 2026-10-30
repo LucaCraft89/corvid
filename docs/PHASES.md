@@ -14,7 +14,7 @@ Done when: a Helium-based binary launches on Linux; build time, disk use and exa
 PHASE 1. First run `df -h` and find the 300 GB data drive; if it is not mounted, stop and ask the human which device and mount point (never format a disk yourself). Put EVERYTHING heavy on it: Chromium checkout, out/, ccache, downloads, via one variable CORVID_WORK in build/config.sh. The root disk must stay below 60% used. On this Linux VM (20 vCPU Westmere, 96 GB RAM, no AVX: confirm the build tools run) build the Helium base for Linux. Read docs/decisions/001-base.md. Follow Helium's Linux packaging docs (imputnet/helium-linux and imputnet/helium-macos docs/building.md, clone them). Put re-runnable scripts in build/ (fetch, apply patches, configure, build). Args: component build, symbol_level=0, no LTO, ccache with a persistent dir, ninja -j 22. Run the long build in tmux, log to build/logs/. When done launch the binary and record version, build time, disk used. If a step fails twice, write the error and your hypothesis in STATUS.md and stop.
 ```
 
-## Phase 2: patch workflow, branding, privacy gate
+## Phase 2: patch workflow, branding, privacy gate (DONE 2026-10-30, see STATUS.md and docs/patches.md)
 Our series applies after Helium's; `build/refresh-patches.sh` regenerates patches from a working tree; rebrand to Corvid from one config; idle-network test against `docs/network-allowlist.md` (starts empty).
 Done when: the rebuilt browser says Corvid and `build/privacy-gate.sh` passes or lists exactly what it saw.
 ```text

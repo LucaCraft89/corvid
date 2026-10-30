@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Corvid contributors
 #
 # Install build dependencies on Debian 13 (trixie). Same package list as
-# helium-linux docker/build.Dockerfile, plus ccache, tmux and quilt.
+# helium-linux docker/build.Dockerfile, plus ccache, tmux, quilt, and tcpdump + tshark for build/privacy-gate.sh.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 SUDO=""; [ "$(id -u)" = 0 ] || SUDO=sudo
@@ -19,4 +19,5 @@ $SUDO apt-get -y install bison ca-certificates curl debhelper desktop-file-utils
   mesa-common-dev pkg-config python3-jinja2 python3-setuptools python3-xcbgen python-is-python3 qtbase5-dev \
   uuid-dev valgrind wdiff x11-apps xcb-proto xfonts-base xvfb xz-utils yasm zstd \
   git python3-pillow python3-requests rsync \
-  ccache tmux quilt
+  ccache tmux quilt \
+  tcpdump tshark
