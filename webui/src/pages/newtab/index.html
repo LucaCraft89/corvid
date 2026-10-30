@@ -1,0 +1,57 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title>New tab</title>
+  <link rel="stylesheet" href="../shared/tokens.css">
+  <link rel="stylesheet" href="../shared/theme-default.css">
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="newtab.css">
+  <script type="module" src="newtab.js"></script>
+</head>
+<body>
+  <header class="ntp-top">
+    <a class="button text" id="customize" href="../settings/#appearance">
+      <span data-icon="tune"></span><span data-i18n="newtab.customize"></span>
+    </a>
+  </header>
+  <main class="ntp-main">
+    <h1 class="visually-hidden" data-i18n="newtab.pageTitle"></h1>
+    <form class="ntp-search" id="search" role="search">
+      <label for="q" class="visually-hidden" data-i18n="newtab.searchLabel"></label>
+      <span class="ntp-search-icon" data-icon="search"></span>
+      <input id="q" name="q" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" autofocus>
+      <button class="icon-button" type="submit" data-i18n-aria-label="newtab.searchButton"><span data-icon="search"></span></button>
+    </form>
+    <section class="ntp-shortcuts" aria-labelledby="shortcuts-title">
+      <h2 id="shortcuts-title" class="visually-hidden" data-i18n="newtab.shortcuts"></h2>
+      <ul id="tiles" class="ntp-tiles"></ul>
+    </section>
+  </main>
+
+  <dialog id="shortcut-dialog">
+    <form method="dialog" id="shortcut-form" novalidate>
+      <h2 id="shortcut-dialog-title"></h2>
+      <div class="field">
+        <label for="sc-name" data-i18n="newtab.shortcutName"></label>
+        <input id="sc-name" type="text" autocomplete="off" maxlength="60">
+      </div>
+      <div class="field">
+        <label for="sc-url" data-i18n="newtab.shortcutUrl"></label>
+        <input id="sc-url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="sc-url-error">
+        <span class="error-text" id="sc-url-error" aria-live="polite"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="button text" id="sc-remove" data-i18n="common.remove"></button>
+        <span class="spacer"></span>
+        <button type="button" class="button text" id="sc-cancel" data-i18n="common.cancel"></button>
+        <button type="submit" class="button" data-i18n="common.save"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

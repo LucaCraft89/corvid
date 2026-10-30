@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title></title>
+  <link rel="stylesheet" href="../shared/tokens.css">
+  <link rel="stylesheet" href="../shared/theme-default.css">
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="error.css">
+  <script type="module" src="error.js"></script>
+</head>
+<body>
+  <main class="err" id="err">
+    <div class="err-icon" id="err-icon"></div>
+    <h1 class="display-small" id="err-title"></h1>
+    <p class="err-summary" id="err-summary"></p>
+    <p class="err-reason" id="err-reason" hidden></p>
+    <section class="card err-tips" aria-labelledby="tips-title">
+      <h2 class="title-medium" id="tips-title" data-i18n="error.whatToDo"></h2>
+      <ul id="err-tips"></ul>
+    </section>
+    <p class="body-medium muted" id="err-auto" data-i18n="error.autoRetry" hidden></p>
+    <div class="err-actions" id="err-actions"></div>
+    <details class="err-details" id="err-details">
+      <summary><span data-i18n="error.details"></span></summary>
+      <div id="err-detail-body"></div>
+      <div class="err-proceed" id="err-proceed" hidden>
+        <p class="body-medium" data-i18n="error.ssl.proceedWarning"></p>
+        <button type="button" class="button text" id="proceed"></button>
+      </div>
+      <button type="button" class="button outlined" id="copy"><span data-icon="copy"></span><span data-i18n="error.copyDetails"></span></button>
+    </details>
+  </main>
+</body>
+</html>

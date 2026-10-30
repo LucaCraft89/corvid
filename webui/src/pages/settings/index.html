@@ -1,0 +1,111 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title>Settings</title>
+  <link rel="stylesheet" href="../shared/tokens.css">
+  <link rel="stylesheet" href="../shared/theme-default.css">
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="settings.css">
+  <script type="module" src="settings.js"></script>
+</head>
+<body>
+  <div class="settings">
+    <header class="settings-bar">
+      <h1 class="headline-small" data-i18n="settings.pageTitle"></h1>
+    </header>
+    <nav class="settings-nav" data-i18n-aria-label="settings.navLabel">
+      <a href="#search"><span data-icon="search"></span><span data-i18n="settings.search.title"></span></a>
+      <a href="#appearance"><span data-icon="tune"></span><span data-i18n="settings.appearance.title"></span></a>
+    </nav>
+    <main class="settings-main">
+      <section id="search" class="settings-section" aria-labelledby="search-title">
+        <h2 id="search-title" class="title-large" data-i18n="settings.search.title"></h2>
+        <div class="card">
+          <fieldset class="setting">
+            <legend class="visually-hidden" data-i18n="settings.search.title"></legend>
+            <p class="body-medium muted" data-i18n="settings.search.description"></p>
+            <div id="engines" class="engine-list"></div>
+          </fieldset>
+          <button type="button" class="button tonal" id="add-engine"><span data-icon="add"></span><span data-i18n="settings.search.addCustom"></span></button>
+        </div>
+      </section>
+
+      <section id="appearance" class="settings-section" aria-labelledby="appearance-title">
+        <h2 id="appearance-title" class="title-large" data-i18n="settings.appearance.title"></h2>
+        <div class="card">
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.theme.mode"></legend>
+            <p class="body-medium muted" data-i18n="settings.theme.modeHelp"></p>
+            <div id="mode" class="segmented"></div>
+          </fieldset>
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.theme.color"></legend>
+            <p class="body-medium muted" data-i18n="settings.theme.colorHelp"></p>
+            <div id="swatches" class="swatches"></div>
+          </fieldset>
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.theme.style"></legend>
+            <div id="style" class="segmented"></div>
+          </fieldset>
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.theme.contrast"></legend>
+            <div id="contrast" class="segmented"></div>
+          </fieldset>
+          <div class="setting">
+            <h3 class="title-medium" data-i18n="settings.theme.preview"></h3>
+            <div id="preview" class="preview" aria-hidden="true"></div>
+            <p id="aa-status" class="body-medium" role="status"></p>
+          </div>
+        </div>
+        <div class="card">
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.density.title"></legend>
+            <p class="body-medium muted" data-i18n="settings.density.help"></p>
+            <div id="density" class="segmented"></div>
+          </fieldset>
+        </div>
+      </section>
+
+      <div class="settings-footer">
+        <button type="button" class="button outlined" id="reset" data-i18n="settings.reset"></button>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="engine-dialog" aria-labelledby="engine-dialog-title">
+    <form method="dialog" id="engine-form" novalidate>
+      <h2 id="engine-dialog-title" data-i18n="settings.search.addCustom"></h2>
+      <div class="field">
+        <label for="en-name" data-i18n="settings.search.customName"></label>
+        <input id="en-name" type="text" autocomplete="off" maxlength="60" aria-describedby="en-name-error">
+        <span class="error-text" id="en-name-error" aria-live="polite"></span>
+      </div>
+      <div class="field">
+        <label for="en-url" data-i18n="settings.search.customUrl"></label>
+        <input id="en-url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="en-url-help en-url-error">
+        <span class="help" id="en-url-help" data-i18n="settings.search.customUrlHelp"></span>
+        <span class="error-text" id="en-url-error" aria-live="polite"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="button text" id="en-cancel" data-i18n="common.cancel"></button>
+        <button type="submit" class="button" data-i18n="common.save"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="reset-dialog">
+    <form method="dialog">
+      <p data-i18n="settings.resetConfirm"></p>
+      <div class="dialog-actions">
+        <button value="cancel" class="button text" data-i18n="common.cancel"></button>
+        <button value="reset" class="button" data-i18n="settings.reset"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
