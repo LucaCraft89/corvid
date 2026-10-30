@@ -17,6 +17,12 @@ Updated: 2026-10-30
     - Helium base binary: PASS. 0 DNS lookups, 0 connections. Net log: 2 requests to `helium-services-are-disabled.qjz9zk` stopped inside the browser by the `trk:` scheme, never sent.
     - Corvid binary: PASS, same result (below).
   - Leak patches: none needed; the series is empty.
+- Phase 3 (2026-10-30): Corvid internal pages in `webui/` (plain TypeScript and CSS, no framework). How-to: `webui/README.md`.
+  - Colour engine: seed to full Material 3 palette with Google's material-color-utilities 0.4.0 (Apache-2.0), 2025 (M3 Expressive) spec; light/dark/automatic; standard/medium/high contrast; four styles (calm = tonal spot, expressive, vibrant, neutral); WCAG AA check on 59 foreground/background pairs, with a tone nudge as a safety net (the library alone already passes every pair tested).
+  - Tokens: M3 Expressive shape scale, type scale, 4 px spacing, three densities (comfortable, compact, spacious), six motion springs turned into CSS `linear()` easings.
+  - One string catalog `webui/src/strings/en.ts`; the product name is read from `build/branding.conf` at build time (`{product}`).
+  - Pages: new tab (search with the chosen engine or open an address, shortcuts with monograms, no favicon fetches), settings (search engine incl. custom engines, theme mode, colour presets + picker, style, contrast, live preview with AA status, density, reset), error page (DNS, offline with auto-retry, connection, timeout, SSL with reason and "continue" only when overridable and only inside the details, blocked, generic; technical details: code, DNS, certificate chain, timings, retries, copy button).
+  - Tests: `npm run check` in `webui/`: typecheck clean; 42 unit tests pass (incl. AA on 27 seeds x 2 modes x 3 contrasts x 4 styles = 648 palettes); render check PASS in the Corvid dev build (11 pages x 360/768/1440 px x light/dark = 66 renders + interaction flow, 68 screenshots in `webui/render-out/`, no console/CSP errors, no sideways scrolling).
 
 ## Gate result (Corvid binary, 15 min)
 `build/privacy-gate.sh --minutes 15`, run 2026-10-30 12:10, `/work/gate/20261030-121002/`:
@@ -32,7 +38,8 @@ PASS: nothing outside the allowlist
 Self-test of the gate (`-- https://example.com`, 1 min): FAIL as expected, listing the `example.com` DNS lookup and its TCP and QUIC connections.
 
 ## Next
-- Phases 3 and 4 (independent), then phase 5 (`docs/PHASES.md`).
+- Phase 4 (independent), then phase 5 (`docs/PHASES.md`). Phase 5 hooks for webui: replace `defaultStore()` (`webui/src/shared/prefs.ts`) with a browser-prefs store, feed `setCatalog()` from loadTimeData, set `window.corvidErrorInfo` / `window.corvidErrorActions` on the error page, turn `en.ts` into a .grdp.
+- webui follow-ups: system colour seed (GTK accent, phase 5); no translations yet; owner still to pick default seed, typeface and density (PROJECT.md open questions 7 and 8).
 - Rebrand gaps for later: favicons of internal pages are still Helium's (only product logos are placeholders); the about text "made possible by the ... open source project" now names Corvid twice (should credit Chromium and Helium); `MAINTMAIL` in the Linux package info still says Helium's; code identifiers (`kHeliumUIScheme`, `helium_onboarding`) are internal and stay.
 
 ## Exact commands
@@ -43,6 +50,8 @@ build/fetch.sh && build/patch.sh && build/configure.sh && build/build.sh
 /work/src/out/Default/corvid --user-data-dir=$HOME/.config/corvid-dev   # not as root, or --no-sandbox
 build/privacy-gate.sh                     # as root; --minutes N; -- URL to self-test (must FAIL)
 build/srcgit.sh track FILE; edit; build/refresh-patches.sh --into common/NAME.patch   # see docs/patches.md
+cd webui && npm ci && npm run check      # phase 3 pages: typecheck, unit tests, render check (~3 min)
+cd webui && npm run dev                  # http://127.0.0.1:8077/
 ```
 Fresh tree: `rm -rf /work/src && build/all.sh`. Steps leave `.NAME.stamp` files in `/work/src`; a re-run skips finished steps. Logs: `build/logs/` (git-ignored); gate runs keep pcap, net log and summary in `/work/gate/<time>/`.
 
@@ -61,3 +70,6 @@ GN args = Helium's `flags.gn` + `flags.linux.gn` minus the overridden keys, plus
 - Helium tracks Chromium 156.0.8078.73; PROJECT.md says 155.
 - Helium has a sync engine in its patches; phases 4 and 7 start from it.
 - Helium bans AI-written upstream PRs; never send PRs upstream.
+- webui render check: the Corvid dev build sometimes cancels the first navigation in a fresh headless tab (`net::ERR_ABORTED`, still `about:blank`, no request sent). The check retries up to 3 times and prints the count (0 or 1 per run so far). It runs the browser with `--no-sandbox` when started as root; it only loads localhost pages.
+- webui: material-color-utilities has an extensionless import Node's ESM loader cannot resolve; tests are bundled with esbuild (`dist-test/`) rather than run from node_modules.
+- webui pages call `startPage()` last in each module: calling it earlier ran `render()` before module constants existed (TDZ) and silently killed the settings page.
