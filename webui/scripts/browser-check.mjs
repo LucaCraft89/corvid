@@ -123,6 +123,50 @@ CHECKS.newtab = async () => {
   await ctx.close();
 };
 
+// ---------------------------------------------------------------- settings
+const primary = (page) => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--md-sys-color-primary').trim());
+
+CHECKS.settings = async () => {
+  const w = 'settings';
+  const ctx = await launch(freshProfile());
+  const ntp = await open(ctx, 'chrome://newtab/', w);
+  const before = await primary(ntp);
+
+  const s = await open(ctx, 'chrome://preferences/', w);
+  const info = await s.evaluate(() => ({
+    ours: !!document.querySelector('#swatches'),
+    title: document.title,
+    systemChecked: document.querySelector('#swatches input[value=system]')?.checked ?? null,
+  }));
+  ok(w, info.ours, 'chrome://preferences is not the Corvid settings page');
+  ok(w, info.systemChecked === true, `desktop accent swatch should be the default, got ${info.systemChecked}`);
+  await shot(s, 'settings');
+
+  // A change in settings reaches the open new tab and the profile.
+  await s.click('#swatches label[title="Teal"]');
+  await s.click('#mode label:has-text("Dark")');
+  await ntp.waitForTimeout(500);
+  const after = await primary(ntp);
+  ok(w, after !== before, `new tab colour did not follow settings (${before} -> ${after})`);
+  ok(w, (await ntp.evaluate(() => document.documentElement.dataset.themeMode)) === 'dark', 'new tab did not switch to dark');
+  await shot(ntp, 'newtab-teal-dark');
+  const reloaded = await open(ctx, 'chrome://newtab/', w);
+  ok(w, (await reloaded.evaluate(() => window.corvidInit?.prefs?.seedSource)) === 'custom', 'prefs not saved in the profile');
+
+  // The stock settings page links to ours.
+  const stock = await open(ctx, 'chrome://settings/appearance', w);
+  await stock.waitForTimeout(800);
+  const row = stock.locator('#corvidPages');
+  ok(w, (await row.count()) === 1, 'no entry in Settings > Appearance');
+  if (await row.count()) {
+    await shot(stock, 'stock-appearance');
+    const [opened] = await Promise.all([ctx.waitForEvent('page'), row.click()]);
+    await opened.waitForLoadState('load');
+    ok(w, opened.url() === 'chrome://preferences/', `entry opened ${opened.url()}`);
+  }
+  await ctx.close();
+};
+
 // ---------------------------------------------------------------- private window
 CHECKS.private = async () => {
   const w = 'private';

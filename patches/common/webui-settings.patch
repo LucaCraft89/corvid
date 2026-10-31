@@ -1,0 +1,87 @@
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -252,6 +252,12 @@
+         Reset to default theme
+       </message>
+     </if>
++    <message name="IDS_SETTINGS_CORVID_PAGES_TITLE" desc="Link in Appearance settings to the page that sets the look of the new tab and other built-in pages.">
++      New tab and built-in pages
++    </message>
++    <message name="IDS_SETTINGS_CORVID_PAGES_SUBLABEL" desc="Second line of the link to the built-in pages settings.">
++      Colour, light or dark, density and the new tab search box
++    </message>
+     <message name="IDS_SETTINGS_CUSTOMIZE_TOOLBAR" desc="Text of the button which allows you to customize your toolbar.">
+       Customize your toolbar
+     </message>
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -11,9 +11,12 @@ export function getHtml(this: SettingsAppearancePageElement) {
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{appearancePageTitle}">
+   <div route-path="default">
+-    <div class="settings-row first" id="themeRow"
++    <cr-link-row id="corvidPages" class="first"
++        label="$i18n{corvidPagesTitle}" sub-label="$i18n{corvidPagesSubLabel}"
++        @click="${this.onCorvidPagesClick_}" external></cr-link-row>
++    <div class="settings-row hr" id="themeRow"
+         ?hidden="${!this.pageVisibility_.setTheme}">
+-      <cr-link-row id="openTheme" class="first"
++      <cr-link-row id="openTheme"
+           ?hidden="${!this.pageVisibility_.setTheme}"
+           label="$i18n{themes}" sub-label="${this.themeSublabel_}"
+           @click="${this.onThemeClick_}" external></cr-link-row>
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
+@@ -19,6 +19,7 @@ import {browserProxyFactory, ColorSchemeMode} from 'chrome://resources/cr_compon
+ import type {BrowserProxy as CustomizeColorSchemeModeBrowserProxy} from 'chrome://resources/cr_components/customize_color_scheme_mode/customize_color_scheme_mode.mojom-webui.js';
+ import {I18nMixinLit} from 'chrome://resources/cr_elements/i18n_mixin_lit.js';
+ import {assert, assertNotReached} from 'chrome://resources/js/assert.js';
++import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
+ import {CrLitElement} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ import type {PropertyValues} from 'chrome://resources/lit/v3_0/lit.rollup.js';
+ 
+@@ -453,6 +454,10 @@ export class SettingsAppearancePageElement extends
+         this.defaultFontSizePref_!.value - SIZE_DIFFERENCE_FIXED_STANDARD);
+   }
+ 
++  protected onCorvidPagesClick_() {
++    OpenWindowProxyImpl.getInstance().openUrl('chrome://preferences/');
++  }
++
+   protected onThemeClick_() {
+     this.appearanceBrowserProxy_.openCustomizeChrome();
+   }
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -383,6 +383,8 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<NewTabFooterUIConfig>());
+   map.AddWebUIConfig(std::make_unique<NewTabPageThirdPartyUIConfig>());
+ #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
++  map.AddWebUIConfig(
++      std::make_unique<corvid::CorvidUIConfig>("preferences", "settings"));
+   // Private and guest windows open chrome://newtab without a redirect.
+   map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>(
+       chrome::kChromeUINewTabHost, "newtab"));
+--- a/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
++++ b/chrome/browser/ui/webui/settings/settings_localized_strings_provider.cc
+@@ -600,6 +600,8 @@ void AddAppearanceStrings(content::WebUIDataSource* html_source,
+       {"homeButtonDisabled", IDS_SETTINGS_HOME_BUTTON_DISABLED},
+       {"themes", IDS_SETTINGS_THEMES},
+       {"customizeToolbar", IDS_SETTINGS_CUSTOMIZE_TOOLBAR},
++      {"corvidPagesTitle", IDS_SETTINGS_CORVID_PAGES_TITLE},
++      {"corvidPagesSubLabel", IDS_SETTINGS_CORVID_PAGES_SUBLABEL},
+       {"chromeColors", IDS_SETTINGS_CHROME_COLORS},
+       {"colorSchemeMode", IDS_SETTINGS_COLOR_SCHEME_MODE},
+       {"lightMode", IDS_NTP_CUSTOMIZE_CHROME_COLOR_SCHEME_MODE_LIGHT_LABEL},
+--- a/components/corvid_webui/BUILD.gn
++++ b/components/corvid_webui/BUILD.gn
+@@ -14,6 +14,9 @@ corvid_webui_files = [
+   "newtab/index.html",
+   "newtab/newtab.css",
+   "newtab/newtab.js",
++  "settings/index.html",
++  "settings/settings.css",
++  "settings/settings.js",
+ ]
+ 
+ generate_grd("build_grd") {
