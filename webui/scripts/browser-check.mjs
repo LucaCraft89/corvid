@@ -13,8 +13,8 @@
 // folder; screenshots in render-out/browser-*.png. Exits 1 on any failure.
 
 import { chromium } from 'playwright-core';
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { execFileSync, spawn } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import https from 'node:https';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -58,6 +58,16 @@ async function launch(profile, extraArgs = []) {
     args,
     viewport: { width: 1280, height: 860 },
     ignoreDefaultArgs: ['--disable-extensions'],
+  });
+}
+
+/** Like launch(), but headed and with extra environment variables. */
+async function launchWithEnv(profile, env) {
+  const args = ['--no-first-run', '--no-default-browser-check'];
+  if (process.getuid?.() === 0) args.push('--no-sandbox');
+  return chromium.launchPersistentContext(profile, {
+    executablePath: browserPath, headless: false, args, viewport: null,
+    ignoreDefaultArgs: ['--disable-extensions'], env: { ...process.env, ...env },
   });
 }
 
@@ -227,6 +237,103 @@ CHECKS.errors = async () => {
   } finally {
     await ctx.close();
     srv.close();
+  }
+};
+
+// ---------------------------------------------------------------- desktop accent colour
+// Needs a real window (GTK): runs on DISPLAY, or starts Xvfb. Each case gets a
+// private session bus, with or without the fake portal (fake-portal.py).
+function sh(cmd, args, opts = {}) {
+  return spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+}
+
+async function privateBus() {
+  const p = sh('dbus-daemon', ['--session', '--nofork', '--print-address=1']);
+  const addr = await new Promise((r) => p.stdout.once('data', (d) => r(String(d).trim())));
+  return { addr, stop: () => p.kill() };
+}
+
+async function startPortal(addr, rgb) {
+  const p = sh('python3', [join(root, 'scripts', 'fake-portal.py'), ...rgb.map(String)], { env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: addr } });
+  await new Promise((r) => p.stdout.once('data', r));
+  return () => p.kill();
+}
+
+/** Most common colour in the top 40 px of the screen (the browser frame), as #rrggbb. */
+function frameColour(png) {
+  const py = `import sys
+from PIL import Image
+from collections import Counter
+im = Image.open(sys.argv[1]).convert('RGB')
+c = Counter(p for p in im.crop((0, 0, im.width, 40)).getdata() if p != (0, 0, 0))
+print('#%02x%02x%02x' % c.most_common(1)[0][0])`;
+  return execFileSync('python3', ['-c', py, png]).toString().trim();
+}
+
+async function screen(name) {
+  const png = join(out, `browser-${name}.png`);
+  execFileSync('import', ['-window', 'root', png], { env: process.env });
+  return frameColour(png);
+}
+
+CHECKS.accent = async () => {
+  const w = 'accent';
+  let xvfb = null;
+  if (!process.env.DISPLAY) {
+    xvfb = sh('Xvfb', [':78', '-screen', '0', '1280x900x24']);
+    process.env.DISPLAY = ':78';
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const home = freshProfile();
+  mkdirSync(join(home, '.config', 'gtk-3.0'), { recursive: true });
+  const run = async (name, { gtkRed = false, portal = null } = {}) => {
+    rmSync(join(home, '.config', 'gtk-3.0', 'gtk.css'), { force: true });
+    if (gtkRed) writeFileSync(join(home, '.config', 'gtk-3.0', 'gtk.css'), '*:selected { background-color: #e01b24; }\n');
+    const bus = await privateBus();
+    const stopPortal = portal ? await startPortal(bus.addr, portal) : () => {};
+    const ctx = await launchWithEnv(freshProfile(), { HOME: home, XDG_CONFIG_HOME: join(home, '.config'), DBUS_SESSION_BUS_ADDRESS: bus.addr });
+    await new Promise((r) => setTimeout(r, 2500));
+    const ntp = await open(ctx, 'chrome://newtab/', `${w}/${name}`);
+    const res = { ctx, ntp, bus: bus.addr, accent: await ntp.evaluate(() => window.corvidInit?.accent ?? null), frame: await screen(`accent-${name}`), stop: () => { stopPortal(); bus.stop(); } };
+    console.log(`  ${name}: page accent ${res.accent}, browser frame ${res.frame}`);
+    return res;
+  };
+  const close = async (r) => { await r.ctx.close(); r.stop(); };
+  const rgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  try {
+    // No portal, stock GTK theme (Adwaita): its selection colour.
+    const plain = await run('gtk-default');
+    ok(w, /^#[0-9a-f]{6}$/.test(plain.accent ?? ''), `no accent from the GTK theme: ${plain.accent}`);
+    await close(plain);
+
+    // No portal, GTK theme with a red selection colour.
+    const red = await run('gtk-red', { gtkRed: true });
+    ok(w, red.accent === '#e01b24', `GTK selection colour not used: ${red.accent}`);
+    const [r1, g1, b1] = rgb(red.frame);
+    ok(w, red.frame !== plain.frame && r1 > g1 && r1 > b1, `browser frame does not follow the red GTK accent (${plain.frame} -> ${red.frame})`);
+    await close(red);
+
+    // Portal accent wins over the GTK theme, and changes apply live.
+    const green = await run('portal-green', { gtkRed: true, portal: [0.2, 0.6, 0.2] });
+    ok(w, green.accent === '#339933', `portal accent not used: ${green.accent}`);
+    const [r2, g2, b2] = rgb(green.frame);
+    ok(w, g2 > r2 && g2 > b2, `browser frame does not follow the green portal accent (${green.frame})`);
+    const settings = await open(green.ctx, 'chrome://preferences/', `${w}/portal`);
+    const swatch = () => settings.evaluate(() => document.querySelector('#swatches .swatch.system span')?.style.getPropertyValue('--swatch'));
+    ok(w, (await swatch()) === '#339933', `settings swatch shows ${await swatch()}`);
+    execFileSync('dbus-send', ['--session', '--type=method_call', '--dest=org.freedesktop.portal.Desktop', '/org/freedesktop/portal/desktop',
+      'org.corvid.Test.SetAccent', 'double:0.8', 'double:0.4', 'double:0'], { env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: green.bus } });
+    await settings.waitForTimeout(1500);
+    ok(w, (await swatch()) === '#cc6600', `live accent change did not reach the page: ${await swatch()}`);
+    await green.ntp.bringToFront();
+    await green.ntp.waitForTimeout(500);
+    const orange = await screen('accent-portal-orange');
+    const [r3, g3, b3] = rgb(orange);
+    console.log(`  portal-orange (live): browser frame ${orange}`);
+    ok(w, r3 > g3 && g3 > b3, `browser frame did not follow the live accent change (${orange})`);
+    await close(green);
+  } finally {
+    xvfb?.kill();
   }
 };
 

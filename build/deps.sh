@@ -3,7 +3,8 @@
 # Copyright (C) 2026 Corvid contributors
 #
 # Install build dependencies on Debian 13 (trixie). Same package list as
-# helium-linux docker/build.Dockerfile, plus ccache, tmux, quilt, and tcpdump + tshark for build/privacy-gate.sh.
+# helium-linux docker/build.Dockerfile, plus ccache, tmux, quilt, tcpdump + tshark for build/privacy-gate.sh,
+# and what webui/scripts/browser-check.mjs needs.
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 SUDO=""; [ "$(id -u)" = 0 ] || SUDO=sudo
@@ -20,4 +21,5 @@ $SUDO apt-get -y install bison ca-certificates curl debhelper desktop-file-utils
   uuid-dev valgrind wdiff x11-apps xcb-proto xfonts-base xvfb xz-utils yasm zstd \
   git python3-pillow python3-requests rsync \
   ccache tmux quilt \
-  tcpdump tshark
+  tcpdump tshark \
+  python3-dbus python3-gi dbus-daemon nodejs npm openssl  # webui browser-check (fake desktop portal, test servers)

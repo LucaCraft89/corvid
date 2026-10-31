@@ -1,0 +1,44 @@
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -507,7 +507,7 @@ void ThemeService::UseSystemTheme() {
+ }
+ 
+ void ThemeService::UseDeviceTheme(bool follow) {
+-#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
++#if BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+   // This toggle is currently supported on ChromeOS and Windows and we only want
+   // platforms to set the value if they have a visible toggle.
+   profile_->GetPrefs()->SetBoolean(prefs::kBrowserFollowsSystemThemeColors,
+@@ -533,6 +533,15 @@ bool ThemeService::UsingDeviceTheme() const {
+       ->FindPreference(prefs::kBrowserFollowsSystemThemeColors)
+       ->GetValue()
+       ->GetBool();
++#elif BUILDFLAG(IS_LINUX)
++  // Follow the desktop accent colour (xdg-desktop-portal, else the GTK
++  // theme) until the user picks a colour, a theme or the GTK/Qt theme.
++  const PrefService::Preference* pref = profile_->GetPrefs()->FindPreference(
++      prefs::kBrowserFollowsSystemThemeColors);
++  if (pref->IsDefaultValue()) {
++    return GetIsBaseline() && !UsingExtensionTheme() && !UsingSystemTheme();
++  }
++  return pref->GetValue()->GetBool();
+ #else
+   // Only ChromeOS and Windows have this toggle.
+   return false;
+--- a/ui/gtk/os_settings_provider_gtk.cc
++++ b/ui/gtk/os_settings_provider_gtk.cc
+@@ -84,7 +84,13 @@ base::TimeDelta OsSettingsProviderGtk::CaretBlinkInterval() const {
+ }
+ 
+ std::optional<SkColor> OsSettingsProviderGtk::AccentColor() const {
+-  return accent_color_;
++  if (accent_color_) {
++    return accent_color_;
++  }
++  // No accent from the xdg-desktop-portal: use the GTK theme's selection
++  // colour, which is what GTK themes use as their accent. Re-read when the
++  // theme changes (notify::gtk-theme-name).
++  return GetBgColor("treeview.view treeview.view.cell:selected:focus");
+ }
+ 
+ void OsSettingsProviderGtk::SetAccentColor(
