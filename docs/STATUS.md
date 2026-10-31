@@ -1,6 +1,6 @@
 # STATUS
 
-Updated: 2026-10-31
+Updated: 2026-10-31 (phase 6)
 
 ## Done
 - Phase 0: repo reset to a fresh root (old work kept in history on branch `claude/busy-rubin-t8bloc`), skeleton created, `docs/PROJECT.md` committed, base researched: `docs/decisions/001-base.md`.
@@ -39,20 +39,27 @@ Updated: 2026-10-31
   - Rebuilds per patch (ccache, `-j 22`): newtab 2m 6s, settings 16m 48s, error pages 2m 16s, accent 34s, diagnostics 1m 9s.
   - Dropped: HTTPS-First page. Chromium 156 shows a native dialog over a blank page there (`kHttpsFirstDialogUi`), not an HTML interstitial, so no patch.
 
+- Phase 6 (2026-10-31): extensions, uBlock Origin, MV2. 2 patches: `patches/common/extension-stores.patch` (13 files), `patches/common/ublock-origin.patch` (11 files). Decision `docs/decisions/003-ubo.md`. Results `docs/extension-compat.md`.
+  - Checked first, on the unchanged phase 5 binary: an MV2 test extension with blocking `webRequest` blocks its URL, an MV3 `declarativeNetRequest` one blocks its URL, Helium's built-in uBO blocks the test ad; an extension's new tab replaces ours. So MV2 still runs in Chromium 156 with Helium's `extensions-manifestv2.patch`. Broken: installing from the Chrome Web Store (spinner forever: downloads go to Helium's proxy, which needs Helium-services consent, else a dummy host) and updates of store extensions (Helium's spoofed query drops `prodversion`; the store answers 204 / `noupdate` without it).
+  - Stores (`corvid://preferences` > Extensions; logic `components/corvid_extensions/`): Chrome Web Store and Edge Add-ons on by default, each can be turned off (no installs, no update checks to it), plus user stores (https update service). "Add an extension from a store": paste a store link or ID; the browser downloads from the store's update service (browser-side download, so Edge's plain-HTTP files do not hit the HTTPS-First dialog) and the normal prompt follows; the package must have the requested id. Chrome Web Store website installs work again, direct to Google. `.crx` files opened from disk install. Edge's own site does not render its product pages in Corvid (it needs Edge), hence install by link.
+  - uBlock Origin: upstream 1.75.0, the authors' signed `.crx` (`fkgkibajhfbepljeaefdnfnegdcjomkh`), sha256/id/version pinned in `build/ublock.conf`, fetched by `build/ublock.sh` (patch step `ublock`) into `third_party/ublock_origin/`, copied to `out/Default/extensions/` and installed into every new profile, enabled; removable (stays removed). Helium's fork is no longer loaded or packed. Updates (new versions from the authors' channel + uBO's own list updater) only after "Keep uBlock Origin up to date" is turned on (default off, see 003). Credits: one "uBlock Origin" entry with the GPL-3.0 text and upstream link on `corvid://credits` (dev build now sets `generate_about_credits=true`).
+  - Branding fix: the Chrome Web Store button said "Add to Helium" (`brand.py` now rewrites `components/extstore_fixups/chrome-webstore.js`).
+  - Tests, all on this build: probes (MV2 blocking webRequest, MV3 DNR, uBO ad test page: network + cosmetic) PASS; store installs through the preferences page from Chrome Web Store, Edge Add-ons and a local HTTPS test store, plus the Chrome Web Store website and a local `.crx` file: all install after the real prompt; update checks on restart go to `clients2.google.com` (with `prodversion`) and `edge.microsoft.com` directly; with the Chrome Web Store off no request goes to it; uBO with updates off: 0 requests in 75 s; after switching on: version check (`cdn.jsdelivr.net`) and lists (`ublockorigin.pages.dev` and others) within a minute; uBO removed via the Extensions page stays removed after restart. `build/test-extensions.sh`: **20/20 pass** (must-pass: ad blockers 5/5 incl. preinstalled uBO, password managers 4/4, new tab 2/2; MV2: preinstalled uBO and ClearURLs from Edge). webui `npm run check` PASS (51 unit tests, 80 renders). Strict re-apply of all 7 patches to the base files reproduces the tree (43 files, 0 differences). Privacy gate PASS (below), with uBO installed and running in the gate profile.
+  - Rebuilds (ccache, `-j 22`): stores patch steps 1m 9s, 44 s and under 30 s each after; uBO patch 1m 46s (incl. credits generation), then 51 s.
+  - Not tested: `.zip` and drag-and-drop installs on `corvid://extensions` (needs a real OS drag; the code is Chromium's, developer mode only); "Load unpacked" only through `--load-extension` (same loader). Turning Edge Add-ons off (same code path as the Chrome Web Store switch, which was tested).
+
 ## Gate result (Corvid binary, 15 min)
-`build/privacy-gate.sh --minutes 15` on the phase 5 binary (all 5 patches; startup page is the Corvid new tab), run 2026-10-31 12:33, `/work/gate/20261031-123318/`, log `build/logs/privacy-gate-p5.txt` (same result as phase 2, 2026-10-30):
+`build/privacy-gate.sh --minutes 15` on the phase 6 binary (all 7 patches, upstream uBO preinstalled with updates off), run 2026-10-31 23:27, `/work/gate/20261031-232752/`, log `build/logs/privacy-gate-p6.txt`:
 ```
 DNS lookups (0)
 Connections (0)
-URLs requested by the network stack (2, from the net log):
-  GET trk:https://helium-services-are-disabled.qjz9zk/en-US-10-2.bdic  x1
-  POST trk:https://helium-services-are-disabled.qjz9zk/  x1
+URLs requested by the network stack (0, from the net log):
 Hosts resolved by the browser (0)
 PASS: nothing outside the allowlist
 ```
-Self-test of the gate (`-- https://example.com`, 1 min, 2026-10-31, `/work/gate/20261031-124845/`): FAIL as expected, listing the `example.com` DNS lookup and its TCP and QUIC connections.
+uBO was installed in that profile (its 13 MB filter database is there). The two `trk:` requests to Helium's dummy host seen in phases 2 and 5 did not appear this time (not investigated). Phase 5 run (same result apart from those): `build/logs/privacy-gate-p5.txt`.
 
-## What is still stock (phase 5 end)
+## What is still stock (phase 6 end)
 Reachable in normal use:
 - Chromium/Helium settings (`corvid://settings`) apart from our link row; the Customize side panel ("Theme" row). Our preferences page only sets the look of our pages and the new tab search box: its search engine does not change the address bar's engine, and its theme/colour do not change the browser frame (the frame follows the desktop accent or the stock theme settings).
 - HTTPS-First: native dialog over a blank page. Other interstitials: captive portal, bad clock, MITM software, blocked interception, lookalike URL, supervised user and policy blocks (all still Chromium's HTML; `SSLErrorHandler` picks some of them for certificate errors). Safe Browsing pages are off in Helium (`safe_browsing_mode=0`).
@@ -60,10 +67,13 @@ Reachable in normal use:
 - Other internal pages: history, downloads, bookmarks, extensions, passwords, print preview, PDF viewer, `corvid://version`, `corvid://crashes`, Helium's first-run onboarding (`corvid://setup`).
 - Error pages and the SSL page use the default seed with light/dark from the system, not the user's page prefs (the renderer has no profile prefs; the interstitial could get them later).
 - Page strings are English only (`webui/src/strings/en.ts` is not a .grdp yet).
+- Extensions page (`corvid://extensions`) and the install prompts are Chromium's. Helium's services page still shows "Proxy extension downloads" and "Allow downloading filter lists for uBlock Origin": both do nothing now (store downloads go direct; Helium's uBO is gone). When the Chrome Web Store is off, its install error still points to Helium's services page.
 
 
 ## Next
-- Phase 6 (`docs/PHASES.md`).
+- Phase 7 (`docs/PHASES.md`).
+- Owner decisions from phase 6 (`docs/decisions/003-ubo.md`): turn uBO updates on by default (needs allowlist entries for its hosts) or keep them off; ask about it in first-run onboarding?
+- Phase 6 follow-ups: hide or rewire Helium's two dead toggles and the "enable in Helium services" download error; Windows preinstall route for uBO (external extensions need a prompt there; phase 8); make sure the Linux packages carry `extensions/` next to the binary (not checked yet); grow the compatibility list toward PROJECT.md's top 100; ship a newer uBO by bumping `build/ublock.conf`.
 - Phase 5 follow-ups: decide whether `corvid://preferences` should drive the browser frame colour (ThemeService) and the address-bar search engine (TemplateURLService) instead of only our pages; give the SSL page the user's theme prefs; turn `en.ts` into a .grdp; replace the remaining interstitials listed above if they matter; Windows/macOS accent comes with phase 8.
 - Phase 4 follow-ups: run `docker build` where Docker exists; test `--tls-cert`; optional admin page (metadata only) and change notifications are not built; phase 7 writes a `SyncVaultTransport` for our API (Helium's engine expects the extension provider), wires pairing/recovery into a WebUI page (add it as a `CorvidUIConfig` page like phase 5's), and must never use Helium's provider key-wrapping path.
 - webui follow-ups: no translations yet; owner still to pick default seed, typeface and density (PROJECT.md open questions 7 and 8).
@@ -82,6 +92,9 @@ cd webui && npm run dev                  # http://127.0.0.1:8077/
 build/webui-sync.sh                      # webui/ -> /work/src/components/corvid_webui/dist (build.sh runs it too)
 cd webui && npm run browser-check        # phase 5: pages in the real browser (~6 min; as root; DISPLAY or own Xvfb)
 cd webui && npm run browser-check -- errors accent   # some checks: newtab settings errors accent diagnostics hang private
+build/ublock.sh                          # uBO release from build/ublock.conf -> third_party/ublock_origin (patch step "ublock")
+build/test-extensions.sh                 # phase 6: 20 store extensions + preinstalled uBO -> docs/extension-compat.md (~15 min, network)
+build/test-extensions.sh --only preinstalled,Momentum   # some of them; results in /work/tmp/extcompat/results.json only
 export PATH=/work/tools/go/bin:$PATH GOPATH=/work/tools/gopath GOCACHE=/work/tools/gocache   # Go for sync/
 cd sync && go test -race ./...           # phase 4: all sync tests (~10 s)
 cd sync && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /work/tmp/sync-bin/corvid-sync-server ./server
@@ -118,3 +131,12 @@ GN args = Helium's `flags.gn` + `flags.linux.gn` minus the overridden keys, plus
 - Installed this session: `python3-gi` (apt, for `webui/scripts/fake-portal.py`); `build/deps.sh` now lists the browser-check packages.
 - Playwright contexts from `browser.newContext()` are off-the-record profiles: that is how `browser-check` tests private windows.
 - webui pages call `startPage()` last in each module: calling it earlier ran `render()` before module constants existed (TDZ) and silently killed the settings page.
+- Phase 6, Playwright: it passes `--disable-background-networking` (turns off the extension updater) and `--disable-default-apps`, and saves every download itself (a `.crx` never reaches the installer). Tests that need updates or download installs drop those flags and send `Browser.setDownloadBehavior {behavior: default}`.
+- The extension install prompt is native: `build/lib/find-install-button.py` finds it in a screenshot of the X screen (bright box over the dimmed page) and xdotool clicks it. The remove prompt is a bubble at the top right instead (not handled by that script).
+- Helium turns on HTTPS-First mode: navigating to an HTTP download (Edge's package files) shows "This site doesn't support a secure connection". Store installs from our page are browser-side downloads to avoid it; WebUI pages may not start network requests themselves (DCHECK in `web_request_permissions.cc`), so the download has no page attached.
+- `CRX_DUMMY` (Helium's spoof patch) dropped `prodversion`; without it the Chrome Web Store returns 204 for installs and `noupdate` for update checks. Our patch sends the major version (`156.0.0.0`).
+- The authors' uBO `.crx` names its own update address (jsDelivr mirror of `dist/chromium/update.xml`); the `.zip` on the same release does not. Gate uBO updates by id, not by "no update URL".
+- uBO caches its managed (admin) settings and refreshes the cache in the background, so a change applies on the second start: the browser reloads uBO twice (0 s and 5 s) when the switch changes, like Helium did for its own setting.
+- Extensions are read from `<binary dir>/extensions/` on Linux (`DIR_EXTERNAL_EXTENSIONS`); the copy step creates it `0700`, `build/build.sh` opens it up so `tester` (gate) can read it. Policies would come from `/etc/chromium/policies` (shared with a system Chromium; not used).
+- Credits are only generated with `generate_about_credits=true` (official builds); the dev args now set it. `third_party/ublock/README.chromium` (Helium's fork) is patched to `Shipped: no` so it is not credited.
+- `pgrep -f`/`pkill -f` with a pattern that appears in your own command line kills your own shell (exit 144): use `[n]ode x.mjs`-style patterns.

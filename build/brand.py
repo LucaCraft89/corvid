@@ -102,6 +102,9 @@ def code_replacements(b):
          'kBrowserDisplayName[] = "helium"', f'kBrowserDisplayName[] = "{lo}"'),
         ('media/audio/pulse/pulse_util.cc',
          '#define PRODUCT_STRING "Helium"', f'#define PRODUCT_STRING "{name}"'),
+        # Chrome Web Store page: "Add to Chrome" becomes "Add to <name>".
+        ('components/extstore_fixups/chrome-webstore.js',
+         "replace(CHROME_NAME_REGEX, 'Helium')", f"replace(CHROME_NAME_REGEX, '{name}')"),
         # Linux package metadata.
         ('chrome/installer/linux/common/chromium-browser.info', 'PACKAGE="helium"', f'PACKAGE="{lo}"'),
         ('chrome/installer/linux/common/chromium-browser.info', 'MENUNAME="Helium"', f'MENUNAME="{name}"'),
