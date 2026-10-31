@@ -29,6 +29,8 @@ const DYNAMIC = [
   /^error\.ssl\.reason\.\w+$/,
   /^settings\.theme\.(mode|style|contrast)\.\w+$/,
   /^settings\.density\.(comfortable|compact|spacious)$/,
+  /^diag\.kind\.(crash|hang|network|tls)$/,
+  /^diag\.summary\.(hang|network|tls)(NoHost)?$/,
 ];
 
 test('every string used in the pages exists in the catalog', () => {

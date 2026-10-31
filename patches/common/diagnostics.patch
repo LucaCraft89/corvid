@@ -1,0 +1,433 @@
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -1311,6 +1311,7 @@ source_set("tab_helpers_impl") {
+   deps = [
+     ":recently_audible_helper",
+     ":tab_dialogs",
++    "//chrome/browser/ui/webui:corvid",
+     ":ui_features",
+     "//base",
+     "//chrome/browser:browser_process",
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -75,6 +75,7 @@
+ #include "chrome/browser/ui/search_engines/search_engine_tab_helper.h"
+ #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
+ #include "chrome/browser/ui/tab_dialogs.h"
++#include "chrome/browser/ui/webui/corvid/diagnostics_log.h"
+ #include "chrome/browser/vr/vr_tab_helper.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/chrome_features.h"
+@@ -269,6 +270,9 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+   // ChromeSubresourceFilterClient has it as a dependency.
+   infobars::ContentInfoBarManager::CreateForWebContents(web_contents);
+ 
++  // Local-only log of crashes, hangs and failed loads (chrome://diagnostics).
++  corvid::DiagnosticsLog::AttachTo(web_contents);
++
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents->GetBrowserContext());
+ 
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -661,11 +661,20 @@ source_set("chrome_web_ui_controller_factory") {
+ }
+ 
+ source_set("corvid") {
+-  sources = [ "corvid/corvid_ui.cc" ]
+-  public = [ "corvid/corvid_ui.h" ]
++  sources = [
++    "corvid/corvid_ui.cc",
++    "corvid/diagnostics_log.cc",
++  ]
++  public = [
++    "corvid/corvid_ui.h",
++    "corvid/diagnostics_log.h",
++  ]
+   public_deps = [ "//content/public/browser" ]
+   deps = [
+     "//base",
++    "//base:i18n",
++    "//net",
++    "//url",
+     "//chrome/browser/profiles:profile",
+     "//components/corvid_webui:resources",
+     "//components/pref_registry",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -385,6 +385,8 @@ void RegisterChromeWebUIConfigs() {
+ #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+   map.AddWebUIConfig(
+       std::make_unique<corvid::CorvidUIConfig>("preferences", "settings"));
++  map.AddWebUIConfig(
++      std::make_unique<corvid::CorvidUIConfig>("diagnostics", "diagnostics"));
+   // Private and guest windows open chrome://newtab without a redirect.
+   map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>(
+       chrome::kChromeUINewTabHost, "newtab"));
+--- a/chrome/browser/ui/webui/corvid/corvid_ui.cc
++++ b/chrome/browser/ui/webui/corvid/corvid_ui.cc
+@@ -17,6 +17,7 @@
+ #include "base/strings/stringprintf.h"
+ #include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/ui/webui/corvid/diagnostics_log.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources_map.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+@@ -149,6 +150,60 @@ class CorvidPageHandler : public content::WebUIMessageHandler,
+   bool setting_ = false;
+ };
+ 
++// chrome://diagnostics: sends the whole log when the page asks and on every
++// change; clears it on request.
++class DiagnosticsHandler : public content::WebUIMessageHandler,
++                           public DiagnosticsLog::Observer {
++ public:
++  DiagnosticsHandler() = default;
++  DiagnosticsHandler(const DiagnosticsHandler&) = delete;
++  DiagnosticsHandler& operator=(const DiagnosticsHandler&) = delete;
++  ~DiagnosticsHandler() override = default;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override {
++    web_ui()->RegisterMessageCallback(
++        "corvidGetDiagnostics",
++        base::BindRepeating(&DiagnosticsHandler::HandleGet,
++                            base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "corvidClearDiagnostics",
++        base::BindRepeating(&DiagnosticsHandler::HandleClear,
++                            base::Unretained(this)));
++  }
++
++  void OnJavascriptAllowed() override {
++    observation_.Observe(&DiagnosticsLog::Get());
++    OnDiagnosticsChanged();
++  }
++
++  void OnJavascriptDisallowed() override { observation_.Reset(); }
++
++  // DiagnosticsLog::Observer:
++  void OnDiagnosticsChanged() override {
++    CallJavascriptFunction("corvidBrowser.dispatch",
++                           base::Value("diagnostics"),
++                           DiagnosticsLog::Get().ToValue());
++  }
++
++ private:
++  void HandleGet(const base::ListValue& args) {
++    if (IsJavascriptAllowed()) {
++      OnDiagnosticsChanged();
++    } else {
++      AllowJavascript();  // Sends the log from OnJavascriptAllowed().
++    }
++  }
++
++  void HandleClear(const base::ListValue& args) {
++    AllowJavascript();
++    DiagnosticsLog::Get().Clear();
++  }
++
++  base::ScopedObservation<DiagnosticsLog, DiagnosticsLog::Observer>
++      observation_{this};
++};
++
+ }  // namespace
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -198,6 +253,9 @@ CorvidUI::CorvidUI(content::WebUI* web_ui,
+       base::BindRepeating(&ServeInitScript, profile->GetWeakPtr()));
+ 
+   web_ui->AddMessageHandler(std::make_unique<CorvidPageHandler>(profile));
++  if (page == "diagnostics") {
++    web_ui->AddMessageHandler(std::make_unique<DiagnosticsHandler>());
++  }
+ }
+ 
+ CorvidUI::~CorvidUI() = default;
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/diagnostics_log.cc
+@@ -0,0 +1,194 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "chrome/browser/ui/webui/corvid/diagnostics_log.h"
++
++#include "base/i18n/time_formatting.h"
++#include "base/no_destructor.h"
++#include "base/process/kill.h"
++#include "base/strings/strcat.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/time/time.h"
++#include "content/public/browser/browser_context.h"
++#include "content/public/browser/browser_thread.h"
++#include "content/public/browser/child_process_data.h"
++#include "content/public/browser/child_process_termination_info.h"
++#include "content/public/browser/navigation_handle.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_contents_observer.h"
++#include "content/public/browser/web_contents_user_data.h"
++#include "content/public/common/process_type.h"
++#include "net/base/net_errors.h"
++#include "url/gurl.h"
++
++namespace corvid {
++
++namespace {
++
++std::string StatusText(base::TerminationStatus status) {
++  switch (status) {
++    case base::TERMINATION_STATUS_PROCESS_WAS_KILLED:
++      return "killed";
++    case base::TERMINATION_STATUS_OOM:
++      return "killed (out of memory)";
++    case base::TERMINATION_STATUS_LAUNCH_FAILED:
++      return "failed to start";
++    default:
++      return "crashed";
++  }
++}
++
++std::string StatusText(const content::ChildProcessTerminationInfo& info) {
++  return base::StrCat({StatusText(info.status), " (exit code ",
++                       base::NumberToString(info.exit_code), ")"});
++}
++
++// "GPU", "Utility (network.mojom.NetworkService)", ...
++std::string ProcessName(const content::ChildProcessData& data) {
++  std::string name = content::GetProcessTypeNameInEnglish(data.process_type);
++  if (!data.metrics_name.empty() && data.metrics_name != name) {
++    name = base::StrCat({name, " (", data.metrics_name, ")"});
++  }
++  return name;
++}
++
++bool IsFailure(base::TerminationStatus status) {
++  return status != base::TERMINATION_STATUS_NORMAL_TERMINATION &&
++         status != base::TERMINATION_STATUS_STILL_RUNNING;
++}
++
++// Watches one tab. Private windows: kind and code only, no host.
++class DiagnosticsTabHelper
++    : public content::WebContentsObserver,
++      public content::WebContentsUserData<DiagnosticsTabHelper> {
++ public:
++  ~DiagnosticsTabHelper() override = default;
++
++  // content::WebContentsObserver:
++  void DidFinishNavigation(content::NavigationHandle* handle) override {
++    const int error = handle->GetNetErrorCode();
++    if (!handle->IsInPrimaryMainFrame() || error == net::OK ||
++        error == net::ERR_ABORTED) {
++      return;
++    }
++    const std::string code = net::ErrorToShortString(error);
++    const bool tls =
++        net::IsCertificateError(error) || code.starts_with("ERR_SSL_");
++    DiagnosticsLog::Get().Add(tls ? "tls" : "network", code, "",
++                              Host(handle->GetURL()));
++  }
++
++  void PrimaryMainFrameRenderProcessGone(
++      base::TerminationStatus status) override {
++    if (!IsFailure(status)) {
++      return;
++    }
++    DiagnosticsLog::Get().Add("crash", StatusText(status), "Renderer",
++                              Host(web_contents()->GetLastCommittedURL()));
++  }
++
++  void OnRendererUnresponsive(content::RenderProcessHost* host) override {
++    DiagnosticsLog::Get().Add("hang", "page not responding", "Renderer",
++                              Host(web_contents()->GetLastCommittedURL()));
++  }
++
++ private:
++  friend class content::WebContentsUserData<DiagnosticsTabHelper>;
++  explicit DiagnosticsTabHelper(content::WebContents* web_contents)
++      : content::WebContentsObserver(web_contents),
++        content::WebContentsUserData<DiagnosticsTabHelper>(*web_contents) {}
++
++  std::string Host(const GURL& url) const {
++    // Web sites only, and nothing from private windows.
++    if (web_contents()->GetBrowserContext()->IsOffTheRecord() ||
++        !url.SchemeIsHTTPOrHTTPS()) {
++      return std::string();
++    }
++    return std::string(url.GetHost());
++  }
++
++  WEB_CONTENTS_USER_DATA_KEY_DECL();
++};
++
++WEB_CONTENTS_USER_DATA_KEY_IMPL(DiagnosticsTabHelper);
++
++}  // namespace
++
++// static
++DiagnosticsLog& DiagnosticsLog::Get() {
++  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++  static base::NoDestructor<DiagnosticsLog> log;
++  return *log;
++}
++
++// static
++void DiagnosticsLog::AttachTo(content::WebContents* web_contents) {
++  Get();  // Starts watching child processes with the first tab.
++  DiagnosticsTabHelper::CreateForWebContents(web_contents);
++}
++
++DiagnosticsLog::DiagnosticsLog() {
++  content::BrowserChildProcessObserver::Add(this);
++}
++
++DiagnosticsLog::~DiagnosticsLog() = default;
++
++void DiagnosticsLog::Add(std::string_view kind,
++                         std::string_view code,
++                         std::string_view process,
++                         std::string_view host) {
++  base::DictValue entry;
++  entry.Set("time", base::TimeFormatAsIso8601(base::Time::Now()));
++  entry.Set("kind", kind);
++  entry.Set("code", code);
++  if (!process.empty()) {
++    entry.Set("process", process);
++  }
++  if (!host.empty()) {
++    entry.Set("host", host);
++  }
++  if (entries_.size() == kCapacity) {
++    entries_.pop_front();
++  }
++  entries_.push_back(std::move(entry));
++  for (Observer& o : observers_) {
++    o.OnDiagnosticsChanged();
++  }
++}
++
++void DiagnosticsLog::Clear() {
++  entries_.clear();
++  for (Observer& o : observers_) {
++    o.OnDiagnosticsChanged();
++  }
++}
++
++base::ListValue DiagnosticsLog::ToValue() const {
++  base::ListValue list;
++  for (const base::DictValue& e : entries_) {
++    list.Append(e.Clone());
++  }
++  return list;
++}
++
++void DiagnosticsLog::AddObserver(Observer* observer) {
++  observers_.AddObserver(observer);
++}
++
++void DiagnosticsLog::RemoveObserver(Observer* observer) {
++  observers_.RemoveObserver(observer);
++}
++
++void DiagnosticsLog::BrowserChildProcessCrashed(
++    const content::ChildProcessData& data,
++    const content::ChildProcessTerminationInfo& info) {
++  Add("crash", StatusText(info), ProcessName(data), "");
++}
++
++void DiagnosticsLog::BrowserChildProcessKilled(
++    const content::ChildProcessData& data,
++    const content::ChildProcessTerminationInfo& info) {
++  Add("crash", StatusText(info), ProcessName(data), "");
++}
++
++}  // namespace corvid
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/diagnostics_log.h
+@@ -0,0 +1,72 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef CHROME_BROWSER_UI_WEBUI_CORVID_DIAGNOSTICS_LOG_H_
++#define CHROME_BROWSER_UI_WEBUI_CORVID_DIAGNOSTICS_LOG_H_
++
++#include <string>
++
++#include "base/containers/circular_deque.h"
++#include "base/no_destructor.h"
++#include "base/observer_list.h"
++#include "base/observer_list_types.h"
++#include "base/values.h"
++#include "content/public/browser/browser_child_process_observer.h"
++
++namespace content {
++class WebContents;
++}
++
++namespace corvid {
++
++// In-memory ring buffer of what went wrong since the browser started:
++// renderer hangs, crashes of renderers and other child processes, and main
++// frame network and secure-connection errors. Local only: never written to
++// disk, never sent anywhere. Shown on chrome://diagnostics. Only the host of
++// a site is kept, never the full address, and nothing from private windows.
++// UI thread only.
++class DiagnosticsLog : public content::BrowserChildProcessObserver {
++ public:
++  static constexpr size_t kCapacity = 200;
++
++  class Observer : public base::CheckedObserver {
++   public:
++    virtual void OnDiagnosticsChanged() = 0;
++  };
++
++  static DiagnosticsLog& Get();
++
++  // Records events of |web_contents| (call for every tab).
++  static void AttachTo(content::WebContents* web_contents);
++
++  // |kind|: "crash", "hang", "network" or "tls" (webui/src/shared/diagnostics.ts).
++  void Add(std::string_view kind,
++           std::string_view code,
++           std::string_view process,
++           std::string_view host);
++  void Clear();
++  base::ListValue ToValue() const;
++
++  void AddObserver(Observer* observer);
++  void RemoveObserver(Observer* observer);
++
++ private:
++  friend class base::NoDestructor<DiagnosticsLog>;
++  DiagnosticsLog();
++  ~DiagnosticsLog() override;
++
++  // content::BrowserChildProcessObserver:
++  void BrowserChildProcessCrashed(
++      const content::ChildProcessData& data,
++      const content::ChildProcessTerminationInfo& info) override;
++  void BrowserChildProcessKilled(
++      const content::ChildProcessData& data,
++      const content::ChildProcessTerminationInfo& info) override;
++
++  base::circular_deque<base::DictValue> entries_;
++  base::ObserverList<Observer> observers_;
++};
++
++}  // namespace corvid
++
++#endif  // CHROME_BROWSER_UI_WEBUI_CORVID_DIAGNOSTICS_LOG_H_
+--- a/components/corvid_webui/BUILD.gn
++++ b/components/corvid_webui/BUILD.gn
+@@ -18,6 +18,9 @@ corvid_webui_files = [
+   "settings/settings.css",
+   "settings/settings.js",
+   "error/error.html",
++  "diagnostics/index.html",
++  "diagnostics/diagnostics.css",
++  "diagnostics/diagnostics.js",
+ ]
+ 
+ generate_grd("build_grd") {

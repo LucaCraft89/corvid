@@ -57,7 +57,7 @@ async function launch(profile, extraArgs = []) {
     headless: !process.env.DISPLAY,
     args,
     viewport: { width: 1280, height: 860 },
-    ignoreDefaultArgs: ['--disable-extensions'],
+    ignoreDefaultArgs: ['--disable-extensions', '--disable-hang-monitor'],
   });
 }
 
@@ -67,7 +67,7 @@ async function launchWithEnv(profile, env) {
   if (process.getuid?.() === 0) args.push('--no-sandbox');
   return chromium.launchPersistentContext(profile, {
     executablePath: browserPath, headless: false, args, viewport: null,
-    ignoreDefaultArgs: ['--disable-extensions'], env: { ...process.env, ...env },
+    ignoreDefaultArgs: ['--disable-extensions', '--disable-hang-monitor'], env: { ...process.env, ...env },
   });
 }
 
@@ -337,6 +337,118 @@ CHECKS.accent = async () => {
   }
 };
 
+// ---------------------------------------------------------------- diagnostics
+CHECKS.diagnostics = async () => {
+  const w = 'diagnostics';
+  const srv = await startServers();
+  const profileDir = freshProfile();
+  const ctx = await launch(profileDir, ['--host-resolver-rules=MAP selfsigned.test 127.0.0.1']);
+  try {
+    const d = await open(ctx, 'chrome://diagnostics/', w);
+    ok(w, await d.$('#list') !== null, 'chrome://diagnostics is not the Corvid page');
+    await d.click('#clear');
+    await d.waitForTimeout(300);
+    const entries = () => d.$$eval('#list .diag-entry', (els) => els.map((e) => ({ kind: e.dataset.kind, text: e.textContent })));
+    ok(w, (await entries()).length === 0, 'clear did not empty the log');
+    const waitFor = async (pred, ms) => {
+      for (let t = 0; t < ms; t += 250) {
+        const list = await entries();
+        if (list.some(pred)) return true;
+        await d.waitForTimeout(250);
+      }
+      return false;
+    };
+
+    const tab = await open(ctx, 'http://does-not-exist.invalid/', w);
+    ok(w, await waitFor((e) => e.kind === 'network' && e.text.includes('does-not-exist.invalid') && e.text.includes('ERR_NAME_NOT_RESOLVED'), 3000), 'network error not logged (live)');
+    await tab.goto(`https://selfsigned.test:${srv.tlsPort}/`).catch(() => {});
+    ok(w, await waitFor((e) => e.kind === 'tls' && e.text.includes('selfsigned.test') && e.text.includes('ERR_CERT_'), 3000), 'certificate error not logged');
+
+    const crash = await ctx.newPage();
+    await crash.goto('chrome://crash').catch(() => {});
+    ok(w, await waitFor((e) => e.kind === 'crash' && e.text.includes('Renderer'), 5000), 'renderer crash not logged');
+
+    // A child process crash: the network service, crashed from outside.
+    const ps = execFileSync('ps', ['-eo', 'pid=,args=']).toString().split('\n');
+    const net = ps.find((l) => l.includes(profileDir) && l.includes('network.mojom.NetworkService'));
+    if (!net) fail(w, 'network service process not found');
+    else {
+      process.kill(Number(net.trim().split(' ')[0]), 'SIGSEGV');
+      ok(w, await waitFor((e) => e.kind === 'crash' && e.text.includes('Utility') && e.text.includes('NetworkService'), 8000), 'network service crash not logged');
+    }
+
+    await d.bringToFront();
+    await shot(d, 'diagnostics');
+    const list = await entries();
+    console.log(`  ${list.length} entries:\n${list.map((e) => `    ${e.kind}: ${e.text}`).join('\n')}`);
+    await ctx.close().catch(() => {});
+
+    // Private windows: logged without the site.
+    const browser = await chromium.launch({ executablePath: browserPath, headless: !process.env.DISPLAY,
+      args: ['--no-first-run', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])] });
+    const otr = await browser.newContext();
+    await open(otr, 'http://does-not-exist.invalid/', w);
+    const pd = await open(otr, 'chrome://diagnostics/', w);
+    const priv = await pd.$$eval('#list .diag-entry', (els) => els.map((e) => e.textContent));
+    ok(w, priv.length >= 1 && priv.every((t) => !t.includes('does-not-exist.invalid')), `private window entry shows the site: ${JSON.stringify(priv)}`);
+    await browser.close();
+  } finally {
+    await ctx.close().catch(() => {});
+    srv.close();
+  }
+};
+
+// ---------------------------------------------------------------- hang
+// Chromium ignores hangs of tabs a debugger is attached to, and Playwright
+// attaches to every tab. So: start the browser without automation, open a
+// page stuck in a script loop through the DevTools HTTP endpoint (which does
+// not attach), click into it with xdotool, and only connect afterwards.
+CHECKS.hang = async () => {
+  const w = 'hang';
+  let xvfb = null;
+  if (!process.env.DISPLAY) {
+    xvfb = sh('Xvfb', [':78', '-screen', '0', '1280x900x24']);
+    process.env.DISPLAY = ':78';
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  const port = 9339;
+  const args = [`--user-data-dir=${freshProfile()}`, '--no-first-run', '--no-default-browser-check', `--remote-debugging-port=${port}`, '--window-position=0,0', '--window-size=1200,850'];
+  if (process.getuid?.() === 0) args.push('--no-sandbox');
+  const proc = sh(browserPath, args);
+  try {
+    let up = false;
+    for (let i = 0; i < 40 && !up; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      up = await fetch(`http://127.0.0.1:${port}/json/version`).then((r) => r.ok, () => false);
+    }
+    ok(w, up, 'browser did not start');
+    await new Promise((r) => setTimeout(r, 5000));  // let the window appear and paint
+    const page = 'data:text/html,<title>busy</title><script>setTimeout(() => { for (;;) {} }, 300)</script>';
+    await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(page)}`, { method: 'PUT' });
+    await new Promise((r) => setTimeout(r, 3000));
+    execFileSync('xdotool', ['mousemove', '600', '500', 'click', '1'], { env: process.env });
+    execFileSync('xdotool', ['key', 'a'], { env: process.env });
+    execFileSync('import', ['-window', 'root', join(out, 'browser-hang-page.png')], { env: process.env });
+    // The hang monitor waits 30 s for the input to be handled.
+    await new Promise((r) => setTimeout(r, 36000));
+    // Read chrome://diagnostics over a DevTools socket to that tab only (any
+    // client that attaches to every tab would wait for the hung one).
+    const target = await fetch(`http://127.0.0.1:${port}/json/new?chrome://diagnostics/`, { method: 'PUT' }).then((r) => r.json());
+    await new Promise((r) => setTimeout(r, 1500));
+    const expr = `JSON.stringify([...document.querySelectorAll('#list .diag-entry')].map((e) => ({ kind: e.dataset.kind, text: e.textContent })))`;
+    const client = `const ws = new WebSocket(process.argv[1]);
+ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'Runtime.evaluate', params: { expression: process.argv[2], returnByValue: true } }));
+ws.onmessage = (m) => { const r = JSON.parse(m.data); if (r.id === 1) { console.log(r.result.result.value); process.exit(0); } };`;
+    const list = JSON.parse(execFileSync(process.execPath, ['--experimental-websocket', '--no-warnings', '-e', client, target.webSocketDebuggerUrl, expr], { timeout: 15000 }).toString());
+    console.log(`  entries: ${JSON.stringify(list.map((e) => e.text))}`);
+    ok(w, list.some((e) => e.kind === 'hang'), 'hang not logged');
+    execFileSync('import', ['-window', 'root', join(out, 'browser-diagnostics-hang.png')], { env: process.env });
+  } finally {
+    proc.kill();
+    xvfb?.kill();
+  }
+};
+
 // ---------------------------------------------------------------- private window
 CHECKS.private = async () => {
   const w = 'private';
@@ -370,7 +482,13 @@ for (const name of run) {
     fail(name, `threw: ${e.stack ?? e}`);
   }
 }
-for (const d of profiles) rmSync(d, { recursive: true, force: true });
+for (const d of profiles) {
+  try {
+    rmSync(d, { recursive: true, force: true });
+  } catch {
+    // A browser still shutting down may write into it; leave it.
+  }
+}
 console.log(`\n${passed} checks passed, ${failures.length} failed`);
 for (const f of failures) console.log(`FAIL ${f}`);
 process.exit(failures.length ? 1 : 0);

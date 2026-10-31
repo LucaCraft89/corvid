@@ -27,7 +27,7 @@ if (!browserPath) {
 
 const VIEWPORTS = { phone: { width: 360, height: 780 }, tablet: { width: 768, height: 1024 }, desktop: { width: 1440, height: 900 } };
 const samples = [...readFileSync(join(root, 'src/pages/error/samples.ts'), 'utf8').matchAll(/^  '?([\w-]+)'?: \{$/gm)].map((m) => m[1]);
-const PAGES = [['index', ''], ['newtab', 'newtab/'], ['settings', 'settings/'], ...samples.map((s) => [`error-${s}`, `error/?sample=${s}`])];
+const PAGES = [['index', ''], ['newtab', 'newtab/'], ['settings', 'settings/'], ['diagnostics', 'diagnostics/'], ['diagnostics-empty', 'diagnostics/?empty'], ...samples.map((s) => [`error-${s}`, `error/?sample=${s}`])];
 
 const server = await serveDist(0, '127.0.0.1');
 const base = `http://127.0.0.1:${server.address().port}/`;

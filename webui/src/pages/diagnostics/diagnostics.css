@@ -1,0 +1,26 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 Corvid contributors */
+
+.diag {
+  width: 100%; max-width: 860px; margin: 0 auto;
+  padding: 32px var(--corvid-page-pad) 48px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.diag-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.diag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.diag-entry {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: start;
+  padding: 12px 16px; border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-low);
+}
+.diag-badge {
+  grid-row: span 2; padding: 2px 10px; border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-large-size); line-height: var(--md-sys-typescale-label-large-line-height); font-weight: 500;
+  background: var(--md-sys-color-secondary-container); color: var(--md-sys-color-on-secondary-container);
+}
+.diag-entry[data-kind="crash"] .diag-badge, .diag-entry[data-kind="hang"] .diag-badge {
+  background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container);
+}
+.diag-summary { margin: 0; overflow-wrap: anywhere; }
+.diag-meta { margin: 0; color: var(--md-sys-color-on-surface-variant); font-family: var(--md-ref-typeface-mono); font-size: 13px; overflow-wrap: anywhere; }
+.diag-empty { margin: 0; }

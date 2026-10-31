@@ -3,6 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { diagnosticsText, entrySummary, sanitizeEntries } from '../src/shared/diagnostics.js';
 import { buildErrorView, certReason, detailsText, errorInfoFromQuery, hostOf, kindForCode } from '../src/shared/errors.js';
 import { SAMPLES } from '../src/pages/error/samples.js';
 
@@ -74,4 +75,19 @@ test('query parsing survives bad input', () => {
   assert.equal(b.retries, undefined);
   assert.equal(errorInfoFromQuery('?info=not-json').code, 'ERR_FAILED');
   assert.equal(hostOf('not a url'), 'not a url');
+});
+
+test('diagnostics entries are sanitized, sorted and described', () => {
+  const list = sanitizeEntries([
+    { time: '2026-10-30T10:00:00Z', kind: 'network', code: 'ERR_NAME_NOT_RESOLVED', host: 'example.org' },
+    { time: '2026-10-30T11:00:00Z', kind: 'crash', code: 'crashed', process: 'GPU' },
+    { time: '2026-10-30T12:00:00Z', kind: 'weird', code: 'x' },
+    null, 5, { kind: 'hang' },
+  ]);
+  assert.deepEqual(list.map((e) => e.kind), ['crash', 'network']);
+  assert.equal(entrySummary(list[0]!), 'The GPU process stopped unexpectedly.');
+  assert.equal(entrySummary(list[1]!), 'Could not load example.org.');
+  assert.equal(entrySummary({ time: 't', kind: 'tls', code: 'ERR_CERT_DATE_INVALID' }), 'A secure connection failed.');
+  assert.match(diagnosticsText(list), /ERR_NAME_NOT_RESOLVED {2}example\.org/);
+  assert.deepEqual(sanitizeEntries('junk'), []);
 });

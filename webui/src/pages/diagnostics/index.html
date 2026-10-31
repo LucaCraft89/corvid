@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title></title>
+  <link rel="stylesheet" href="../shared/tokens.css">
+  <link rel="stylesheet" href="../shared/theme-default.css">
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="diagnostics.css">
+  <script type="module" src="diagnostics.js"></script>
+</head>
+<body>
+  <main class="diag">
+    <h1 class="headline-small" data-i18n="diag.pageTitle"></h1>
+    <p class="body-medium muted" data-i18n="diag.intro"></p>
+    <div class="diag-actions">
+      <button type="button" class="button outlined" id="copy"><span data-icon="copy"></span><span data-i18n="diag.copy"></span></button>
+      <button type="button" class="button text" id="clear" data-i18n="diag.clear"></button>
+    </div>
+    <p class="body-medium muted" id="count" role="status"></p>
+    <ol class="diag-list" id="list"></ol>
+    <p class="card body-medium diag-empty" id="empty" data-i18n="diag.empty" hidden></p>
+  </main>
+</body>
+</html>
