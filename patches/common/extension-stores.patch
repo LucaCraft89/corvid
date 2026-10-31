@@ -1,0 +1,491 @@
+--- a/chrome/browser/download/BUILD.gn
++++ b/chrome/browser/download/BUILD.gn
+@@ -215,6 +215,7 @@ source_set("impl") {
+     "//chrome/browser/ui/select_file_policy",
+     "//chrome/common:non_code_constants",
+     "//components/background_fetch",
++    "//components/corvid_extensions",
+     "//components/download/content/factory",
+     "//components/enterprise/common/proto:connectors_proto_gen",
+     "//components/enterprise/connectors/core",
+--- a/chrome/browser/download/chrome_download_manager_delegate.cc
++++ b/chrome/browser/download/chrome_download_manager_delegate.cc
+@@ -63,6 +63,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "components/actor/core/actor_features.h"
+ #include "components/actor/public/mojom/actor_types.mojom.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/download/public/common/download_danger_type.h"
+ #include "components/download/public/common/download_features.h"
+ #include "components/download/public/common/download_interrupt_reasons.h"
+@@ -1165,6 +1166,12 @@ bool ChromeDownloadManagerDelegate::ShouldOpenDownload(
+       installer->set_off_store_install_allow_reason(
+           CrxInstaller::OffStoreInstallAllowedBecausePref);
+     }
++    // Corvid: a store download must contain the extension it asked for (some
++    // stores serve the file over plain HTTP).
++    if (std::optional<std::string> id = corvid::extensions::GetStoreDownloadId(
++            *profile_->GetPrefs(), item->GetOriginalUrl())) {
++      installer->set_expected_id(*id);
++    }
+ 
+     auto token = base::UnguessableToken::Create();
+     running_crx_installs_[token] = installer;
+--- a/chrome/browser/download/download_crx_util.cc
++++ b/chrome/browser/download/download_crx_util.cc
+@@ -15,6 +15,7 @@
+ #include "chrome/browser/extensions/extension_management.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/tab_list/tab_list_interface.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/download/public/common/download_item.h"
+ #include "content/public/browser/browser_thread.h"
+ #include "content/public/browser/download_item_utils.h"
+@@ -90,9 +91,14 @@ std::unique_ptr<ExtensionInstallPrompt> CreateExtensionInstallPrompt(
+ }  // namespace
+ 
+ bool OffStoreInstallAllowedByPrefs(Profile* profile, const DownloadItem& item) {
++  // Corvid: downloads that start at the update service of a store the user
++  // keeps on (chrome://preferences), and .crx files the user opens from disk.
+   return g_allow_offstore_install_for_testing ||
+          extensions::ExtensionManagementFactory::GetForBrowserContext(profile)
+-             ->IsOffstoreInstallAllowed(item.GetURL(), item.GetReferrerUrl());
++             ->IsOffstoreInstallAllowed(item.GetURL(), item.GetReferrerUrl()) ||
++         corvid::extensions::GetStoreDownloadId(*profile->GetPrefs(),
++                                                item.GetOriginalUrl()) ||
++         item.GetOriginalUrl().SchemeIsFile();
+ }
+ 
+ // Tests can call this method to inject a mock ExtensionInstallPrompt
+--- a/chrome/browser/download/insecure_download_blocking.cc
++++ b/chrome/browser/download/insecure_download_blocking.cc
+@@ -21,6 +21,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/content_settings/core/common/content_settings.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/download/public/common/download_stats.h"
+ #include "components/prefs/pref_service.h"
+ #include "content/public/browser/download_item_utils.h"
+@@ -423,6 +424,14 @@ InsecureDownloadStatus GetInsecureDownloadStatusForDownload(
+     return InsecureDownloadStatus::SAFE;
+   }
+ 
++  // Corvid: some extension stores serve their signed packages over plain
++  // HTTP. A store download must hold the extension it asked for (see
++  // ChromeDownloadManagerDelegate::ShouldOpenDownload), so it is not held.
++  if (corvid::extensions::GetStoreDownloadId(*profile->GetPrefs(),
++                                             item->GetOriginalUrl())) {
++    return InsecureDownloadStatus::SAFE;
++  }
++
+   // Print a console message for all varieties of insecure downloads.
+   PrintConsoleMessage(data);
+ 
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -45,6 +45,7 @@
+ #include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/crx_file/id_util.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/helium_services/helium_services_helpers.h"
+ #include "components/helium_services/pref_names.h"
+ #include "components/enterprise/browser/reporting/common_pref_names.h"
+@@ -339,9 +340,17 @@ GURL ExtensionManagement::GetEffectiveUpdateURL(const Extension& extension) {
+   const GURL& dummy_url = extension_urls::GetDefaultWebstoreUpdateUrl();
+ 
+   if (dummy_url.host() == original_url.host()) {
++    // Corvid: no update check at all while the Chrome Web Store is off.
++    if (!helium::ShouldAccessExtensionService(*profile_->GetPrefs())) {
++      return GURL();
++    }
+     return helium::GetExtensionUpdateURL(*profile_->GetPrefs());
+   }
+ 
++  if (!corvid::extensions::IsUpdateUrlAllowed(*profile_->GetPrefs(),
++                                              original_url)) {
++    return GURL();
++  }
+   return original_url;
+ }
+ 
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -676,7 +676,9 @@ source_set("corvid") {
+     "//net",
+     "//url",
+     "//chrome/browser/profiles:profile",
++    "//components/corvid_extensions",
+     "//components/corvid_webui:resources",
++    "//components/download/public/common:public",
+     "//components/pref_registry",
+     "//components/prefs",
+     "//skia",
+--- a/chrome/browser/ui/webui/corvid/corvid_ui.cc
++++ b/chrome/browser/ui/webui/corvid/corvid_ui.cc
+@@ -18,15 +18,19 @@
+ #include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/webui/corvid/diagnostics_log.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources_map.h"
++#include "components/download/public/common/download_url_parameters.h"
+ #include "components/pref_registry/pref_registry_syncable.h"
+ #include "components/prefs/pref_change_registrar.h"
+ #include "components/prefs/pref_service.h"
++#include "content/public/browser/download_manager.h"
+ #include "content/public/browser/web_ui.h"
+ #include "content/public/browser/web_ui_data_source.h"
+ #include "content/public/browser/web_ui_message_handler.h"
+ #include "content/public/common/url_constants.h"
++#include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "third_party/skia/include/core/SkColor.h"
+ #include "ui/native_theme/native_theme.h"
+ #include "ui/native_theme/native_theme_observer.h"
+@@ -204,6 +208,61 @@ class DiagnosticsHandler : public content::WebUIMessageHandler,
+       observation_{this};
+ };
+ 
++
++// chrome://preferences: downloads an extension from a store the user keeps
++// on. A download, not a navigation, so the plain-HTTP files some stores serve
++// do not stop at the HTTPS-First page; the normal install prompt follows.
++class StoreInstallHandler : public content::WebUIMessageHandler {
++ public:
++  explicit StoreInstallHandler(Profile* profile) : profile_(profile) {}
++  StoreInstallHandler(const StoreInstallHandler&) = delete;
++  StoreInstallHandler& operator=(const StoreInstallHandler&) = delete;
++  ~StoreInstallHandler() override = default;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override {
++    web_ui()->RegisterMessageCallback(
++        "corvidInstallFromStore",
++        base::BindRepeating(&StoreInstallHandler::HandleInstall,
++                            base::Unretained(this)));
++  }
++
++ private:
++  void HandleInstall(const base::ListValue& args) {
++    if (profile_->IsOffTheRecord() || args.size() != 1 ||
++        !args[0].is_string()) {
++      return;
++    }
++    const GURL url(args[0].GetString());
++    if (!extensions::GetStoreDownloadId(*profile_->GetPrefs(), url)) {
++      return;
++    }
++    net::NetworkTrafficAnnotationTag annotation =
++        net::DefineNetworkTrafficAnnotation("corvid_store_install", R"(
++          semantics {
++            sender: "Corvid preferences page"
++            description:
++              "Downloads an extension package from an extension store's "
++              "update service."
++            trigger:
++              "The user pastes a store link or an extension ID and clicks "
++              "Add extension."
++            data: "The extension ID and the browser's major version."
++            destination: OTHER
++          }
++          policy {
++            cookies_allowed: NO
++            setting: "Stores can be turned off in the preferences page."
++            policy_exception_justification: "Not implemented."
++          })");
++    // Started by the browser, not by the page (WebUI pages may not fetch
++    // from the web themselves).
++    profile_->GetDownloadManager()->DownloadUrl(
++        std::make_unique<download::DownloadUrlParameters>(url, annotation));
++  }
++
++  const raw_ptr<Profile> profile_;
++};
+ }  // namespace
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+@@ -256,6 +315,9 @@ CorvidUI::CorvidUI(content::WebUI* web_ui,
+   if (page == "diagnostics") {
+     web_ui->AddMessageHandler(std::make_unique<DiagnosticsHandler>());
+   }
++  if (page == "settings") {
++    web_ui->AddMessageHandler(std::make_unique<StoreInstallHandler>(profile));
++  }
+ }
+ 
+ CorvidUI::~CorvidUI() = default;
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_extensions/BUILD.gn
+@@ -0,0 +1,18 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++# Copyright (C) 2026 Corvid contributors
++
++# Extension sources the user picked in corvid://preferences (stores, uBlock
++# Origin updates). Read by the extension installer and updater.
++component("corvid_extensions") {
++  sources = [
++    "sources.cc",
++    "sources.h",
++  ]
++  public_deps = [
++    "//base",
++    "//components/prefs",
++    "//url",
++  ]
++  deps = [ "//net" ]
++  defines = [ "IS_CORVID_EXTENSIONS_IMPL" ]
++}
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_extensions/sources.cc
+@@ -0,0 +1,115 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_extensions/sources.h"
++
++#include <string_view>
++
++#include "base/strings/string_split.h"
++#include "base/values.h"
++#include "components/prefs/pref_service.h"
++#include "net/base/url_util.h"
++
++namespace corvid::extensions {
++
++namespace {
++
++constexpr size_t kMaxCustomStores = 20;
++
++const base::DictValue* Settings(const PrefService& prefs) {
++  if (!prefs.FindPreference(kWebUIPrefs)) {
++    return nullptr;
++  }
++  return prefs.GetDict(kWebUIPrefs).FindDict("extensions");
++}
++
++bool GetBool(const base::DictValue* settings, std::string_view key) {
++  return !settings || settings->FindBool(key).value_or(true);
++}
++
++// Same service: scheme, host, port and path (the query differs per request).
++bool SameService(const GURL& a, const GURL& b) {
++  return a.is_valid() && b.is_valid() && a.scheme() == b.scheme() &&
++         a.host() == b.host() && a.EffectiveIntPort() == b.EffectiveIntPort() &&
++         a.path() == b.path();
++}
++
++const Store* FindStore(const std::vector<Store>& stores, const GURL& url) {
++  for (const Store& store : stores) {
++    if (SameService(store.update_url, url)) {
++      return &store;
++    }
++  }
++  return nullptr;
++}
++
++}  // namespace
++
++std::vector<Store> GetStores(const PrefService& prefs) {
++  const base::DictValue* settings = Settings(prefs);
++  std::vector<Store> stores = {
++      {"Chrome Web Store", GURL(kChromeWebStoreUpdateUrl),
++       GetBool(settings, "chromeWebStore")},
++      {"Microsoft Edge Add-ons", GURL(kEdgeAddonsUpdateUrl),
++       GetBool(settings, "edgeAddons")},
++  };
++  const base::ListValue* custom =
++      settings ? settings->FindList("customStores") : nullptr;
++  if (!custom) {
++    return stores;
++  }
++  for (const base::Value& entry : *custom) {
++    if (stores.size() >= 2 + kMaxCustomStores || !entry.is_dict()) {
++      continue;
++    }
++    const std::string* name = entry.GetDict().FindString("name");
++    const std::string* url = entry.GetDict().FindString("updateUrl");
++    GURL update_url(url ? *url : std::string());
++    if (!name || !update_url.is_valid() ||
++        !update_url.SchemeIs(url::kHttpsScheme)) {
++      continue;
++    }
++    stores.push_back({*name, update_url, true});
++  }
++  return stores;
++}
++
++bool IsChromeWebStoreEnabled(const PrefService& prefs) {
++  return GetBool(Settings(prefs), "chromeWebStore");
++}
++
++bool IsUpdateUrlAllowed(const PrefService& prefs, const GURL& update_url) {
++  std::vector<Store> stores = GetStores(prefs);
++  const Store* store = FindStore(stores, update_url);
++  return !store || store->enabled;
++}
++
++std::optional<std::string> GetStoreDownloadId(const PrefService& prefs,
++                                              const GURL& url) {
++  std::vector<Store> stores = GetStores(prefs);
++  const Store* store = FindStore(stores, url);
++  if (!store || !store->enabled) {
++    return std::nullopt;
++  }
++  // x=id%3D<id>%26installsource%3Dondemand%26uc (GetValueForKeyInQuery
++  // unescapes it once).
++  std::string x;
++  if (!net::GetValueForKeyInQuery(url, "x", &x)) {
++    return std::nullopt;
++  }
++  for (const auto& part : base::SplitStringPiece(
++           x, "&", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
++    if (part.size() == 35 && part.starts_with("id=")) {
++      std::string id(part.substr(3));
++      for (char c : id) {
++        if (c < 'a' || c > 'p') {
++          return std::nullopt;
++        }
++      }
++      return id;
++    }
++  }
++  return std::nullopt;
++}
++
++}  // namespace corvid::extensions
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_extensions/sources.h
+@@ -0,0 +1,58 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_EXTENSIONS_SOURCES_H_
++#define COMPONENTS_CORVID_EXTENSIONS_SOURCES_H_
++
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/component_export.h"
++#include "url/gurl.h"
++
++class PrefService;
++
++// Where extensions may come from. The settings live in the "extensions" part
++// of the profile pref the Corvid pages write (chrome://preferences):
++//   { "chromeWebStore": bool, "edgeAddons": bool,
++//     "customStores": [ { "name": str, "updateUrl": "https://..." } ],
++//     "ublockUpdates": bool }
++namespace corvid::extensions {
++
++// Same pref as corvid::kWebUIPrefs (chrome/browser/ui/webui/corvid).
++inline constexpr char kWebUIPrefs[] = "corvid.webui_prefs";
++
++inline constexpr char kChromeWebStoreUpdateUrl[] =
++    "https://clients2.google.com/service/update2/crx";
++inline constexpr char kEdgeAddonsUpdateUrl[] =
++    "https://edge.microsoft.com/extensionwebstorebase/v1/crx";
++
++struct Store {
++  std::string name;
++  GURL update_url;
++  bool enabled = true;
++};
++
++// Chrome Web Store, Edge Add-ons, then the user's own stores.
++COMPONENT_EXPORT(CORVID_EXTENSIONS)
++std::vector<Store> GetStores(const PrefService& prefs);
++
++COMPONENT_EXPORT(CORVID_EXTENSIONS)
++bool IsChromeWebStoreEnabled(const PrefService& prefs);
++
++// False when `update_url` is the update service of a store the user turned
++// off. Unknown update URLs (self-hosted extensions) are allowed.
++COMPONENT_EXPORT(CORVID_EXTENSIONS)
++bool IsUpdateUrlAllowed(const PrefService& prefs, const GURL& update_url);
++
++// For a download from the update service of an enabled store
++// (".../crx?response=redirect&x=id%3D<id>%26..."): the extension id it asks
++// for. Nothing for any other URL.
++COMPONENT_EXPORT(CORVID_EXTENSIONS)
++std::optional<std::string> GetStoreDownloadId(const PrefService& prefs,
++                                              const GURL& url);
++
++}  // namespace corvid::extensions
++
++#endif  // COMPONENTS_CORVID_EXTENSIONS_SOURCES_H_
+--- a/components/helium_services/BUILD.gn
++++ b/components/helium_services/BUILD.gn
+@@ -13,6 +13,7 @@ component("helium_services") {
+ 
+   public_deps = [
+     "//base",
++    "//components/corvid_extensions",
+     "//components/prefs",
+     "//url",
+     "//net",
+--- a/components/helium_services/helium_services_helpers.cc
++++ b/components/helium_services/helium_services_helpers.cc
+@@ -9,6 +9,7 @@
+ #include "base/command_line.h"
+ #include "base/functional/bind.h"
+ #include "base/strings/stringprintf.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/helium_services/pref_names.h"
+ #include "components/helium_services/schema.h"
+ #include "components/prefs/pref_service.h"
+@@ -82,9 +83,10 @@ bool ShouldAccessServices(const PrefService& prefs) {
+            prefs.GetBoolean(prefs::kHeliumServicesConsented);
+ }
+ 
++// Corvid: Chrome Web Store downloads and updates go straight to the store
++// when the user keeps it on (chrome://preferences), not through Helium's proxy.
+ bool ShouldAccessExtensionService(const PrefService& prefs) {
+-    return ShouldAccessServices(prefs) &&
+-            prefs.GetBoolean(prefs::kHeliumExtProxyEnabled);
++    return corvid::extensions::IsChromeWebStoreEnabled(prefs);
+ }
+ 
+ bool ShouldAccessDictionaryService(const PrefService& prefs) {
+@@ -118,7 +120,7 @@ GURL GetExtensionUpdateURL(const PrefService& prefs) {
+         return GetDummyURL();
+     }
+ 
+-    return GetServicesBaseURL(prefs).Resolve("/ext");
++    return GURL(corvid::extensions::kChromeWebStoreUpdateUrl);
+ }
+ 
+ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
+@@ -126,8 +128,9 @@ GURL GetWebstoreSnippetURL(const PrefService& prefs, std::string_view id) {
+         return GetDummyURL();
+     }
+ 
+-    return GetServicesBaseURL(prefs).Resolve(
+-        base::StringPrintf("/ext/cws_snippet?id=%s", id));
++    return GURL(base::StringPrintf(
++        "https://chromewebstore.googleapis.com/v2/items/%s:fetchItemSnippet",
++        id));
+ }
+ 
+ GURL GetSpellcheckURL(const PrefService& prefs) {
+--- a/components/update_client/update_query_params.cc
++++ b/components/update_client/update_query_params.cc
+@@ -87,7 +87,12 @@ UpdateQueryParamsDelegate* g_delegate = nullptr;
+ // static
+ std::string UpdateQueryParams::Get(ProdId prod) {
+   if (prod == CRX_DUMMY) {
+-    return "os=win&arch=x64&prod=chromecrx&acceptformat=crx3,puff";
++    // Corvid: stores answer nothing without prodversion (no install, no
++    // update); send the major version only.
++    return absl::StrFormat(
++        "os=win&arch=x64&prod=chromecrx&prodversion=%s.0.0.0"
++        "&acceptformat=crx3,puff",
++        version_info::GetMajorVersionNumber());
+   }
+ 
+   return absl::StrFormat("os=%s&arch=%s&prod=%s%s&acceptformat=crx3,puff", kOs,

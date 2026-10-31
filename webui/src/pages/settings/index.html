@@ -21,6 +21,7 @@
     <nav class="settings-nav" data-i18n-aria-label="settings.navLabel">
       <a href="#search"><span data-icon="search"></span><span data-i18n="settings.search.title"></span></a>
       <a href="#appearance"><span data-icon="tune"></span><span data-i18n="settings.appearance.title"></span></a>
+      <a href="#extensions"><span data-icon="extension"></span><span data-i18n="settings.extensions.title"></span></a>
     </nav>
     <main class="settings-main">
       <section id="search" class="settings-section" aria-labelledby="search-title">
@@ -71,6 +72,47 @@
         </div>
       </section>
 
+      <section id="extensions" class="settings-section" aria-labelledby="extensions-title">
+        <h2 id="extensions-title" class="title-large" data-i18n="settings.extensions.title"></h2>
+        <div class="card">
+          <fieldset class="setting">
+            <legend class="title-medium" data-i18n="settings.extensions.stores"></legend>
+            <p class="body-medium muted" data-i18n="settings.extensions.storesHelp"></p>
+            <div id="stores" class="engine-list"></div>
+          </fieldset>
+          <button type="button" class="button tonal" id="add-store"><span data-icon="add"></span><span data-i18n="settings.extensions.addStore"></span></button>
+        </div>
+        <div class="card">
+          <form class="setting" id="install-form" novalidate>
+            <h3 class="title-medium" data-i18n="settings.extensions.install"></h3>
+            <p class="body-medium muted" data-i18n="settings.extensions.installHelp"></p>
+            <div class="field">
+              <label for="install-link" data-i18n="settings.extensions.installLink"></label>
+              <input id="install-link" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="install-link-error">
+              <span class="error-text" id="install-link-error" aria-live="polite"></span>
+            </div>
+            <div class="field">
+              <label for="install-store" data-i18n="settings.extensions.installStore"></label>
+              <select id="install-store"></select>
+            </div>
+            <div><button type="submit" class="button" data-i18n="settings.extensions.installButton"></button></div>
+          </form>
+          <div class="setting">
+            <p class="body-medium muted" data-i18n="settings.extensions.files"></p>
+            <div><a class="button outlined" id="open-extensions" href="chrome://extensions" data-i18n="settings.extensions.openExtensions"></a></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="setting switch-row">
+            <label for="ublock-updates">
+              <span class="title-medium" data-i18n="settings.extensions.ublockUpdates"></span>
+              <span class="body-medium muted" data-i18n="settings.extensions.ublockUpdatesHelp"></span>
+            </label>
+            <input type="checkbox" role="switch" id="ublock-updates">
+          </div>
+        </div>
+      </section>
+
       <div class="settings-footer">
         <button type="button" class="button outlined" id="reset" data-i18n="settings.reset"></button>
       </div>
@@ -93,6 +135,27 @@
       </div>
       <div class="dialog-actions">
         <button type="button" class="button text" id="en-cancel" data-i18n="common.cancel"></button>
+        <button type="submit" class="button" data-i18n="common.save"></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="store-dialog" aria-labelledby="store-dialog-title">
+    <form method="dialog" id="store-form" novalidate>
+      <h2 id="store-dialog-title" data-i18n="settings.extensions.addStore"></h2>
+      <div class="field">
+        <label for="st-name" data-i18n="settings.extensions.storeName"></label>
+        <input id="st-name" type="text" autocomplete="off" maxlength="60" aria-describedby="st-name-error">
+        <span class="error-text" id="st-name-error" aria-live="polite"></span>
+      </div>
+      <div class="field">
+        <label for="st-url" data-i18n="settings.extensions.storeUrl"></label>
+        <input id="st-url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="st-url-help st-url-error">
+        <span class="help" id="st-url-help" data-i18n="settings.extensions.storeUrlHelp"></span>
+        <span class="error-text" id="st-url-error" aria-live="polite"></span>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="button text" id="st-cancel" data-i18n="common.cancel"></button>
         <button type="submit" class="button" data-i18n="common.save"></button>
       </div>
     </form>

@@ -12,6 +12,7 @@ import {
 import { isHexColor } from '../color/contrast.js';
 import { DENSITIES, type Density } from '../tokens/tokens.js';
 import { browserInit, inBrowser, onBrowser, send } from './bridge.js';
+import { DEFAULT_EXTENSIONS, sanitizeExtensions, type ExtensionSettings } from './extensions.js';
 import { BUILTIN_ENGINES, DEFAULT_ENGINE_ID, isValidEngineUrl, normaliseShortcutUrl, type SearchEngine } from './search.js';
 
 export interface Shortcut {
@@ -33,6 +34,8 @@ export interface Prefs {
   style: PaletteStyle;
   density: Density;
   shortcuts: Shortcut[];
+  /** Extension sources and uBlock Origin updates; read by the browser too. */
+  extensions: ExtensionSettings;
 }
 
 export const DEFAULT_PREFS: Readonly<Prefs> = Object.freeze({
@@ -45,6 +48,7 @@ export const DEFAULT_PREFS: Readonly<Prefs> = Object.freeze({
   style: 'tonal',
   density: 'comfortable',
   shortcuts: [],
+  extensions: DEFAULT_EXTENSIONS,
 });
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
@@ -75,6 +79,7 @@ export function sanitize(raw: unknown): Prefs {
     style: oneOf(r['style'], PALETTE_STYLES, DEFAULT_PREFS.style),
     density: oneOf(r['density'], DENSITIES, DEFAULT_PREFS.density),
     shortcuts,
+    extensions: sanitizeExtensions(r['extensions']),
   };
 }
 
@@ -132,7 +137,7 @@ export function createLocalStore(storage: KeyValueStorage, win?: Pick<Window, 'a
       return current;
     },
     reset() {
-      current = sanitize({ shortcuts: current.shortcuts, customEngines: current.customEngines });
+      current = sanitize({ shortcuts: current.shortcuts, customEngines: current.customEngines, extensions: current.extensions });
       try {
         storage.setItem(STORAGE_KEY, JSON.stringify(current));
       } catch {
@@ -179,7 +184,7 @@ export function createBrowserStore(
   return {
     get: () => current,
     set: (patch) => commit(sanitize({ ...current, ...patch })),
-    reset: () => commit(sanitize({ shortcuts: current.shortcuts, customEngines: current.customEngines })),
+    reset: () => commit(sanitize({ shortcuts: current.shortcuts, customEngines: current.customEngines, extensions: current.extensions })),
     subscribe(fn) {
       listeners.add(fn);
       return () => listeners.delete(fn);

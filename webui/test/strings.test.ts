@@ -55,7 +55,8 @@ test('dynamic families are complete', () => {
 });
 
 test('the product name is never written into strings', () => {
-  for (const [k, v] of Object.entries(en)) assert.doesNotMatch(v, /corvid|helium|chrom(e|ium)/i, k);
+  // "Chrome Web Store" is the name of a store, not of a browser.
+  for (const [k, v] of Object.entries(en)) assert.doesNotMatch(v.replaceAll('Chrome Web Store', ''), /corvid|helium|chrom(e|ium)/i, k);
   assert.equal(t('error.dns.summary', { host: 'a.example' }).startsWith(PRODUCT_NAME + ' '), true);
 });
 

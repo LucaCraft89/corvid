@@ -32,6 +32,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const ICONS: Record<string, string[]> = {
   search: ['M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13z', 'M15.5 15.5L20 20'],
   add: ['M12 5v14', 'M5 12h14'],
+  extension: ['M5 8h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H5z'],
   more: ['M12 5.5h.01', 'M12 12h.01', 'M12 18.5h.01'],
   tune: ['M4 7h10', 'M18 7h2', 'M16 5v4', 'M4 17h2', 'M10 17h10', 'M8 15v4'],
   back: ['M19 12H5', 'M11 6l-6 6l6 6'],

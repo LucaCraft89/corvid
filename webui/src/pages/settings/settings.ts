@@ -6,9 +6,11 @@ import { contrastRatio } from '../../color/contrast.js';
 import { t } from '../../strings/i18n.js';
 import type { StringKey } from '../../strings/en.js';
 import { $, h, icon, snackbar } from '../../shared/dom.js';
+import { inBrowser, send } from '../../shared/bridge.js';
 import { startPage } from '../../shared/page.js';
 import { allEngines, type Prefs, type PrefsStore } from '../../shared/prefs.js';
 import { isValidEngineUrl } from '../../shared/search.js';
+import { browserVersion, isValidStoreUrl, parseStoreLink, storeChoices, storeDownloadUrl, type ExtensionSettings } from '../../shared/extensions.js';
 import { effectiveSeed, themeCss, themeIssueCount } from '../../shared/theme.js';
 import { DENSITIES } from '../../tokens/tokens.js';
 
@@ -48,6 +50,7 @@ function render(p: Prefs): void {
   segmented('density', DENSITIES, (v) => `settings.density.${v}` as StringKey, p.density, (v) => save({ density: v }));
   renderSwatches(p);
   renderPreview(p);
+  renderExtensions(p);
 }
 
 let savedTimer: ReturnType<typeof setTimeout> | undefined;
@@ -173,6 +176,98 @@ $<HTMLFormElement>('#engine-form').addEventListener('submit', (e) => {
   }
   const id = `custom-${Date.now().toString(36)}`;
   save({ customEngines: [...current.customEngines, { id, name, url, custom: true }], searchEngine: id });
+});
+
+// Extensions: stores, adding from a store, uBlock Origin updates.
+function saveExtensions(patch: Partial<ExtensionSettings>): void {
+  save({ extensions: { ...current.extensions, ...patch } });
+}
+
+function stores(p: Prefs) {
+  return storeChoices(p.extensions, { chrome: t('settings.extensions.chromeWebStore'), edge: t('settings.extensions.edgeAddons') });
+}
+
+function renderExtensions(p: Prefs): void {
+  const list = $('#stores');
+  list.replaceChildren(
+    ...stores(p).map((s, i) => {
+      const id = `store-${s.key}`;
+      const builtin = s.key === 'chrome' || s.key === 'edge';
+      const input = h('input', { type: 'checkbox', id, checked: s.enabled, disabled: !builtin });
+      input.addEventListener('change', () => saveExtensions(s.key === 'chrome' ? { chromeWebStore: input.checked } : { edgeAddons: input.checked }));
+      const row = h('div', { class: 'engine' },
+        input,
+        h('label', { for: id }, h('span', {}, s.name), h('span', { class: 'host' }, new URL(s.updateUrl).hostname)));
+      if (!builtin) {
+        const rm = h('button', { type: 'button', class: 'icon-button', 'aria-label': t('settings.extensions.removeStore', { name: s.name }) }, icon('close'));
+        rm.addEventListener('click', () => saveExtensions({ customStores: current.extensions.customStores.filter((_, j) => j !== i - 2) }));
+        row.append(rm);
+      }
+      return row;
+    }),
+  );
+  const select = $<HTMLSelectElement>('#install-store');
+  const chosen = select.value;
+  select.replaceChildren(...stores(p).map((s) => h('option', { value: s.key }, s.enabled ? s.name : `${s.name} (${t('settings.extensions.storeOff')})`)));
+  if ([...select.options].some((o) => o.value === chosen)) select.value = chosen;
+  $<HTMLInputElement>('#ublock-updates').checked = p.extensions.ublockUpdates;
+}
+
+$<HTMLInputElement>('#ublock-updates').addEventListener('change', (e) => saveExtensions({ ublockUpdates: (e.target as HTMLInputElement).checked }));
+
+const installLink = $<HTMLInputElement>('#install-link');
+installLink.addEventListener('input', () => {
+  const parsed = parseStoreLink(installLink.value);
+  if (parsed?.store) $<HTMLSelectElement>('#install-store').value = parsed.store;
+});
+$<HTMLFormElement>('#install-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const parsed = parseStoreLink(installLink.value);
+  const store = stores(current).find((s) => s.key === $<HTMLSelectElement>('#install-store').value);
+  let error = '';
+  if (!parsed) error = t('settings.extensions.installInvalid');
+  else if (!store?.enabled) error = t('settings.extensions.installStoreOff', { store: store?.name ?? '' });
+  installLink.setAttribute('aria-invalid', String(error !== ''));
+  $('#install-link-error').textContent = error;
+  if (error || !parsed || !store) {
+    installLink.focus();
+    return;
+  }
+  snackbar(t('settings.extensions.installStarted', { store: store.name }));
+  // The browser downloads it and shows the normal install prompt; the page stays.
+  const url = storeDownloadUrl(store.updateUrl, parsed.id, browserVersion(navigator.userAgent));
+  if (inBrowser()) send('corvidInstallFromStore', url);
+  else location.href = url;
+});
+
+const storeDialog = $<HTMLDialogElement>('#store-dialog');
+const stName = $<HTMLInputElement>('#st-name');
+const stUrl = $<HTMLInputElement>('#st-url');
+$('#add-store').addEventListener('click', () => {
+  stName.value = '';
+  stUrl.value = '';
+  for (const el of [stName, stUrl]) el.removeAttribute('aria-invalid');
+  $('#st-name-error').textContent = '';
+  $('#st-url-error').textContent = '';
+  storeDialog.showModal();
+  stName.focus();
+});
+$('#st-cancel').addEventListener('click', () => storeDialog.close());
+$<HTMLFormElement>('#store-form').addEventListener('submit', (e) => {
+  const name = stName.value.trim();
+  const url = stUrl.value.trim();
+  const nameOk = name !== '';
+  const urlOk = isValidStoreUrl(url);
+  stName.setAttribute('aria-invalid', String(!nameOk));
+  stUrl.setAttribute('aria-invalid', String(!urlOk));
+  $('#st-name-error').textContent = nameOk ? '' : t('settings.extensions.storeNameInvalid');
+  $('#st-url-error').textContent = urlOk ? '' : t('settings.extensions.storeUrlInvalid');
+  if (!nameOk || !urlOk) {
+    e.preventDefault();
+    (nameOk ? stUrl : stName).focus();
+    return;
+  }
+  saveExtensions({ customStores: [...current.extensions.customStores, { name, updateUrl: url }] });
 });
 
 // Reset

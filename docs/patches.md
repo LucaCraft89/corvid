@@ -55,4 +55,5 @@ git add patches && git commit
 | `common/webui-settings.patch` | `chrome://preferences`, plus a link row at the top of Settings > Appearance | 6 |
 | `common/webui-error-pages.patch` | Net error page (renderer) and certificate interstitial (browser) render webui's error page (`components/corvid_webui/error_page.cc`) | 6 |
 | `common/diagnostics.patch` | In-memory diagnostics ring buffer, attached to every tab; `chrome://diagnostics` | 8 |
+| `common/extension-stores.patch` | Extension sources from `chrome://preferences`: Chrome Web Store direct (no Helium proxy, `prodversion` sent so installs and updates work), Edge Add-ons, user-added stores; store downloads trusted and pinned to the requested id (HTTP allowed for them); `.crx` files opened from disk; updates skipped for stores turned off. Logic in `components/corvid_extensions/` | 13 |
 | `linux/gtk-accent.patch` | Browser follows the desktop accent on Linux; GTK selection colour when the portal has none | 2 |
