@@ -21,21 +21,21 @@ Done when: the rebuilt browser says Corvid and `build/privacy-gate.sh` passes or
 PHASE 2. Starting from the phase 1 build: (1) make a patch workflow where patches in patches/common and patches/linux apply on top of Helium's series, plus build/refresh-patches.sh that regenerates them from a working tree; (2) rebrand to "Corvid" with the name in one config (placeholder icons ok); (3) write build/privacy-gate.sh: fresh profile, idle 15 min, capture all outbound connections, compare with docs/network-allowlist.md (starts empty). Fix leaks with small patches. Show me the capture summary.
 ```
 
-## Phase 3: shared WebUI pages (independent of Chromium)
+## Phase 3: shared WebUI pages (independent of Chromium) (DONE 2026-10-30, see STATUS.md and webui/README.md)
 Plain TypeScript and CSS: tokens, colour engine, string catalog, new tab, settings, error/offline/SSL pages, responsive from phone to desktop.
 Done when: tests green, pages render at phone and desktop widths.
 ```text
 PHASE 3 (webui/ only, independent of Chromium; do not touch patches/ or build/). Build the Corvid internal pages as plain TypeScript and CSS that can later run inside a Chromium WebUI page: Material You 3 Expressive tokens, a colour engine (seed to palette, light/dark, contrast levels, WCAG AA check), one string catalog, and pages: new tab, settings (search engine, theme, density), error/offline/SSL with plain-language summary and technical detail below. Responsive from phone to desktop. Tests and a dev server included.
 ```
 
-## Phase 4: sync, starting from what Helium already has (independent of the compile)
+## Phase 4: sync, starting from what Helium already has (independent of the compile) (DONE 2026-10-30, see STATUS.md, docs/decisions/002-sync.md and sync/README.md)
 Helium's series has a sync vault engine (`patches/helium/core/sync/`). First learn exactly what exists and what server it speaks to, then decide: reuse its vault format with our own self-hosted server, or write our own protocol.
 Done when: `sync/protocol/SPEC.md` exists, a server binary runs, and two simulated devices converge after offline edits; tampered data and wrong keys are rejected.
 ```text
 PHASE 4 (sync/ only). Section 4.6 of docs/PROJECT.md is the goal. Step 1: read Helium's sync patches (clone imputnet/helium-chromium, patches/helium/core/sync/ and settings/sync-setup-contract.patch) and imputnet/helium-services; write docs/decisions/002-sync.md (<=20 lines): what the vault format, encryption and transport are, what server it expects, whether it works end to end, and a recommendation (reuse the format and write a compatible self-hosted server, or own protocol). Step 2: write sync/protocol/SPEC.md (<=3 pages) and implement sync/server in Go with SQLite as one static binary, token registration, Dockerfile, plus a reference client library with test vectors. Tests: two devices converge after offline edits; tampered data and wrong keys are rejected and reported; a revoked device loses access.
 ```
 
-## Phase 5: integrate WebUI and diagnostics into Chromium (Linux)
+## Phase 5: integrate WebUI and diagnostics into Chromium (Linux) (DONE 2026-10-31, see STATUS.md)
 Needs phases 2 and 3. Register Corvid WebUI pages, replace the stock new tab and error pages, theme following the GTK accent, local-only diagnostics ring buffer.
 Done when: no stock page is reachable in normal use and the privacy gate still passes.
 ```text

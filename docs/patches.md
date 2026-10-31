@@ -9,6 +9,9 @@ Corvid is Helium plus a short series of our own. Order (`build/patch.sh`):
    placeholder icons). No patch hardcodes the product name.
 4. `corvid-patches`: `patches/common/series`, then `patches/linux/series`
    (`build/apply-patches.sh`, strict: no fuzz).
+5. `webui`: `build/webui-sync.sh` builds `webui/` and copies it to
+   `components/corvid_webui/dist/` (not a patch; `build/build.sh` refreshes it
+   before every build).
 
 Our patches apply to the finished, branded tree. So a patch that touches a line
 with the product name in it breaks if the name changes; keep such lines out.
@@ -43,3 +46,13 @@ git add patches && git commit
 - Linux-only code goes to `patches/linux`, everything else to `patches/common`.
 - A patch is done when the tree builds, the browser runs, and the check for it
   (for privacy patches: `build/privacy-gate.sh`) has been run.
+
+## Current series
+
+| Patch | What it does | Files touched |
+|---|---|---|
+| `common/webui-newtab.patch` | Packs `components/corvid_webui/dist` (grit), one generic controller for Corvid pages (`chrome/browser/ui/webui/corvid/`), profile pref `corvid.webui_prefs`, our page on `chrome://new-tab-page` and `chrome://newtab` | 8 |
+| `common/webui-settings.patch` | `chrome://preferences`, plus a link row at the top of Settings > Appearance | 6 |
+| `common/webui-error-pages.patch` | Net error page (renderer) and certificate interstitial (browser) render webui's error page (`components/corvid_webui/error_page.cc`) | 6 |
+| `common/diagnostics.patch` | In-memory diagnostics ring buffer, attached to every tab; `chrome://diagnostics` | 8 |
+| `linux/gtk-accent.patch` | Browser follows the desktop accent on Linux; GTK selection colour when the portal has none | 2 |
