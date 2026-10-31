@@ -12,6 +12,9 @@ corvid_check_disk
 ninja="$SRC/third_party/ninja/ninja"
 [ -x "$ninja" ] || ninja="$(command -v ninja)"
 
+# The internal pages are built from webui/ outside of ninja; refresh them.
+"$CORVID_REPO/build/webui-sync.sh"
+
 ccache -z >/dev/null
 start=$(date +%s)
 echo "build start: $(date -Is)  jobs=$JOBS"

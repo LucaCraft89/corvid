@@ -9,7 +9,7 @@ import { $, h, icon, snackbar } from '../../shared/dom.js';
 import { startPage } from '../../shared/page.js';
 import { allEngines, type Prefs, type PrefsStore } from '../../shared/prefs.js';
 import { isValidEngineUrl } from '../../shared/search.js';
-import { themeCss, themeIssueCount } from '../../shared/theme.js';
+import { effectiveSeed, themeCss, themeIssueCount } from '../../shared/theme.js';
 import { DENSITIES } from '../../tokens/tokens.js';
 
 const PRESETS: [string, StringKey][] = [
@@ -86,22 +86,31 @@ function onColor(hex: string): string {
 function renderSwatches(p: Prefs): void {
   const box = $('#swatches');
   if (!box.childElementCount) {
+    // First swatch: follow the desktop accent colour (the default).
+    const sys = h('input', { type: 'radio', name: 'seed', value: 'system', 'aria-label': t('settings.theme.preset.system') });
+    sys.addEventListener('change', () => save({ seedSource: 'system' }));
+    box.append(h('label', { class: 'swatch system', title: t('settings.theme.preset.system') }, sys, h('span', { 'aria-hidden': 'true' })));
     for (const [hex, key] of PRESETS) {
       const input = h('input', { type: 'radio', name: 'seed', value: hex, 'aria-label': t(key) });
-      input.addEventListener('change', () => save({ seed: hex }));
+      input.addEventListener('change', () => save({ seedSource: 'custom', seed: hex }));
       const span = h('span', { 'aria-hidden': 'true' });
       span.style.setProperty('--swatch', hex);
       span.style.setProperty('--swatch-on', onColor(hex));
       box.append(h('label', { class: 'swatch', title: t(key) }, input, span));
     }
     const picker = h('input', { type: 'color', id: 'custom-color', 'aria-label': t('settings.theme.customColor') });
-    picker.addEventListener('input', () => save({ seed: picker.value }));
+    picker.addEventListener('input', () => save({ seedSource: 'custom', seed: picker.value }));
     box.append(h('label', { class: 'swatch custom', title: t('settings.theme.customColor') }, picker, h('span', { 'aria-hidden': 'true' })));
   }
-  const isPreset = PRESETS.some(([hex]) => hex.toLowerCase() === p.seed.toLowerCase());
+  const system = p.seedSource === 'system';
+  const isPreset = system || PRESETS.some(([hex]) => hex.toLowerCase() === p.seed.toLowerCase());
   for (const input of box.querySelectorAll<HTMLInputElement>('input[type=radio]')) {
-    input.checked = input.value.toLowerCase() === p.seed.toLowerCase();
+    input.checked = system ? input.value === 'system' : input.value.toLowerCase() === p.seed.toLowerCase();
   }
+  const sysSpan = box.querySelector<HTMLElement>('.swatch.system span')!;
+  const sysHex = effectiveSeed({ seed: DEFAULT_SEED, seedSource: 'system' });
+  sysSpan.style.setProperty('--swatch', sysHex);
+  sysSpan.style.setProperty('--swatch-on', onColor(sysHex));
   const custom = box.querySelector<HTMLElement>('.swatch.custom')!;
   const picker = custom.querySelector<HTMLInputElement>('input')!;
   if (document.activeElement !== picker) picker.value = p.seed.length === 7 ? p.seed.toLowerCase() : makePalette({ seed: p.seed, dark: false }).primary;

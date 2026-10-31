@@ -7,20 +7,30 @@ import { applyStrings, t } from '../strings/i18n.js';
 import type { StringKey } from '../strings/en.js';
 import { applyIcons } from './dom.js';
 import { defaultStore, type Prefs, type PrefsStore } from './prefs.js';
-import { applyTheme } from './theme.js';
+import { browserInit, onBrowser, send } from './bridge.js';
+import { applyTheme, setSystemAccent } from './theme.js';
 
-export type PageName = 'newtab' | 'settings' | 'error';
+export type PageName = 'newtab' | 'settings' | 'error' | 'diagnostics';
+
+/** Host of each page inside the browser (corvid://<host>/). */
+export const BROWSER_HOSTS: Record<PageName, string> = {
+  newtab: 'newtab',
+  settings: 'preferences',
+  error: 'error',
+  diagnostics: 'diagnostics',
+};
 
 /**
  * Where another Corvid page lives. The dev server serves pages side by side;
- * inside the browser they are corvid://newtab, corvid://settings, ...
+ * inside the browser they are corvid://newtab, corvid://preferences, ...
  */
 export function pageUrl(name: PageName, hash = ''): string {
   const inBrowser = /^(corvid|chrome):$/.test(location.protocol);
-  return (inBrowser ? `${location.protocol}//${name}/` : `../${name}/`) + hash;
+  return (inBrowser ? `${location.protocol}//${BROWSER_HOSTS[name]}/` : `../${name}/`) + hash;
 }
 
 export function startPage(titleKey: StringKey, onPrefs?: (p: Prefs) => void): PrefsStore {
+  setSystemAccent(browserInit().accent);
   const store = defaultStore();
   document.title = t(titleKey);
   applyStrings();
@@ -31,5 +41,11 @@ export function startPage(titleKey: StringKey, onPrefs?: (p: Prefs) => void): Pr
   };
   update(store.get());
   store.subscribe(update);
+  onBrowser('accent', (hex) => {
+    setSystemAccent(hex as string | null);
+    update(store.get());
+  });
+  // Lets the browser call back into this page (prefs and accent changes).
+  send('corvidReady');
   return store;
 }

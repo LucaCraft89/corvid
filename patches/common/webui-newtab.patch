@@ -1,0 +1,420 @@
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -233,6 +233,7 @@
+ 
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+ #include "chrome/browser/new_tab_page/modules/v2/most_relevant_tab_resumption/most_relevant_tab_resumption_page_handler.h"
++#include "chrome/browser/ui/webui/corvid/corvid_ui.h"
+ #include "chrome/browser/ui/webui/cr_components/most_visited/most_visited_pref_observer.h"
+ #include "chrome/browser/ui/webui/cr_components/theme_color_picker/theme_color_picker_handler.h"
+ #include "chrome/browser/ui/webui/new_tab_page/new_tab_page_handler.h"
+@@ -2073,6 +2074,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   NewTabPageHandler::RegisterProfilePrefs(registry);
+   ThemeColorPickerHandler::RegisterProfilePrefs(registry);
+   NewTabPageUI::RegisterProfilePrefs(registry);
++  corvid::RegisterProfilePrefs(registry);
+   MostVisitedPrefObserver::RegisterProfilePrefs(registry);
+   MostRelevantTabResumptionPageHandler::RegisterProfilePrefs(registry);
+ #else
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -47,6 +47,7 @@ source_set("configs") {
+   }
+ 
+   deps = [
++    ":corvid",
+     ":gcm_internals_ui",
+     ":net_export_ui",
+     ":ntp_tiles_internals_ui",
+@@ -659,6 +660,22 @@ source_set("chrome_web_ui_controller_factory") {
+   }
+ }
+ 
++source_set("corvid") {
++  sources = [ "corvid/corvid_ui.cc" ]
++  public = [ "corvid/corvid_ui.h" ]
++  public_deps = [ "//content/public/browser" ]
++  deps = [
++    "//base",
++    "//chrome/browser/profiles:profile",
++    "//components/corvid_webui:resources",
++    "//components/pref_registry",
++    "//components/prefs",
++    "//skia",
++    "//ui/native_theme",
++    "//ui/webui",
++  ]
++}
++
+ source_set("onboarding") {
+   sources = [
+     "onboarding/onboarding_handler.cc",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/webui/constrained_web_dialog_ui.h"
+ #include "chrome/browser/ui/webui/content_settings/content_settings_ui.h"
+ #include "chrome/browser/ui/webui/context_hub/context_hub_ui.h"
++#include "chrome/browser/ui/webui/corvid/corvid_ui.h"
+ #include "chrome/browser/ui/webui/crashes/crashes_ui.h"
+ #include "chrome/browser/ui/webui/data_sharing_internals/data_sharing_internals_ui.h"
+ #include "chrome/browser/ui/webui/device_log/device_log_ui.h"
+@@ -327,7 +328,8 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<WebRtcLogsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<RegionalCapabilitiesInternalsUIConfig>());
+ #if BUILDFLAG(ENABLE_WEBUI_NTP)
+-  map.AddWebUIConfig(std::make_unique<NewTabPageUIConfig>());
++  map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>(
++      chrome::kChromeUINewTabPageHost, "newtab"));
+   map.AddWebUIConfig(std::make_unique<CustomizeChromeUIConfig>());
+ #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+ 
+@@ -381,7 +383,9 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<NewTabFooterUIConfig>());
+   map.AddWebUIConfig(std::make_unique<NewTabPageThirdPartyUIConfig>());
+ #endif  // BUILDFLAG(ENABLE_WEBUI_NTP)
+-  map.AddWebUIConfig(std::make_unique<NewTabUIConfig>());
++  // Private and guest windows open chrome://newtab without a redirect.
++  map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>(
++      chrome::kChromeUINewTabHost, "newtab"));
+   map.AddWebUIConfig(std::make_unique<OrganizerPanelUIConfig>());
+   map.AddWebUIConfig(
+       std::make_unique<on_device_internals::OnDeviceInternalsUIConfig>());
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/corvid_ui.cc
+@@ -0,0 +1,205 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "chrome/browser/ui/webui/corvid/corvid_ui.h"
++
++#include <optional>
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/memory/raw_ptr.h"
++#include "base/memory/ref_counted_memory.h"
++#include "base/memory/weak_ptr.h"
++#include "base/scoped_observation.h"
++#include "base/strings/string_util.h"
++#include "base/strings/stringprintf.h"
++#include "base/values.h"
++#include "chrome/browser/profiles/profile.h"
++#include "components/corvid_webui/grit/corvid_webui_resources.h"
++#include "components/corvid_webui/grit/corvid_webui_resources_map.h"
++#include "components/pref_registry/pref_registry_syncable.h"
++#include "components/prefs/pref_change_registrar.h"
++#include "components/prefs/pref_service.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "content/public/browser/web_ui_message_handler.h"
++#include "content/public/common/url_constants.h"
++#include "third_party/skia/include/core/SkColor.h"
++#include "ui/native_theme/native_theme.h"
++#include "ui/native_theme/native_theme_observer.h"
++#include "ui/webui/webui_util.h"
++
++namespace corvid {
++
++namespace {
++
++constexpr char kInitScript[] = "corvid-init.js";
++// Prefs larger than this are refused (the real ones are a few KB).
++constexpr size_t kMaxPrefsJson = 64 * 1024;
++
++// The desktop accent colour as "#rrggbb", or null when there is none.
++base::Value AccentValue() {
++  std::optional<SkColor> c =
++      ui::NativeTheme::GetInstanceForNativeUi()->user_color();
++  if (!c) {
++    return base::Value();
++  }
++  return base::Value(base::StringPrintf("#%02x%02x%02x", SkColorGetR(*c),
++                                        SkColorGetG(*c), SkColorGetB(*c)));
++}
++
++// window.corvidInit for the page: prefs and accent colour, read before the
++// page script runs so the first frame already has the right theme.
++void ServeInitScript(base::WeakPtr<Profile> profile,
++                     const std::string& path,
++                     content::WebUIDataSource::GotDataCallback callback) {
++  base::DictValue init;
++  if (profile) {
++    init.Set("prefs", profile->GetPrefs()->GetDict(kWebUIPrefs).Clone());
++    init.Set("readOnly", profile->IsOffTheRecord());
++  }
++  init.Set("accent", AccentValue());
++  std::string js = "window.corvidInit = " +
++                   base::WriteJson(init).value_or("{}") + ";\n";
++  std::move(callback).Run(
++      base::MakeRefCounted<base::RefCountedString>(std::move(js)));
++}
++
++// Messages from the pages (webui/src/shared/bridge.ts). Answers by calling
++// corvidBrowser.dispatch(event, value) in the page.
++class CorvidPageHandler : public content::WebUIMessageHandler,
++                          public ui::NativeThemeObserver {
++ public:
++  explicit CorvidPageHandler(Profile* profile) : profile_(profile) {}
++  CorvidPageHandler(const CorvidPageHandler&) = delete;
++  CorvidPageHandler& operator=(const CorvidPageHandler&) = delete;
++  ~CorvidPageHandler() override = default;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override {
++    web_ui()->RegisterMessageCallback(
++        "corvidReady", base::BindRepeating(&CorvidPageHandler::HandleReady,
++                                           base::Unretained(this)));
++    web_ui()->RegisterMessageCallback(
++        "corvidSetPrefs",
++        base::BindRepeating(&CorvidPageHandler::HandleSetPrefs,
++                            base::Unretained(this)));
++  }
++
++  void OnJavascriptAllowed() override {
++    prefs_registrar_.Init(profile_->GetPrefs());
++    prefs_registrar_.Add(kWebUIPrefs,
++                         base::BindRepeating(&CorvidPageHandler::OnPrefsChanged,
++                                             base::Unretained(this)));
++    last_accent_ = AccentValue();
++    theme_observation_.Observe(ui::NativeTheme::GetInstanceForNativeUi());
++  }
++
++  void OnJavascriptDisallowed() override {
++    prefs_registrar_.Reset();
++    theme_observation_.Reset();
++  }
++
++  // ui::NativeThemeObserver:
++  void OnNativeThemeUpdated(ui::NativeTheme* observed_theme) override {
++    base::Value accent = AccentValue();
++    if (accent == last_accent_) {
++      return;
++    }
++    last_accent_ = accent.Clone();
++    CallJavascriptFunction("corvidBrowser.dispatch", base::Value("accent"),
++                           accent);
++  }
++
++ private:
++  void HandleReady(const base::ListValue& args) { AllowJavascript(); }
++
++  void HandleSetPrefs(const base::ListValue& args) {
++    // Private windows show the pages but never save.
++    if (profile_->IsOffTheRecord() || args.size() != 1 ||
++        !args[0].is_string() || args[0].GetString().size() > kMaxPrefsJson) {
++      return;
++    }
++    std::optional<base::Value> value = base::JSONReader::Read(
++        args[0].GetString(), base::JSON_PARSE_CHROMIUM_EXTENSIONS);
++    if (!value || !value->is_dict()) {
++      return;
++    }
++    // The sender already shows the change; tell only the other pages.
++    setting_ = true;
++    profile_->GetPrefs()->SetDict(kWebUIPrefs, std::move(*value).TakeDict());
++    setting_ = false;
++  }
++
++  void OnPrefsChanged() {
++    if (setting_ || !IsJavascriptAllowed()) {
++      return;
++    }
++    CallJavascriptFunction("corvidBrowser.dispatch", base::Value("prefs"),
++                           profile_->GetPrefs()->GetDict(kWebUIPrefs));
++  }
++
++  const raw_ptr<Profile> profile_;
++  PrefChangeRegistrar prefs_registrar_;
++  base::ScopedObservation<ui::NativeTheme, ui::NativeThemeObserver>
++      theme_observation_{this};
++  base::Value last_accent_;
++  bool setting_ = false;
++};
++
++}  // namespace
++
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
++  registry->RegisterDictionaryPref(kWebUIPrefs);
++}
++
++CorvidUIConfig::CorvidUIConfig(std::string_view host, std::string_view page)
++    : WebUIConfig(content::kChromeUIScheme, host), page_(page) {}
++
++CorvidUIConfig::~CorvidUIConfig() = default;
++
++std::unique_ptr<content::WebUIController> CorvidUIConfig::CreateWebUIController(
++    content::WebUI* web_ui,
++    const GURL& url) {
++  return std::make_unique<CorvidUI>(web_ui, host(), page_);
++}
++
++CorvidUI::CorvidUI(content::WebUI* web_ui,
++                   const std::string& host,
++                   const std::string& page)
++    : WebUIController(web_ui) {
++  Profile* profile = Profile::FromWebUI(web_ui);
++  content::WebUIDataSource* source =
++      content::WebUIDataSource::CreateAndAdd(profile, host);
++
++  // This page's files without the folder name, plus shared/.
++  const std::string prefix = page + "/";
++  int index = 0;
++  for (const webui::ResourcePath& r : kCorvidWebuiResources) {
++    std::string_view path = r.path;
++    if (base::StartsWith(path, prefix)) {
++      path.remove_prefix(prefix.size());
++      source->AddResourcePath(path, r.id);
++      if (path == "index.html") {
++        index = r.id;
++      }
++    } else if (base::StartsWith(path, "shared/")) {
++      source->AddResourcePath(path, r.id);
++    }
++  }
++  CHECK(index) << "no webui page " << page;
++  webui::SetupWebUIDataSource(source, {}, index);
++  source->SetRequestFilter(
++      base::BindRepeating([](const std::string& path) {
++        return path == kInitScript;
++      }),
++      base::BindRepeating(&ServeInitScript, profile->GetWeakPtr()));
++
++  web_ui->AddMessageHandler(std::make_unique<CorvidPageHandler>(profile));
++}
++
++CorvidUI::~CorvidUI() = default;
++
++}  // namespace corvid
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/corvid_ui.h
+@@ -0,0 +1,54 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef CHROME_BROWSER_UI_WEBUI_CORVID_CORVID_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_CORVID_CORVID_UI_H_
++
++#include <memory>
++#include <string>
++#include <string_view>
++
++#include "content/public/browser/web_ui_controller.h"
++#include "content/public/browser/webui_config.h"
++
++namespace user_prefs {
++class PrefRegistrySyncable;
++}
++
++namespace corvid {
++
++// Profile pref with the settings of the internal pages (search engine, theme,
++// colour, density, shortcuts) as one dictionary. The pages own its format
++// (webui/src/shared/prefs.ts) and sanitize whatever they read.
++inline constexpr char kWebUIPrefs[] = "corvid.webui_prefs";
++
++void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
++
++// chrome://<host>/ serves one page built from webui/ in the Corvid repo:
++// components/corvid_webui/dist/<page>/ plus the shared styles.
++class CorvidUIConfig : public content::WebUIConfig {
++ public:
++  CorvidUIConfig(std::string_view host, std::string_view page);
++  ~CorvidUIConfig() override;
++
++  std::unique_ptr<content::WebUIController> CreateWebUIController(
++      content::WebUI* web_ui,
++      const GURL& url) override;
++
++ private:
++  const std::string page_;
++};
++
++class CorvidUI : public content::WebUIController {
++ public:
++  CorvidUI(content::WebUI* web_ui,
++           const std::string& host,
++           const std::string& page);
++  CorvidUI(const CorvidUI&) = delete;
++  CorvidUI& operator=(const CorvidUI&) = delete;
++  ~CorvidUI() override;
++};
++
++}  // namespace corvid
++
++#endif  // CHROME_BROWSER_UI_WEBUI_CORVID_CORVID_UI_H_
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -478,12 +478,14 @@ template("chrome_extra_paks") {
+         "$root_gen_dir/chrome/default_browser_modal_resources.pak",
+         "$root_gen_dir/chrome/profile_picker_resources.pak",
+         "$root_gen_dir/components/helium_onboarding/resources/helium_onboarding_generated.pak",
++        "$root_gen_dir/components/corvid_webui/corvid_webui_resources.pak",
+       ]
+       deps += [
+         "//chrome/browser/resources/default_browser/default_browser_modal:resources",
+         "//chrome/browser/resources/intro:resources",
+         "//chrome/browser/resources/signin/profile_picker:resources",
+         "//components/helium_onboarding:generated_resources",
++        "//components/corvid_webui:resources",
+       ]
+     }
+ 
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_webui/BUILD.gn
+@@ -0,0 +1,37 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++# Copyright (C) 2026 Corvid contributors
++#
++# Corvid's internal pages. dist/ is built from webui/ in the Corvid repo and
++# copied here by build/webui-sync.sh; it is not part of any patch.
++
++import("//tools/grit/grit_rule.gni")
++import("//ui/webui/resources/tools/generate_grd.gni")
++
++corvid_webui_files = [
++  "shared/base.css",
++  "shared/theme-default.css",
++  "shared/tokens.css",
++  "newtab/index.html",
++  "newtab/newtab.css",
++  "newtab/newtab.js",
++]
++
++generate_grd("build_grd") {
++  grd_prefix = "corvid_webui"
++  out_grd = "$target_gen_dir/resources.grd"
++  input_files = corvid_webui_files
++  input_files_base_dir = rebase_path("dist", "//")
++}
++
++grit("resources") {
++  source = "$target_gen_dir/resources.grd"
++  enable_input_discovery_for_gn_analyze = false
++  use_brotli = true
++  outputs = [
++    "grit/corvid_webui_resources.h",
++    "grit/corvid_webui_resources_map.cc",
++    "grit/corvid_webui_resources_map.h",
++    "corvid_webui_resources.pak",
++  ]
++  deps = [ ":build_grd" ]
++}
+--- a/tools/gritsettings/resource_ids.spec
++++ b/tools/gritsettings/resource_ids.spec
+@@ -1417,6 +1417,10 @@
+    "META": {"sizes": {"includes": [48],}},
+     "includes": [7510],
+   },
++  "<(SHARED_INTERMEDIATE_DIR)/components/corvid_webui/resources.grd": {
++   "META": {"sizes": {"includes": [40],}},
++    "includes": [7560],
++  },
+   # END components/ section.
+ 
+   # START ios/ section.

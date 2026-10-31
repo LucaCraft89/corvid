@@ -11,6 +11,7 @@ import {
 } from '../color/engine.js';
 import { isHexColor } from '../color/contrast.js';
 import { DENSITIES, type Density } from '../tokens/tokens.js';
+import { browserInit, inBrowser, onBrowser, send } from './bridge.js';
 import { BUILTIN_ENGINES, DEFAULT_ENGINE_ID, isValidEngineUrl, normaliseShortcutUrl, type SearchEngine } from './search.js';
 
 export interface Shortcut {
@@ -18,10 +19,15 @@ export interface Shortcut {
   url: string;
 }
 
+export const SEED_SOURCES = ['system', 'custom'] as const;
+/** 'system' follows the desktop accent colour when the browser knows one, else uses seed. */
+export type SeedSource = (typeof SEED_SOURCES)[number];
+
 export interface Prefs {
   searchEngine: string;
   customEngines: SearchEngine[];
   themeMode: ThemeMode;
+  seedSource: SeedSource;
   seed: string;
   contrast: ContrastLevel;
   style: PaletteStyle;
@@ -33,6 +39,7 @@ export const DEFAULT_PREFS: Readonly<Prefs> = Object.freeze({
   searchEngine: DEFAULT_ENGINE_ID,
   customEngines: [],
   themeMode: 'auto',
+  seedSource: 'system',
   seed: DEFAULT_SEED,
   contrast: 'standard',
   style: 'tonal',
@@ -62,6 +69,7 @@ export function sanitize(raw: unknown): Prefs {
     searchEngine: oneOf(r['searchEngine'] as string, engineIds, DEFAULT_ENGINE_ID),
     customEngines,
     themeMode: oneOf(r['themeMode'], THEME_MODES, DEFAULT_PREFS.themeMode),
+    seedSource: oneOf(r['seedSource'], SEED_SOURCES, DEFAULT_PREFS.seedSource),
     seed: typeof r['seed'] === 'string' && isHexColor(r['seed']) ? r['seed'] : DEFAULT_SEED,
     contrast: oneOf(r['contrast'], CONTRAST_LEVELS, DEFAULT_PREFS.contrast),
     style: oneOf(r['style'], PALETTE_STYLES, DEFAULT_PREFS.style),
@@ -145,8 +153,50 @@ function memoryStorage(): KeyValueStorage {
   return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) };
 }
 
+/**
+ * Store backed by the browser's profile prefs. Starts from the prefs the
+ * browser put in corvid-init.js, saves through chrome.send, and hears about
+ * changes made in any other page of the profile.
+ */
+export function createBrowserStore(
+  initial: unknown,
+  save: ((p: Prefs) => void) | null,
+  listen: (fn: (raw: unknown) => void) => void,
+): PrefsStore {
+  const listeners = new Set<(p: Prefs) => void>();
+  let current = sanitize(initial);
+  const emit = () => listeners.forEach((fn) => fn(current));
+  listen((raw) => {
+    current = sanitize(raw);
+    emit();
+  });
+  const commit = (next: Prefs) => {
+    current = next;
+    save?.(current);
+    emit();
+    return current;
+  };
+  return {
+    get: () => current,
+    set: (patch) => commit(sanitize({ ...current, ...patch })),
+    reset: () => commit(sanitize({ shortcuts: current.shortcuts, customEngines: current.customEngines })),
+    subscribe(fn) {
+      listeners.add(fn);
+      return () => listeners.delete(fn);
+    },
+  };
+}
+
 /** The store for the current page. */
 export function defaultStore(): PrefsStore {
+  if (inBrowser()) {
+    const init = browserInit();
+    return createBrowserStore(
+      init.prefs,
+      init.readOnly ? null : (p) => send('corvidSetPrefs', JSON.stringify(p)),
+      (fn) => onBrowser('prefs', fn),
+    );
+  }
   let storage: KeyValueStorage;
   try {
     storage = window.localStorage;

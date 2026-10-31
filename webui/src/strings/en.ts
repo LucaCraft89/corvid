@@ -58,6 +58,7 @@ export const en = {
   'settings.theme.preset.red': 'Red',
   'settings.theme.preset.pink': 'Pink',
   'settings.theme.preset.purple': 'Purple',
+  'settings.theme.preset.system': 'Desktop accent colour',
   'settings.theme.customColorValue': 'Your colour, {color}',
   'settings.theme.style': 'Colour style',
   'settings.theme.style.tonal': 'Calm',
@@ -151,6 +152,12 @@ export const en = {
   'error.ssl.reason.revoked': 'The certificate was withdrawn by whoever issued it.',
   'error.ssl.reason.weak': 'The certificate uses weak security.',
   'error.ssl.reason.other': 'The certificate is not valid.',
+
+  'error.insecure.title': 'This site doesn’t offer a secure connection',
+  'error.insecure.summary': '{host} only answers over plain HTTP. Others on your network could see or change what you send and receive.',
+  'error.insecure.tip1': 'Continue only if you trust this network, and don’t type passwords or card details.',
+  'error.insecure.tip2': 'Check the address for typos: most sites support secure connections.',
+  'error.insecure.proceed': 'Continue to {host}',
 
   'error.blocked.title': 'This page is blocked',
   'error.blocked.summary': 'A setting, an extension or your administrator stopped {host} from loading.',

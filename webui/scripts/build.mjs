@@ -76,6 +76,51 @@ async function buildPages(outDir) {
 `);
 }
 
+/**
+ * Files for the browser (build/webui-sync.sh copies them into the Chromium
+ * tree, where components/corvid_webui packs them):
+ *   shared/*.css, <page>/{index.html,<page>.js,<page>.css}   WebUI pages
+ *   error/error.html   one self-contained file: the error pages commit in an
+ *                      opaque origin and cannot load other files
+ * Minified, no source maps. Page HTML loads corvid-init.js (served by the
+ * browser: prefs and accent colour) before the page script.
+ */
+async function buildChromium(outDir) {
+  const tmp = join(root, 'dist-chromium-tmp');
+  rmSync(tmp, { recursive: true, force: true });
+  rmSync(outDir, { recursive: true, force: true });
+  await buildPages(tmp);
+  await esbuild.build({
+    entryPoints: PAGES.map((p) => ({ in: join(src, 'pages', p, `${p}.ts`), out: join(p, p) })),
+    outdir: tmp, bundle: true, format: 'esm', target: 'chrome120', minify: true, sourcemap: false,
+    define, legalComments: 'eof', logLevel: 'warning', allowOverwrite: true,
+  });
+  mkdirSync(join(outDir, 'shared'), { recursive: true });
+  for (const f of readdirSync(join(tmp, 'shared'))) cpSync(join(tmp, 'shared', f), join(outDir, 'shared', f));
+  for (const p of PAGES) {
+    const html = readFileSync(join(tmp, p, 'index.html'), 'utf8');
+    mkdirSync(join(outDir, p), { recursive: true });
+    if (p === 'error') {
+      const inlined = html
+        .replace(/<link rel="stylesheet" href="([^"]+)">/g, (_, href) =>
+          `<style>${readFileSync(join(tmp, p, href), 'utf8').replace(/<\/style/gi, '<\\/style')}</style>`)
+        .replace(/<script type="module" src="([^"]+)"><\/script>/, (_, s) =>
+          `<script type="module">${readFileSync(join(tmp, p, s), 'utf8').replace(/<\/script/gi, '<\\/script')}</script>`);
+      if (/<link rel="stylesheet"|<script[^>]+src=/.test(inlined)) throw new Error('error page still loads other files');
+      writeFileSync(join(outDir, p, 'error.html'), inlined);
+      continue;
+    }
+    const page = html
+      .replaceAll('href="../shared/', 'href="shared/')
+      .replace('<script type="module"', '<script src="corvid-init.js"></script>\n  <script type="module"');
+    if (!page.includes('corvid-init.js')) throw new Error(`${p}: no module script found`);
+    writeFileSync(join(outDir, p, 'index.html'), page);
+    cpSync(join(tmp, p, `${p}.js`), join(outDir, p, `${p}.js`));
+    cpSync(join(tmp, p, `${p}.css`), join(outDir, p, `${p}.css`));
+  }
+  rmSync(tmp, { recursive: true, force: true });
+}
+
 async function buildTests(outDir) {
   rmSync(outDir, { recursive: true, force: true });
   const tests = readdirSync(join(root, 'test')).filter((f) => f.endsWith('.test.ts'));
@@ -91,8 +136,14 @@ export async function build() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const ci = process.argv.indexOf('--chromium');
   if (process.argv.includes('--tests')) await buildTests(join(root, 'dist-test'));
-  else {
+  else if (ci > 0) {
+    const out = process.argv[ci + 1];
+    if (!out) throw new Error('--chromium needs an output folder');
+    await buildChromium(out);
+    console.log(`built ${out}`);
+  } else {
     await build();
     console.log('built dist/');
   }

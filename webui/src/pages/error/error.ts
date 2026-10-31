@@ -17,10 +17,16 @@ export interface ErrorActions {
   proceed(): void;
 }
 
+/** Objects Chromium installs in its error pages (net error page, certificate interstitial). */
+interface NetErrorController { reloadButtonClick(): void }
+interface InterstitialController { dontProceed(): void; proceed(): void; reload(): void }
+
 declare global {
   interface Window {
     corvidErrorActions?: ErrorActions;
     corvidErrorInfo?: ErrorInfo;
+    errorPageController?: NetErrorController;
+    certificateErrorPageController?: InterstitialController;
   }
 }
 
@@ -29,10 +35,22 @@ startPage('error.generic.title');
 const sample = new URLSearchParams(location.search).get('sample');
 const info: ErrorInfo = window.corvidErrorInfo ?? (sample ? SAMPLES[sample] : undefined) ?? errorInfoFromQuery(location.search);
 const view = buildErrorView(info);
+// Chromium installs its controllers after the page commits, so look them up on click.
 const actions: ErrorActions = window.corvidErrorActions ?? {
-  reload: () => (info.url ? location.assign(info.url) : location.reload()),
-  back: () => history.back(),
-  proceed: () => info.url && location.assign(info.url),
+  reload: () => {
+    if (window.certificateErrorPageController) window.certificateErrorPageController.reload();
+    else if (window.errorPageController) window.errorPageController.reloadButtonClick();
+    else if (info.url) location.assign(info.url);
+    else location.reload();
+  },
+  back: () => {
+    if (window.certificateErrorPageController) window.certificateErrorPageController.dontProceed();
+    else history.back();
+  },
+  proceed: () => {
+    if (window.certificateErrorPageController) window.certificateErrorPageController.proceed();
+    else if (info.url) location.assign(info.url);
+  },
 };
 
 document.title = view.title;
@@ -57,6 +75,9 @@ function button(label: string, cls: string, iconName: string | null, onClick: ()
 const bar = $('#err-actions');
 if (view.kind === 'ssl') {
   bar.append(button(t('error.ssl.goBackSafe'), '', 'back', actions.back));
+} else if (view.kind === 'insecure') {
+  bar.append(button(t('error.goBack'), '', 'back', actions.back));
+  if (view.canProceed) bar.append(button(t('error.insecure.proceed', { host: view.host }), 'tonal', null, actions.proceed));
 } else {
   bar.append(button(t('error.tryAgain'), '', 'refresh', actions.reload));
   if (history.length > 1) bar.append(button(t('error.goBack'), 'tonal', null, actions.back));
@@ -69,7 +90,7 @@ $('#err-detail-body').replaceChildren(
       h('dl', {}, ...s.rows.flatMap((r) => [h('dt', {}, r.label), h('dd', { class: r.mono ? 'mono' : undefined }, r.value)])))),
 );
 
-if (view.canProceed) {
+if (view.canProceed && view.kind === 'ssl') {
   $('#err-proceed').hidden = false;
   const p = $<HTMLButtonElement>('#proceed');
   p.textContent = t('error.ssl.proceed', { host: view.host });

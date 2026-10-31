@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node scripts/build.mjs --tests && node --test dist-test/",
     "render-check": "node scripts/build.mjs && node scripts/render-check.mjs",
+    "browser-check": "node scripts/browser-check.mjs",
     "check": "npm run typecheck && npm test && npm run render-check"
   },
   "dependencies": {

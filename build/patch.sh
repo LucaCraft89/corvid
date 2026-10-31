@@ -36,4 +36,5 @@ resources() {
 step resources resources
 step brand     python3 "$CORVID_REPO/build/brand.py" --tree "$SRC" --helium "$HELIUM_MAIN"
 step corvid-patches "$CORVID_REPO/build/apply-patches.sh"
+step webui     "$CORVID_REPO/build/webui-sync.sh"
 echo "== tree ready: $SRC"

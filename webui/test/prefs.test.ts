@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_PREFS, STORAGE_KEY, createLocalStore, currentEngine, sanitize, type KeyValueStorage, type Prefs } from '../src/shared/prefs.js';
+import { DEFAULT_PREFS, STORAGE_KEY, createBrowserStore, createLocalStore, currentEngine, sanitize, type KeyValueStorage, type Prefs } from '../src/shared/prefs.js';
 
 function fakeStorage(init: Record<string, string> = {}): KeyValueStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(init));
@@ -72,4 +72,27 @@ test('changes from another page reach subscribers', () => {
   createLocalStore(storage).set({ density: 'compact' }); // "the other page"
   listeners.forEach((fn) => fn({ key: STORAGE_KEY }));
   assert.equal(got?.density, 'compact');
+});
+
+test('browser store saves through the browser and follows its updates', () => {
+  const saved: Prefs[] = [];
+  let push: (raw: unknown) => void = () => {};
+  const store = createBrowserStore({ themeMode: 'dark', seedSource: 'custom', seed: '#123456' }, (p) => saved.push(p), (fn) => { push = fn; });
+  assert.equal(store.get().themeMode, 'dark');
+  assert.equal(store.get().seedSource, 'custom');
+  const seen: Prefs[] = [];
+  store.subscribe((p) => seen.push(p));
+  store.set({ density: 'compact' });
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0]!.density, 'compact');
+  push({ themeMode: 'light', seedSource: 'bogus' });
+  assert.equal(store.get().themeMode, 'light');
+  assert.equal(store.get().seedSource, 'system', 'bad values from the browser are sanitized');
+  assert.equal(seen.length, 2);
+});
+
+test('read-only browser store (private windows) never saves', () => {
+  const store = createBrowserStore({}, null, () => {});
+  store.set({ themeMode: 'dark' });
+  assert.equal(store.get().themeMode, 'dark');
 });

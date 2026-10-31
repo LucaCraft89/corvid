@@ -25,7 +25,7 @@ const keys = Object.keys(en);
 
 // Keys built at run time from a variable, e.g. t(`error.${kind}.title`).
 const DYNAMIC = [
-  /^error\.(dns|offline|connection|timeout|ssl|blocked|generic)\.(title|summary|tip\d)$/,
+  /^error\.(dns|offline|connection|timeout|ssl|insecure|blocked|generic)\.(title|summary|tip\d)$/,
   /^error\.ssl\.reason\.\w+$/,
   /^settings\.theme\.(mode|style|contrast)\.\w+$/,
   /^settings\.density\.(comfortable|compact|spacious)$/,
@@ -47,7 +47,7 @@ test('every catalog string is used', () => {
 });
 
 test('dynamic families are complete', () => {
-  for (const kind of ['dns', 'offline', 'connection', 'timeout', 'ssl', 'blocked', 'generic']) {
+  for (const kind of ['dns', 'offline', 'connection', 'timeout', 'ssl', 'insecure', 'blocked', 'generic']) {
     for (const part of ['title', 'summary', 'tip1']) assert.ok(`error.${kind}.${part}` in en, `${kind}.${part}`);
   }
 });

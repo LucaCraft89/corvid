@@ -70,6 +70,7 @@
 .swatch input:checked + span { border-radius: var(--md-sys-shape-corner-full); box-shadow: 0 0 0 3px var(--md-sys-color-surface-container-low), 0 0 0 5px var(--md-sys-color-on-surface); }
 .swatch input:focus-visible + span { box-shadow: var(--corvid-focus); }
 .swatch input:checked + span::after { content: "\2713"; color: var(--swatch-on); }
+.swatch.system span { background: radial-gradient(circle, var(--swatch) 0 45%, var(--md-sys-color-surface-container-low) 46% 55%, var(--swatch) 56%); }
 .swatch.custom span { background: conic-gradient(from 0deg, #e53935, #fdd835, #43a047, #1e88e5, #8e24aa, #e53935); }
 .swatch.custom input[type="color"] { padding: 0; border: 0; }
 .swatch.custom.active span { background: var(--swatch); border-radius: var(--md-sys-shape-corner-full); box-shadow: 0 0 0 3px var(--md-sys-color-surface-container-low), 0 0 0 5px var(--md-sys-color-on-surface); }

@@ -2,3 +2,4 @@ node_modules/
 dist/
 dist-test/
 render-out/
+dist-chromium-tmp/

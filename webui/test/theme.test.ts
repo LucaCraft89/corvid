@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { themeCss, themeIssueCount } from '../src/shared/theme.js';
+import { effectiveSeed, getSystemAccent, setSystemAccent, themeCss, themeIssueCount } from '../src/shared/theme.js';
 import { DEFAULT_PREFS } from '../src/shared/prefs.js';
 
 test('automatic mode switches with the system, fixed modes do not', () => {
@@ -19,4 +19,15 @@ test('automatic mode switches with the system, fixed modes do not', () => {
 
 test('default theme passes WCAG AA in both modes', () => {
   assert.equal(themeIssueCount(themeCss(DEFAULT_PREFS)), 0);
+});
+
+test('the desktop accent colour is used only when following it', () => {
+  setSystemAccent(null);
+  assert.equal(effectiveSeed(DEFAULT_PREFS), DEFAULT_PREFS.seed, 'no accent known: the default seed');
+  setSystemAccent('#e01b24');
+  assert.equal(effectiveSeed(DEFAULT_PREFS), '#e01b24');
+  assert.equal(effectiveSeed({ ...DEFAULT_PREFS, seedSource: 'custom', seed: '#006a6a' }), '#006a6a');
+  assert.notEqual(themeCss(DEFAULT_PREFS).light.primary, themeCss({ ...DEFAULT_PREFS, seedSource: 'custom' }).light.primary);
+  setSystemAccent('not a colour');
+  assert.equal(getSystemAccent(), null);
 });
