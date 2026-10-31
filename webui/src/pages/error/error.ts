@@ -75,9 +75,6 @@ function button(label: string, cls: string, iconName: string | null, onClick: ()
 const bar = $('#err-actions');
 if (view.kind === 'ssl') {
   bar.append(button(t('error.ssl.goBackSafe'), '', 'back', actions.back));
-} else if (view.kind === 'insecure') {
-  bar.append(button(t('error.goBack'), '', 'back', actions.back));
-  if (view.canProceed) bar.append(button(t('error.insecure.proceed', { host: view.host }), 'tonal', null, actions.proceed));
 } else {
   bar.append(button(t('error.tryAgain'), '', 'refresh', actions.reload));
   if (history.length > 1) bar.append(button(t('error.goBack'), 'tonal', null, actions.back));
@@ -90,7 +87,7 @@ $('#err-detail-body').replaceChildren(
       h('dl', {}, ...s.rows.flatMap((r) => [h('dt', {}, r.label), h('dd', { class: r.mono ? 'mono' : undefined }, r.value)])))),
 );
 
-if (view.canProceed && view.kind === 'ssl') {
+if (view.canProceed) {
   $('#err-proceed').hidden = false;
   const p = $<HTMLButtonElement>('#proceed');
   p.textContent = t('error.ssl.proceed', { host: view.host });

@@ -153,12 +153,6 @@ export const en = {
   'error.ssl.reason.weak': 'The certificate uses weak security.',
   'error.ssl.reason.other': 'The certificate is not valid.',
 
-  'error.insecure.title': 'This site doesn’t offer a secure connection',
-  'error.insecure.summary': '{host} only answers over plain HTTP. Others on your network could see or change what you send and receive.',
-  'error.insecure.tip1': 'Continue only if you trust this network, and don’t type passwords or card details.',
-  'error.insecure.tip2': 'Check the address for typos: most sites support secure connections.',
-  'error.insecure.proceed': 'Continue to {host}',
-
   'error.blocked.title': 'This page is blocked',
   'error.blocked.summary': 'A setting, an extension or your administrator stopped {host} from loading.',
   'error.blocked.tip1': 'Check your extensions and site settings.',

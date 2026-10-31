@@ -1,0 +1,152 @@
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -127,6 +127,7 @@ static_library("renderer") {
+ 
+   deps = [
+     ":process_state",
++    "//components/corvid_webui:error_page",
+     "//base/allocator:buildflags",
+     "//build:chromeos_buildflags",
+     "//chrome:resources",
+--- a/chrome/renderer/net/net_error_helper.cc
++++ b/chrome/renderer/net/net_error_helper.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/common/chrome_resource_request_blocked_reason.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/renderer/process_state.h"
++#include "components/corvid_webui/error_page.h"
+ #include "components/error_page/common/error.h"
+ #include "components/error_page/common/localized_error.h"
+ #include "components/error_page/common/net_error_info.h"
+@@ -74,6 +75,23 @@ using error_page::LocalizedError;
+ 
+ namespace {
+ 
++// Net error name for the Corvid error page (webui/src/shared/errors.ts).
++std::string CorvidErrorCode(const error_page::Error& error) {
++  if (error.domain() == error_page::Error::kDnsProbeErrorDomain) {
++    return error.reason() == error_page::DNS_PROBE_FINISHED_NO_INTERNET
++               ? "ERR_INTERNET_DISCONNECTED"
++               : "ERR_NAME_NOT_RESOLVED";
++  }
++  if (error.domain() == error_page::Error::kNetErrorDomain) {
++    return net::ErrorToShortString(error.reason());
++  }
++  return "ERR_HTTP_RESPONSE_CODE_FAILURE";
++}
++
++}  // namespace
++
++namespace {
++
+ NetErrorHelperCore::FrameType GetFrameType(RenderFrame* render_frame) {
+   if (render_frame->IsMainFrame())
+     return NetErrorHelperCore::MAIN_FRAME;
+@@ -226,6 +244,12 @@ LocalizedError::PageState NetErrorHelper::GenerateLocalizedErrorPage(
+         IsExtensionExtendedErrorCode(error.extended_reason()),
+         &error_page_params_);
+   }
++  if (resource_id == IDR_NET_ERROR_HTML) {
++    // The Corvid error page instead of the stock one.
++    *error_html = corvid::ErrorPageHtml(
++        corvid::NewErrorInfo(CorvidErrorCode(error), error.url()));
++    return page_state;
++  }
+   std::string template_html =
+       ui::ResourceBundle::GetSharedInstance().LoadDataResourceString(
+           resource_id);
+--- a/components/corvid_webui/BUILD.gn
++++ b/components/corvid_webui/BUILD.gn
+@@ -17,6 +17,7 @@ corvid_webui_files = [
+   "settings/index.html",
+   "settings/settings.css",
+   "settings/settings.js",
++  "error/error.html",
+ ]
+ 
+ generate_grd("build_grd") {
+@@ -38,3 +39,20 @@ grit("resources") {
+   ]
+   deps = [ ":build_grd" ]
+ }
++
++# The error page: renderer (net errors) and browser (interstitials).
++source_set("error_page") {
++  sources = [
++    "error_page.cc",
++    "error_page.h",
++  ]
++  public_deps = [ "//base" ]
++  deps = [
++    ":resources",
++    "//base:i18n",
++    "//net",
++    "//third_party/boringssl",
++    "//ui/base",
++    "//url",
++  ]
++}
+--- a/components/security_interstitials/content/BUILD.gn
++++ b/components/security_interstitials/content/BUILD.gn
+@@ -68,6 +68,7 @@ static_library("security_interstitial_page") {
+     "//base",
+     "//build:branding_buildflags",
+     "//components/captive_portal/core",
++    "//components/corvid_webui:error_page",
+     "//components/content_settings/core/browser",
+     "//components/content_settings/core/common",
+     "//components/guest_view/buildflags",
+--- a/components/security_interstitials/content/ssl_blocking_page.cc
++++ b/components/security_interstitials/content/ssl_blocking_page.cc
+@@ -11,6 +11,7 @@
+ #include "base/functional/callback_helpers.h"
+ #include "base/strings/string_number_conversions.h"
+ #include "base/time/time.h"
++#include "components/corvid_webui/error_page.h"
+ #include "components/security_interstitials/content/security_interstitial_controller_client.h"
+ #include "components/security_interstitials/content/security_interstitial_page.h"
+ #include "components/security_interstitials/core/controller_client.h"
+@@ -72,11 +73,22 @@ SSLBlockingPage::SSLBlockingPage(
+                                                  options_mask,
+                                                  time_triggered,
+                                                  support_url,
+-                                                 controller())) {
++                                                 controller())),
++      cert_error_(cert_error) {
+   // Creating an interstitial without showing (e.g. from chrome://interstitials)
+   // it leaks memory, so don't create it here.
+ }
+ 
++std::string SSLBlockingPage::GetHTMLContents() {
++  base::DictValue info =
++      corvid::NewErrorInfo(net::ErrorToShortString(cert_error_), request_url());
++  info.Set("overridable", overridable_);
++  if (ssl_info_.cert) {
++    info.Set("certChain", corvid::CertChainInfo(*ssl_info_.cert));
++  }
++  return corvid::ErrorPageHtml(info);
++}
++
+ // This handles the commands sent from the interstitial JavaScript.
+ void SSLBlockingPage::CommandReceived(const std::string& command) {
+   if (command == "\"pageLoadComplete\"") {
+--- a/components/security_interstitials/content/ssl_blocking_page.h
++++ b/components/security_interstitials/content/ssl_blocking_page.h
+@@ -43,6 +43,9 @@ class SSLBlockingPage : public SSLBlockingPageBase {
+   security_interstitials::SecurityInterstitialPage::TypeID GetTypeForTesting()
+       override;
+ 
++  // SecurityInterstitialPage: the Corvid error page.
++  std::string GetHTMLContents() override;
++
+   // Returns true if |options_mask| refers to a soft-overridable SSL error.
+   static bool IsOverridable(int options_mask);
+ 
+@@ -77,6 +80,7 @@ class SSLBlockingPage : public SSLBlockingPageBase {
+   const bool overridable_;  // The UI allows the user to override the error.
+ 
+   const std::unique_ptr<security_interstitials::SSLErrorUI> ssl_error_ui_;
++  const net::Error cert_error_;
+ };
+ 
+ #endif  // COMPONENTS_SECURITY_INTERSTITIALS_CONTENT_SSL_BLOCKING_PAGE_H_

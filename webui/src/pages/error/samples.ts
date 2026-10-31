@@ -58,11 +58,6 @@ export const SAMPLES: Record<string, ErrorInfo> = {
     overridable: false,
     certChain: [{ subject: 'CN=bank.example.com', issuer: 'CN=Unknown Local CA', validFrom: '2026-10-01', validTo: '2027-10-01' }],
   },
-  insecure: {
-    code: 'ERR_HTTPS_UPGRADE_FAILED',
-    url: 'http://example.com/login',
-    time,
-  },
   blocked: {
     code: 'ERR_BLOCKED_BY_CLIENT',
     url: 'https://ads.example.com/banner.js',

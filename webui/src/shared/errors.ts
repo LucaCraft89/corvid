@@ -8,7 +8,7 @@
 import { t } from '../strings/i18n.js';
 import type { StringKey } from '../strings/en.js';
 
-export type ErrorKind = 'dns' | 'offline' | 'connection' | 'timeout' | 'ssl' | 'insecure' | 'blocked' | 'generic';
+export type ErrorKind = 'dns' | 'offline' | 'connection' | 'timeout' | 'ssl' | 'blocked' | 'generic';
 export type CertReason = 'expired' | 'nameMismatch' | 'untrusted' | 'revoked' | 'weak' | 'other';
 
 export interface CertInfo {
@@ -51,9 +51,6 @@ const KIND_BY_CODE: Record<string, ErrorKind> = {
   ERR_TIMED_OUT: 'timeout',
   ERR_CONNECTION_TIMED_OUT: 'timeout',
   ERR_DNS_TIMED_OUT: 'timeout',
-  // Not a Chromium net error: the browser uses it for the HTTPS-First page
-  // (the site has no HTTPS, so the upgrade failed).
-  ERR_HTTPS_UPGRADE_FAILED: 'insecure',
   ERR_BLOCKED_BY_CLIENT: 'blocked',
   ERR_BLOCKED_BY_ADMINISTRATOR: 'blocked',
   ERR_BLOCKED_BY_RESPONSE: 'blocked',
@@ -89,9 +86,9 @@ export function hostOf(url: string): string {
   }
 }
 
-const TIPS: Record<ErrorKind, number> = { dns: 3, offline: 3, connection: 2, timeout: 2, ssl: 2, insecure: 2, blocked: 1, generic: 2 };
+const TIPS: Record<ErrorKind, number> = { dns: 3, offline: 3, connection: 2, timeout: 2, ssl: 2, blocked: 1, generic: 2 };
 const ICON: Record<ErrorKind, string> = {
-  dns: 'globe', offline: 'offline', connection: 'block', timeout: 'clock', ssl: 'lock', insecure: 'warning', blocked: 'block', generic: 'warning',
+  dns: 'globe', offline: 'offline', connection: 'block', timeout: 'clock', ssl: 'lock', blocked: 'block', generic: 'warning',
 };
 
 export interface DetailRow {
@@ -114,7 +111,7 @@ export interface ErrorView {
   tips: string[];
   /** SSL only: why the certificate was rejected. */
   reason?: string;
-  /** SSL and insecure only: whether to offer "continue anyway". */
+  /** SSL only: whether to offer "continue anyway". */
   canProceed: boolean;
   /** Offline only: reload when the network returns. */
   autoRetry: boolean;
@@ -204,7 +201,7 @@ export function buildErrorView(info: ErrorInfo): ErrorView {
     summary: t(k(`error.${kind}.summary`), { host }),
     tips,
     ...(reason ? { reason } : {}),
-    canProceed: (kind === 'ssl' || kind === 'insecure') && info.overridable !== false,
+    canProceed: kind === 'ssl' && info.overridable !== false,
     autoRetry: kind === 'offline',
     details: details.filter((s) => s.rows.length > 0),
   };

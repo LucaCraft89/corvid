@@ -13,7 +13,9 @@
 // folder; screenshots in render-out/browser-*.png. Exits 1 on any failure.
 
 import { chromium } from 'playwright-core';
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import https from 'node:https';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -165,6 +167,67 @@ CHECKS.settings = async () => {
     ok(w, opened.url() === 'chrome://preferences/', `entry opened ${opened.url()}`);
   }
   await ctx.close();
+};
+
+// ---------------------------------------------------------------- error pages
+/** Local HTTPS server with a self-signed certificate. */
+async function startServers() {
+  const dir = freshProfile();
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=selfsigned.test',
+    '-addext', 'subjectAltName=DNS:selfsigned.test', '-keyout', join(dir, 'key.pem'), '-out', join(dir, 'cert.pem')], { stdio: 'ignore' });
+  const hello = (req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<title>hello</title><p id="hello">hello</p>'); };
+  const tls = https.createServer({ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) }, hello);
+  await new Promise((r) => tls.listen(0, '127.0.0.1', r));
+  return { tlsPort: tls.address().port, close: () => tls.close() };
+}
+
+async function errorView(page) {
+  return page.evaluate(() => ({
+    ours: !!document.querySelector('#err'),
+    stock: !!document.querySelector('#main-frame-error, #main-content .interstitial-wrapper, .interstitial-wrapper'),
+    kind: document.querySelector('#err')?.dataset.kind ?? null,
+    title: document.querySelector('#err-title')?.textContent ?? '',
+    code: window.corvidErrorInfo?.code ?? null,
+    chain: window.corvidErrorInfo?.certChain?.length ?? 0,
+    buttons: [...document.querySelectorAll('#err-actions button')].map((b) => b.textContent),
+    proceedHidden: document.querySelector('#err-proceed')?.hidden ?? null,
+  }));
+}
+
+CHECKS.errors = async () => {
+  const w = 'errors';
+  const srv = await startServers();
+  const ctx = await launch(freshProfile(), ['--host-resolver-rules=MAP selfsigned.test 127.0.0.1']);
+  try {
+    const dns = await open(ctx, 'http://does-not-exist.invalid/', w);
+    let v = await errorView(dns);
+    ok(w, v.ours && !v.stock && v.kind === 'dns', `unknown host: ${JSON.stringify(v)}`);
+    await shot(dns, 'error-dns');
+    // "Try again" goes through Chromium's error page controller.
+    await dns.click('#err-actions button');
+    await dns.waitForTimeout(1500);
+    v = await errorView(dns);
+    ok(w, v.ours && v.kind === 'dns', `after "Try again": ${JSON.stringify(v)}`);
+
+    const refused = await open(ctx, 'http://127.0.0.1:59999/', w);
+    v = await errorView(refused);
+    ok(w, v.ours && v.kind === 'connection' && v.code === 'ERR_CONNECTION_REFUSED', `refused: ${JSON.stringify(v)}`);
+
+    const ssl = await open(ctx, `https://selfsigned.test:${srv.tlsPort}/`, w);
+    v = await errorView(ssl);
+    ok(w, v.ours && !v.stock && v.kind === 'ssl' && /^ERR_CERT_/.test(v.code), `self-signed: ${JSON.stringify(v)}`);
+    ok(w, v.chain >= 1, 'certificate chain missing from the details');
+    ok(w, v.proceedHidden === false, '"continue" should be offered (inside the details) for an overridable error');
+    await ssl.click('#err-details summary');
+    await shot(ssl, 'error-ssl');
+    await ssl.click('#proceed');
+    await ssl.waitForSelector('#hello', { timeout: 10000 }).catch(() => {});
+    ok(w, await ssl.$('#hello') !== null, `"continue" did not load the site (${ssl.url()})`);
+
+  } finally {
+    await ctx.close();
+    srv.close();
+  }
 };
 
 // ---------------------------------------------------------------- private window

@@ -75,11 +75,3 @@ test('query parsing survives bad input', () => {
   assert.equal(errorInfoFromQuery('?info=not-json').code, 'ERR_FAILED');
   assert.equal(hostOf('not a url'), 'not a url');
 });
-
-test('the HTTPS-First page offers going back and continuing', () => {
-  const v = buildErrorView({ code: 'ERR_HTTPS_UPGRADE_FAILED', url: 'http://example.com/' });
-  assert.equal(v.kind, 'insecure');
-  assert.equal(v.canProceed, true);
-  assert.equal(v.reason, undefined);
-  assert.equal(buildErrorView({ code: 'ERR_HTTPS_UPGRADE_FAILED', url: 'http://example.com/', overridable: false }).canProceed, false);
-});
