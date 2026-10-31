@@ -12,6 +12,10 @@ Corvid is Helium plus a short series of our own. Order (`build/patch.sh`):
 5. `webui`: `build/webui-sync.sh` builds `webui/` and copies it to
    `components/corvid_webui/dist/` (not a patch; `build/build.sh` refreshes it
    before every build).
+6. `ublock`: `build/ublock.sh` downloads the signed uBlock Origin release named
+   in `build/ublock.conf`, checks sha256, id and version, and writes
+   `third_party/ublock_origin/` (package, licence, README.chromium, BUILD.gn,
+   install entry). Not a patch.
 
 Our patches apply to the finished, branded tree. So a patch that touches a line
 with the product name in it breaks if the name changes; keep such lines out.
@@ -56,4 +60,5 @@ git add patches && git commit
 | `common/webui-error-pages.patch` | Net error page (renderer) and certificate interstitial (browser) render webui's error page (`components/corvid_webui/error_page.cc`) | 6 |
 | `common/diagnostics.patch` | In-memory diagnostics ring buffer, attached to every tab; `chrome://diagnostics` | 8 |
 | `common/extension-stores.patch` | Extension sources from `chrome://preferences`: Chrome Web Store direct (no Helium proxy, `prodversion` sent so installs and updates work), Edge Add-ons, user-added stores; store downloads trusted and pinned to the requested id (HTTP allowed for them); `.crx` files opened from disk; updates skipped for stores turned off. Logic in `components/corvid_extensions/` | 13 |
+| `common/ublock-origin.patch` | Upstream uBlock Origin instead of Helium's fork: fork not loaded or packed (README marked not shipped), authors' signed `.crx` copied to `<install dir>/extensions/` (from `build/ublock.sh`, not a patch); its updates and its own list updater only when the user turns them on (`chrome://preferences`), via update URL gating and uBO's managed `userSettings` | 11 |
 | `linux/gtk-accent.patch` | Browser follows the desktop accent on Linux; GTK selection colour when the portal has none | 2 |

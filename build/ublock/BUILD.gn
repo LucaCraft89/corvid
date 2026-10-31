@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Corvid contributors
+#
+# Written by build/ublock.sh. Puts uBlock Origin's package and its install
+# entry next to the browser (<install dir>/extensions/), where Chromium looks
+# for extensions to install into every new profile.
+
+copy("ublock_origin") {
+  sources = [
+    "UBLOCK_ID.json",
+    "ublock_origin.crx",
+  ]
+  outputs = [ "$root_out_dir/extensions/{{source_file_part}}" ]
+}

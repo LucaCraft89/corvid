@@ -1,0 +1,16 @@
+Name: uBlock Origin
+Short Name: ublock_origin
+URL: https://github.com/gorhill/uBlock
+Version: UBLOCK_VERSION
+License: GPL-3.0
+License File: LICENSE.txt
+Shipped: yes
+Security Critical: yes
+
+Description:
+uBlock Origin, the content blocker by Raymond Hill and contributors. Shipped
+unmodified: the signed Chromium release from the authors, installed into new
+profiles as a normal extension. Written by build/ublock.sh.
+
+Local Modifications:
+None.

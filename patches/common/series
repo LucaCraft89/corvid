@@ -3,3 +3,4 @@ webui-settings.patch
 webui-error-pages.patch
 diagnostics.patch
 extension-stores.patch
+ublock-origin.patch

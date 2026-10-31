@@ -11,7 +11,7 @@ set -euo pipefail
 
 overrides=(is_official_build is_component_build is_debug symbol_level blink_symbol_level
            use_thin_lto is_cfi chrome_pgo_phase cc_wrapper use_siso use_sysroot
-           target_cpu v8_target_cpu)
+           target_cpu v8_target_cpu generate_about_credits)
 pattern="^[[:space:]]*($(IFS='|'; echo "${overrides[*]}"))[[:space:]]*="
 
 mkdir -p "$OUT"
@@ -32,6 +32,8 @@ chrome_pgo_phase = 0
 use_sysroot = true
 use_siso = false
 cc_wrapper = "ccache"
+# Real corvid://credits (official builds have it; the dev build would show a sample page).
+generate_about_credits = true
 target_cpu = "$ARCH"
 v8_target_cpu = "$ARCH"
 ARGS

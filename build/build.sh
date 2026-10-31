@@ -19,6 +19,9 @@ ccache -z >/dev/null
 start=$(date +%s)
 echo "build start: $(date -Is)  jobs=$JOBS"
 "$ninja" -C "$OUT" -j "$JOBS" "${@:-chrome}"
+# The copy step creates extensions/ as 0700; the browser also runs as other
+# users (privacy gate, tests).
+[ -d "$OUT/extensions" ] && chmod -R a+rX "$OUT/extensions"
 end=$(date +%s)
 echo "build end:   $(date -Is)  elapsed: $(( (end-start)/3600 ))h $(( (end-start)%3600/60 ))m $(( (end-start)%60 ))s"
 ccache -s

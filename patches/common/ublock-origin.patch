@@ -1,0 +1,226 @@
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -330,6 +330,9 @@ if (!is_android && !is_mac) {
+ 
+       data_deps += [ "//components/crash/core/app:chrome_crashpad_handler" ]
+ 
++      # Corvid: uBlock Origin, installed into new profiles.
++      data_deps += [ "//third_party/ublock_origin" ]
++
+       ldflags = []
+ 
+       # On Chrome OS builds put priority to the library in the installed
+--- a/chrome/browser/extensions/component_loader.cc
++++ b/chrome/browser/extensions/component_loader.cc
+@@ -712,7 +712,8 @@ void ComponentLoader::AddDefaultComponentExtensions(
+ 
+   if (!skip_session_components) {
+     AddWebStoreApp();
+-    AddUBlock();
++    // Corvid ships upstream uBlock Origin as a normal extension instead
++    // (third_party/ublock_origin).
+     AddExtstoreFixups();
+ #if BUILDFLAG(IS_CHROMEOS)
+     AddChromeApp();
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -339,6 +339,17 @@ GURL ExtensionManagement::GetEffectiveUpdateURL(const Extension& extension) {
+   const GURL& original_url = ManifestURL::GetUpdateURL(&extension);
+   const GURL& dummy_url = extension_urls::GetDefaultWebstoreUpdateUrl();
+ 
++  // Corvid: the uBlock Origin we ship updates from its authors' channel (the
++  // address in its manifest) only once the user allows it.
++  if (extension.id() == corvid::extensions::kUBlockOriginId) {
++    if (!corvid::extensions::UBlockUpdatesEnabled(*profile_->GetPrefs())) {
++      return GURL();
++    }
++    return original_url.is_empty()
++               ? GURL(corvid::extensions::kUBlockOriginUpdateUrl)
++               : original_url;
++  }
++
+   if (dummy_url.host() == original_url.host()) {
+     // Corvid: no update check at all while the Chrome Web Store is off.
+     if (!helium::ShouldAccessExtensionService(*profile_->GetPrefs())) {
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -69,6 +69,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/url_constants.h"
+ #include "components/crx_file/id_util.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/helium_services/extension_ids.h"
+ #include "components/helium_services/helium_services_helpers.h"
+ #include "components/helium_services/pref_names.h"
+@@ -218,6 +219,8 @@ ExtensionService::ExtensionService(
+       updater_(ExtensionUpdater::Get(profile)),
+       component_loader_(ComponentLoader::Get(profile_)),
+       can_access_ublock_assets_(helium::ShouldAccessUBlockAssets(*profile_->GetPrefs())),
++      ublock_updates_enabled_(
++          corvid::extensions::UBlockUpdatesEnabled(*profile_->GetPrefs())),
+       error_controller_(error_controller),
+       external_install_manager_(ExternalInstallManager::Get(profile)),
+       extension_registrar_delegate_(
+@@ -304,6 +307,34 @@ ExtensionService::ExtensionService(
+     pref_change_registrar_,
+     base::BindRepeating(&ExtensionService::ToggleUBlockExtension,
+                         base::Unretained(this)));
++  pref_change_registrar_.Add(
++      corvid::extensions::kWebUIPrefs,
++      base::BindRepeating(&ExtensionService::OnUBlockUpdatesChanged,
++                          base::Unretained(this)));
++}
++
++// Corvid: the "Keep uBlock Origin up to date" switch in chrome://preferences.
++void ExtensionService::OnUBlockUpdatesChanged() {
++  bool enabled =
++      corvid::extensions::UBlockUpdatesEnabled(*profile_->GetPrefs());
++  if (enabled == ublock_updates_enabled_ || !extension_registrar_) {
++    return;
++  }
++  ublock_updates_enabled_ = enabled;
++  // uBO reads its admin settings from its own cache first and refreshes the
++  // cache in the background: the second start sees the new value.
++  for (int seconds : {0, 5}) {
++    content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
++        ->PostDelayedTask(
++            FROM_HERE,
++            base::BindOnce(&ExtensionRegistrar::ReloadExtension,
++                           extension_registrar_->GetWeakPtr(),
++                           corvid::extensions::kUBlockOriginId),
++            base::Seconds(seconds));
++  }
++  if (enabled && updater_ && updater_->enabled()) {
++    updater_->CheckNow(ExtensionUpdater::CheckParams());
++  }
+ }
+ 
+ void ExtensionService::ToggleUBlockExtension() {
+--- a/chrome/browser/extensions/extension_service.h
++++ b/chrome/browser/extensions/extension_service.h
+@@ -170,6 +170,7 @@ class ExtensionService : public ExtensionServiceInterface,
+   void Shutdown();
+ 
+   void ToggleUBlockExtension();
++  void OnUBlockUpdatesChanged();
+ 
+   // Performs action based on verdicts received from the Extension Telemetry
+   // server. Currently, these verdicts are limited to off-store extensions.
+@@ -364,6 +365,7 @@ class ExtensionService : public ExtensionServiceInterface,
+   bool is_shut_down_executed_ = false;
+ 
+   bool can_access_ublock_assets_;
++  bool ublock_updates_enabled_;
+ 
+   // The controller for the UI that alerts the user about any blocklisted
+   // extensions. Not owned.
+--- a/chrome/chrome_paks.gni
++++ b/chrome/chrome_paks.gni
+@@ -147,7 +147,6 @@ template("chrome_extra_paks") {
+       "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
+       "$root_gen_dir/third_party/blink/public/resources/inspector_overlay_resources.pak",
+       "$root_gen_dir/third_party/blink/public/strings/permission_element_generated_strings.pak",
+-      "$root_gen_dir/third_party/ublock/resources/ublock_resources.pak",
+       "$root_gen_dir/ui/resources/ui_lottie_resources.pak",
+       "$root_gen_dir/ui/webui/resources/webui_resources.pak",
+     ]
+@@ -185,7 +184,6 @@ template("chrome_extra_paks") {
+       "//third_party/blink/public:devtools_inspector_resources",
+       "//third_party/blink/public:resources",
+       "//third_party/blink/public/strings:permission_element_generated_strings",
+-      "//third_party/ublock",
+       "//ui/resources:ui_lottie_resources_grd",
+       "//ui/webui/resources",
+     ]
+--- a/components/corvid_extensions/sources.cc
++++ b/components/corvid_extensions/sources.cc
+@@ -112,4 +112,9 @@ std::optional<std::string> GetStoreDownloadId(const PrefService& prefs,
+   return std::nullopt;
+ }
+ 
++bool UBlockUpdatesEnabled(const PrefService& prefs) {
++  const base::DictValue* settings = Settings(prefs);
++  return settings && settings->FindBool("ublockUpdates").value_or(false);
++}
++
+ }  // namespace corvid::extensions
+--- a/components/corvid_extensions/sources.h
++++ b/components/corvid_extensions/sources.h
+@@ -28,6 +28,14 @@ inline constexpr char kChromeWebStoreUpdateUrl[] =
+ inline constexpr char kEdgeAddonsUpdateUrl[] =
+     "https://edge.microsoft.com/extensionwebstorebase/v1/crx";
+ 
++// uBlock Origin as shipped with the browser: the authors' own signed build
++// (third_party/ublock_origin), and their update manifest for it in case the
++// package names none (1.75.0 names a jsDelivr mirror of the same file).
++inline constexpr char kUBlockOriginId[] = "fkgkibajhfbepljeaefdnfnegdcjomkh";
++inline constexpr char kUBlockOriginUpdateUrl[] =
++    "https://raw.githubusercontent.com/gorhill/uBlock/master/dist/chromium/"
++    "update.xml";
++
+ struct Store {
+   std::string name;
+   GURL update_url;
+@@ -53,6 +61,11 @@ COMPONENT_EXPORT(CORVID_EXTENSIONS)
+ std::optional<std::string> GetStoreDownloadId(const PrefService& prefs,
+                                               const GURL& url);
+ 
++// Whether uBlock Origin may update itself and its filter lists. Off unless
++// the user turned it on.
++COMPONENT_EXPORT(CORVID_EXTENSIONS)
++bool UBlockUpdatesEnabled(const PrefService& prefs);
++
+ }  // namespace corvid::extensions
+ 
+ #endif  // COMPONENTS_CORVID_EXTENSIONS_SOURCES_H_
+--- a/extensions/browser/api/storage/BUILD.gn
++++ b/extensions/browser/api/storage/BUILD.gn
+@@ -60,6 +60,7 @@ source_set("storage") {
+     ":settings_namespace",
+     ":settings_observer",
+     "//base",
++    "//components/corvid_extensions",
+     "//components/helium_services",
+     "//components/keyed_service/content",
+     "//components/value_store",
+--- a/extensions/browser/api/storage/storage_frontend.cc
++++ b/extensions/browser/api/storage/storage_frontend.cc
+@@ -21,6 +21,7 @@
+ #include "base/strings/stringprintf.h"
+ #include "base/trace_event/trace_event.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "components/corvid_extensions/sources.h"
+ #include "components/helium_services/helium_services_helpers.h"
+ #include "components/value_store/value_store_factory.h"
+ #include "content/public/browser/browser_context.h"
+@@ -301,6 +302,19 @@ void StorageFrontend::OnReadFinished(
+           base::Value(helium::GetUBlockAssetsURL(*profile_->GetPrefs()).spec()));
+       }
+     }
++
++    // Corvid: until the user lets uBlock Origin update (chrome://preferences),
++    // its own filter list updater stays off and it uses the lists in its
++    // package. Set through uBO's documented admin settings, so the extension
++    // itself is unmodified.
++    if (extension_id == corvid::extensions::kUBlockOriginId &&
++        storage_area == StorageAreaNamespace::kManaged &&
++        !corvid::extensions::UBlockUpdatesEnabled(*profile_->GetPrefs())) {
++      base::ListValue* user_settings =
++          get_result.data->EnsureList("userSettings");
++      user_settings->Append(
++          base::ListValue().Append("autoUpdate").Append("false"));
++    }
+   }
+ 
+   std::move(callback).Run(std::move(get_result));
+--- a/third_party/ublock/README.chromium
++++ b/third_party/ublock/README.chromium
+@@ -4,7 +4,7 @@ URL: https://github.com/gorhill/uBlock
+ Version: 1.66.4
+ License: GPL-3.0
+ License File: LICENSE.txt
+-Shipped: yes
++Shipped: no
+ Security Critical: yes
+ 
+ Description:
