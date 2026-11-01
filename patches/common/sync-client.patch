@@ -1,0 +1,5286 @@
+--- a/base/threading/thread_restrictions.h
++++ b/base/threading/thread_restrictions.h
+@@ -434,6 +434,9 @@ class LaunchXdgUtilityScopedAllowBaseSyncPrimitives;
+ namespace storage {
+ class ObfuscatedFileUtil;
+ }
++namespace corvid_sync {
++class HttpWait;
++}
+ namespace syncer {
+ class GetLocalChangesRequest;
+ class HttpBridge;
+@@ -810,6 +813,7 @@ class BASE_EXPORT ScopedAllowBaseSyncPrimitives {
+   friend class shell_integration_linux::
+       LaunchXdgUtilityScopedAllowBaseSyncPrimitives;
+   friend class storage::ObfuscatedFileUtil;
++  friend class corvid_sync::HttpWait;
+   friend class syncer::HttpBridge;
+   friend class syncer::GetLocalChangesRequest;
+   friend class updater::SystemctlLauncherScopedAllowBaseSyncPrimitives;
+--- a/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
++++ b/chrome/browser/profiles/chrome_browser_main_extra_parts_profiles.cc
+@@ -260,6 +260,7 @@
+ #include "chrome/browser/tips/tips_service_factory.h"
+ #include "chrome/browser/translate/translate_ranker_factory.h"
+ #include "chrome/browser/ttc/core/ttc_keyed_service_factory.h"
++#include "chrome/browser/ui/webui/corvid/sync_page_handler.h"
+ #include "chrome/browser/ui/autofill/autofill_client_provider_factory.h"
+ #include "chrome/browser/ui/find_bar/find_bar_state_factory.h"
+ #include "chrome/browser/ui/hats/hats_service_factory.h"
+@@ -688,6 +689,7 @@ ChromeBrowserMainExtraPartsProfiles::~ChromeBrowserMainExtraPartsProfiles() =
+ // static
+ void ChromeBrowserMainExtraPartsProfiles::
+     EnsureBrowserContextKeyedServiceFactoriesBuilt() {
++  corvid::CorvidSyncServiceFactory::GetInstance();
+   // ---------------------------------------------------------------------------
+   // Redirect to those lists for factories that are part of those modules.
+   // Module specific registration functions:
+--- a/chrome/browser/sync/BUILD.gn
++++ b/chrome/browser/sync/BUILD.gn
+@@ -93,6 +93,7 @@ source_set("sync") {
+     "//components/paint_preview/buildflags",
+   ]
+   deps = [
++    "//components/corvid_sync",
+     ":data_type_store_service_factory",
+     "//chrome/app:branded_strings",
+     "//chrome/app:branded_strings_grit",
+--- a/chrome/browser/sync/chrome_sync_client.cc
++++ b/chrome/browser/sync/chrome_sync_client.cc
+@@ -28,7 +28,10 @@
+ #include "components/supervised_user/core/browser/family_link_settings_service.h"
+ #include "components/sync/base/pref_names.h"
+ #include "components/sync/model/data_type_store_service.h"
++#include "components/corvid_sync/backend.h"
++#include "components/os_crypt/async/common/encryptor.h"
+ #include "components/sync/service/trusted_vault_synthetic_field_trial.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
+ #include "components/sync_device_info/device_info_sync_service.h"
+ #include "components/trusted_vault/trusted_vault_server_constants.h"
+ #include "components/trusted_vault/trusted_vault_service.h"
+@@ -89,6 +92,34 @@ ChromeSyncClient::ChromeSyncClient(
+ 
+ ChromeSyncClient::~ChromeSyncClient() = default;
+ 
++void ChromeSyncClient::SetCorvidUrlLoaderFactory(
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory) {
++  corvid_backend_ = std::make_unique<corvid_sync::BackendHost>(
++      pref_service_, std::move(url_loader_factory));
++}
++
++bool ChromeSyncClient::IsCustomSyncBackendConfigured() const {
++  return corvid_backend_ && corvid_backend_->IsConfigured();
++}
++
++syncer::CustomSyncBackendStatus ChromeSyncClient::GetCustomSyncBackendStatus()
++    const {
++  return corvid_backend_
++             ? corvid_backend_->GetStatus()
++             : syncer::CustomSyncBackendStatus::kProviderUnavailable;
++}
++
++std::string ChromeSyncClient::GetCustomSyncBackendNamespace() const {
++  return corvid_backend_ ? corvid_backend_->GetNamespace() : std::string();
++}
++
++std::unique_ptr<syncer::CustomSyncBackend>
++ChromeSyncClient::CreateCustomSyncBackend(
++    scoped_refptr<os_crypt_async::Encryptor> encryptor) {
++  return corvid_backend_ ? corvid_backend_->CreateBackend(std::move(encryptor))
++                         : nullptr;
++}
++
+ PrefService* ChromeSyncClient::GetPrefService() {
+   DCHECK_CURRENTLY_ON(BrowserThread::UI);
+   return pref_service_;
+--- a/chrome/browser/sync/chrome_sync_client.h
++++ b/chrome/browser/sync/chrome_sync_client.h
+@@ -26,6 +26,14 @@ class DataTypeStoreService;
+ class DeviceInfoSyncService;
+ }  // namespace syncer
+ 
++namespace corvid_sync {
++class BackendHost;
++}
++
++namespace network {
++class SharedURLLoaderFactory;
++}
++
+ namespace trusted_vault {
+ class TrustedVaultService;
+ }  // namespace trusted_vault
+@@ -66,6 +74,14 @@ class ChromeSyncClient : public syncer::SyncClient {
+       const syncer::TrustedVaultAutoUpgradeSyntheticFieldTrialGroup& group)
+       override;
+   bool IsMetricsAndCrashReportingEnabled() override;
++  bool IsCustomSyncBackendConfigured() const override;
++  syncer::CustomSyncBackendStatus GetCustomSyncBackendStatus() const override;
++  std::string GetCustomSyncBackendNamespace() const override;
++  std::unique_ptr<syncer::CustomSyncBackend> CreateCustomSyncBackend(
++      scoped_refptr<os_crypt_async::Encryptor> encryptor) override;
++
++  void SetCorvidUrlLoaderFactory(
++      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
+ 
+  private:
+   const base::FilePath profile_base_name_;
+@@ -77,6 +93,7 @@ class ChromeSyncClient : public syncer::SyncClient {
+       family_link_settings_service_;
+   const std::unique_ptr<ExtensionsActivityMonitor> extensions_activity_monitor_;
+   SyncEngineFactoryImpl engine_factory_;
++  std::unique_ptr<corvid_sync::BackendHost> corvid_backend_;
+ };
+ 
+ }  // namespace browser_sync
+--- a/chrome/browser/sync/sync_service_factory.cc
++++ b/chrome/browser/sync/sync_service_factory.cc
+@@ -390,7 +390,7 @@ syncer::DataTypeController::TypeVector CreateControllers(
+ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
+   CHECK(profile);
+ 
+-  return std::make_unique<browser_sync::ChromeSyncClient>(
++  auto client = std::make_unique<browser_sync::ChromeSyncClient>(
+       profile->GetBaseName(), profile->GetPrefs(),
+       IdentityManagerFactory::GetForProfile(profile),
+       TrustedVaultServiceFactory::GetForProfile(profile),
+@@ -400,6 +400,10 @@ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
+       supervised_user::FamilyLinkSettingsServiceFactory::GetForKey(
+           profile->GetProfileKey()),
+       std::make_unique<browser_sync::ExtensionsActivityMonitor>(profile));
++  client->SetCorvidUrlLoaderFactory(
++      profile->GetDefaultStoragePartition()
++          ->GetURLLoaderFactoryForBrowserProcess());
++  return client;
+ }
+ 
+ std::unique_ptr<KeyedService> BuildSyncService(
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -664,10 +664,12 @@ source_set("corvid") {
+   sources = [
+     "corvid/corvid_ui.cc",
+     "corvid/diagnostics_log.cc",
++    "corvid/sync_page_handler.cc",
+   ]
+   public = [
+     "corvid/corvid_ui.h",
+     "corvid/diagnostics_log.h",
++    "corvid/sync_page_handler.h",
+   ]
+   public_deps = [ "//content/public/browser" ]
+   deps = [
+@@ -676,7 +678,9 @@ source_set("corvid") {
+     "//net",
+     "//url",
+     "//chrome/browser/profiles:profile",
++    "//chrome/browser/sync",
+     "//components/corvid_extensions",
++    "//components/corvid_sync",
+     "//components/corvid_webui:resources",
+     "//components/download/public/common:public",
+     "//components/pref_registry",
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -387,6 +387,7 @@ void RegisterChromeWebUIConfigs() {
+       std::make_unique<corvid::CorvidUIConfig>("preferences", "settings"));
+   map.AddWebUIConfig(
+       std::make_unique<corvid::CorvidUIConfig>("diagnostics", "diagnostics"));
++  map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>("sync", "sync"));
+   // Private and guest windows open chrome://newtab without a redirect.
+   map.AddWebUIConfig(std::make_unique<corvid::CorvidUIConfig>(
+       chrome::kChromeUINewTabHost, "newtab"));
+--- a/chrome/browser/ui/webui/corvid/corvid_ui.cc
++++ b/chrome/browser/ui/webui/corvid/corvid_ui.cc
+@@ -18,6 +18,8 @@
+ #include "base/values.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/webui/corvid/diagnostics_log.h"
++#include "chrome/browser/ui/webui/corvid/sync_page_handler.h"
++#include "components/corvid_sync/backend.h"
+ #include "components/corvid_extensions/sources.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources.h"
+ #include "components/corvid_webui/grit/corvid_webui_resources_map.h"
+@@ -267,6 +269,7 @@ class StoreInstallHandler : public content::WebUIMessageHandler {
+ 
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterDictionaryPref(kWebUIPrefs);
++  corvid_sync::RegisterProfilePrefs(registry);
+ }
+ 
+ CorvidUIConfig::CorvidUIConfig(std::string_view host, std::string_view page)
+@@ -318,6 +321,9 @@ CorvidUI::CorvidUI(content::WebUI* web_ui,
+   if (page == "settings") {
+     web_ui->AddMessageHandler(std::make_unique<StoreInstallHandler>(profile));
+   }
++  if (page == "sync") {
++    web_ui->AddMessageHandler(std::make_unique<SyncPageHandler>(profile));
++  }
+ }
+ 
+ CorvidUI::~CorvidUI() = default;
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/sync_page_handler.cc
+@@ -0,0 +1,137 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "chrome/browser/ui/webui/corvid/sync_page_handler.h"
++
++#include <string>
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "chrome/browser/browser_process.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/browser/sync/sync_service_factory.h"
++#include "components/os_crypt/async/browser/os_crypt_async.h"
++#include "content/public/browser/storage_partition.h"
++#include "content/public/browser/web_ui.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++
++namespace corvid {
++
++namespace {
++
++constexpr const char* kMessages[] = {
++    "corvidSyncGet",     "corvidSyncCreate",  "corvidSyncJoin",
++    "corvidSyncRecover", "corvidSyncInvite",  "corvidSyncApprove",
++    "corvidSyncReject",  "corvidSyncRemove",  "corvidSyncShowKey",
++    "corvidSyncOff",
++};
++
++}  // namespace
++
++// static
++CorvidSyncServiceFactory* CorvidSyncServiceFactory::GetInstance() {
++  static base::NoDestructor<CorvidSyncServiceFactory> instance;
++  return instance.get();
++}
++
++// static
++corvid_sync::Service* CorvidSyncServiceFactory::GetForProfile(
++    Profile* profile) {
++  return static_cast<corvid_sync::Service*>(
++      GetInstance()->GetServiceForBrowserContext(profile, /*create=*/true));
++}
++
++CorvidSyncServiceFactory::CorvidSyncServiceFactory()
++    : ProfileKeyedServiceFactory("CorvidSyncService",
++                                 ProfileSelections::BuildForRegularProfile()) {
++  DependsOn(SyncServiceFactory::GetInstance());
++}
++
++CorvidSyncServiceFactory::~CorvidSyncServiceFactory() = default;
++
++std::unique_ptr<KeyedService>
++CorvidSyncServiceFactory::BuildServiceInstanceForBrowserContext(
++    content::BrowserContext* context) const {
++  Profile* profile = Profile::FromBrowserContext(context);
++  return std::make_unique<corvid_sync::Service>(
++      profile->GetPrefs(),
++      profile->GetDefaultStoragePartition()
++          ->GetURLLoaderFactoryForBrowserProcess(),
++      g_browser_process->os_crypt_async(),
++      SyncServiceFactory::GetForProfile(profile));
++}
++
++bool CorvidSyncServiceFactory::ServiceIsCreatedWithBrowserContext() const {
++  return true;
++}
++
++SyncPageHandler::SyncPageHandler(Profile* profile)
++    : service_(CorvidSyncServiceFactory::GetForProfile(profile)) {}
++
++SyncPageHandler::~SyncPageHandler() = default;
++
++void SyncPageHandler::RegisterMessages() {
++  for (const char* message : kMessages) {
++    web_ui()->RegisterMessageCallback(
++        message,
++        base::BindRepeating(&SyncPageHandler::HandleMessage,
++                            base::Unretained(this), std::string(message)));
++  }
++}
++
++void SyncPageHandler::OnJavascriptAllowed() {
++  if (service_) {
++    observation_.Observe(service_);
++  }
++}
++
++void SyncPageHandler::OnJavascriptDisallowed() {
++  observation_.Reset();
++}
++
++void SyncPageHandler::OnSyncViewChanged(const base::DictValue& view,
++                                        const base::DictValue& transient) {
++  base::DictValue event = transient.Clone();
++  event.Set("view", view.Clone());
++  CallJavascriptFunction("corvidBrowser.dispatch", base::Value("sync"), event);
++}
++
++void SyncPageHandler::HandleMessage(const std::string& message,
++                                    const base::ListValue& args) {
++  AllowJavascript();
++  if (!service_) {
++    // Private and guest windows have no sync.
++    base::DictValue view;
++    view.Set("mode", "unavailable");
++    OnSyncViewChanged(view, base::DictValue());
++    return;
++  }
++  auto arg = [&args](size_t i) {
++    return i < args.size() && args[i].is_string() ? args[i].GetString()
++                                                  : std::string();
++  };
++  if (message == "corvidSyncGet") {
++    OnSyncViewChanged(service_->View(), base::DictValue());
++    service_->Refresh();
++  } else if (message == "corvidSyncCreate") {
++    service_->CreateVault(arg(0), arg(1), arg(2));
++  } else if (message == "corvidSyncJoin") {
++    service_->Join(arg(0), arg(1), arg(2));
++  } else if (message == "corvidSyncRecover") {
++    service_->Recover(arg(0), arg(1), arg(2), arg(3));
++  } else if (message == "corvidSyncInvite") {
++    service_->CreateInvite();
++  } else if (message == "corvidSyncApprove") {
++    service_->Approve(arg(0));
++  } else if (message == "corvidSyncReject") {
++    service_->Reject(arg(0));
++  } else if (message == "corvidSyncRemove") {
++    service_->RemoveDevice(arg(0));
++  } else if (message == "corvidSyncShowKey") {
++    service_->ShowRecoveryKey();
++  } else if (message == "corvidSyncOff") {
++    service_->TurnOff();
++  }
++}
++
++}  // namespace corvid
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/ui/webui/corvid/sync_page_handler.h
+@@ -0,0 +1,68 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef CHROME_BROWSER_UI_WEBUI_CORVID_SYNC_PAGE_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_CORVID_SYNC_PAGE_HANDLER_H_
++
++#include <memory>
++
++#include "base/memory/raw_ptr.h"
++#include "base/no_destructor.h"
++#include "base/scoped_observation.h"
++#include "base/values.h"
++#include "chrome/browser/profiles/profile_keyed_service_factory.h"
++#include "components/corvid_sync/service.h"
++#include "content/public/browser/web_ui_message_handler.h"
++
++class Profile;
++
++namespace corvid {
++
++// Makes corvid_sync::Service for regular profiles, at profile start so the
++// poll runs with no page open.
++class CorvidSyncServiceFactory : public ProfileKeyedServiceFactory {
++ public:
++  static CorvidSyncServiceFactory* GetInstance();
++  static corvid_sync::Service* GetForProfile(Profile* profile);
++
++ private:
++  friend class base::NoDestructor<CorvidSyncServiceFactory>;
++  CorvidSyncServiceFactory();
++  ~CorvidSyncServiceFactory() override;
++
++  // BrowserContextKeyedServiceFactory:
++  std::unique_ptr<KeyedService> BuildServiceInstanceForBrowserContext(
++      content::BrowserContext* context) const override;
++  bool ServiceIsCreatedWithBrowserContext() const override;
++};
++
++// corvid://sync: forwards the page's messages to the service and sends back
++// its view as corvidBrowser.dispatch("sync", {view, ...one-time answers}).
++class SyncPageHandler : public content::WebUIMessageHandler,
++                        public corvid_sync::Service::Observer {
++ public:
++  explicit SyncPageHandler(Profile* profile);
++  SyncPageHandler(const SyncPageHandler&) = delete;
++  SyncPageHandler& operator=(const SyncPageHandler&) = delete;
++  ~SyncPageHandler() override;
++
++  // content::WebUIMessageHandler:
++  void RegisterMessages() override;
++  void OnJavascriptAllowed() override;
++  void OnJavascriptDisallowed() override;
++
++  // corvid_sync::Service::Observer:
++  void OnSyncViewChanged(const base::DictValue& view,
++                         const base::DictValue& transient) override;
++
++ private:
++  void HandleMessage(const std::string& message, const base::ListValue& args);
++
++  const raw_ptr<corvid_sync::Service> service_;
++  base::ScopedObservation<corvid_sync::Service, corvid_sync::Service::Observer>
++      observation_{this};
++};
++
++}  // namespace corvid
++
++#endif  // CHROME_BROWSER_UI_WEBUI_CORVID_SYNC_PAGE_HANDLER_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/BUILD.gn
+@@ -0,0 +1,65 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++# Copyright (C) 2026 Corvid contributors
++
++
++# Corvid's sync client: Helium's vault engine (components/sync/engine/sync_vault)
++# on our server (sync/ in the Corvid repo), plus devices, pairing and recovery.
++source_set("corvid_sync") {
++  sources = [
++    "account.cc",
++    "account.h",
++    "api_client.cc",
++    "api_client.h",
++    "backend.cc",
++    "backend.h",
++    "http.cc",
++    "http.h",
++    "keys.cc",
++    "keys.h",
++    "roster.cc",
++    "roster.h",
++    "server_transport.cc",
++    "server_transport.h",
++    "service.cc",
++    "service.h",
++  ]
++  public_deps = [
++    "//base",
++    "//components/keyed_service/core",
++    "//components/os_crypt/async/common",
++    "//components/sync/engine",
++    "//components/sync/service",
++  ]
++  deps = [
++    "//components/os_crypt/async/browser",
++    "//components/prefs",
++    "//components/sync/base",
++    "//components/sync/engine/sync_vault",
++    "//crypto",
++    "//net",
++    "//services/network/public/cpp",
++    "//third_party/boringssl",
++    "//url",
++  ]
++}
++
++executable("corvid_sync_unittests") {
++  testonly = true
++  sources = [
++    "account_unittest.cc",
++    "api_client_unittest.cc",
++    "keys_unittest.cc",
++    "roster_unittest.cc",
++    "server_transport_unittest.cc",
++    "test_main.cc",
++    "test_server.cc",
++    "test_server.h",
++  ]
++  deps = [
++    ":corvid_sync",
++    "//components/sync/engine/sync_vault",
++    "//crypto",
++    "//testing/gtest",
++    "//components/sync/protocol",
++  ]
++}
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/DEPS
+@@ -0,0 +1,11 @@
++include_rules = [
++  "+components/keyed_service/core",
++  "+components/os_crypt/async",
++  "+components/prefs",
++  "+components/sync",
++  "+crypto",
++  "+net",
++  "+services/network/public",
++  "+third_party/boringssl/src/include",
++  "+url",
++]
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/account.cc
+@@ -0,0 +1,793 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/account.h"
++
++#include <memory>
++#include <utility>
++
++#include "base/base64url.h"
++#include "base/functional/bind.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/logging.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_split.h"
++#include "base/types/expected_macros.h"
++#include "base/values.h"
++#include "components/corvid_sync/server_transport.h"
++#include "components/sync/engine/loopback_server/loopback_server_state_delta.h"
++#include "components/sync/engine/sync_vault/sync_vault_limits.h"
++#include "components/sync/engine/sync_vault/sync_vault_store.h"
++#include "crypto/secure_util.h"
++
++namespace corvid_sync {
++
++namespace {
++
++constexpr int64_t kInviteTtlSeconds = 60 * 60;
++constexpr int kMaxRosterAttempts = 8;
++constexpr size_t kMaxRosterBytes =
++    syncer::kSyncVaultMaximumMetadataPlaintextBytes +
++    syncer::kSyncVaultContainerOverheadBytes;
++
++AccountError FromApi(const ApiError& error) {
++  return AccountError{.text = ApiErrorText(error),
++                      .revoked = error.kind == ApiError::Kind::kRevoked};
++}
++
++AccountError Integrity(std::string text) {
++  return AccountError{.text = std::move(text), .integrity = true};
++}
++
++AccountError Input(std::string text) {
++  return AccountError{.text = std::move(text)};
++}
++
++// The Account's connection, lent to a vault store for one operation.
++class BorrowedHttp : public BlockingHttp {
++ public:
++  explicit BorrowedHttp(BlockingHttp* http) : http_(http) {}
++  HttpResponse Send(const HttpRequest& request) override {
++    return http_->Send(request);
++  }
++
++ private:
++  const raw_ptr<BlockingHttp> http_;
++};
++
++std::string StoreErrorText(syncer::SyncVaultStoreError error) {
++  using E = syncer::SyncVaultStoreError;
++  switch (error) {
++    case E::kRollback:
++      return "The server returned older data than this device already saw.";
++    case E::kFork:
++      return "The server returned a different history than this device saw.";
++    case E::kAuthenticationFailed:
++    case E::kInvalidVaultKey:
++    case E::kMalformedObject:
++      return "The data on the server failed its integrity check.";
++    case E::kNetworkError:
++    case E::kTemporaryError:
++      return "Cannot reach the sync server.";
++    case E::kConflict:
++      return "Changed on the server at the same time; try again.";
++    case E::kQuotaExceeded:
++      return "The account is full on the server.";
++    default:
++      return "The vault could not be read or written.";
++  }
++}
++
++bool IsIntegrity(syncer::SyncVaultStoreError error) {
++  using E = syncer::SyncVaultStoreError;
++  return error == E::kRollback || error == E::kFork ||
++         error == E::kAuthenticationFailed || error == E::kMalformedObject;
++}
++
++AccountError FromStore(syncer::SyncVaultStoreError error) {
++  return AccountError{.text = StoreErrorText(error),
++                      .integrity = IsIntegrity(error)};
++}
++
++using PersistCallback = syncer::SyncVaultStore::PersistCheckpointCallback;
++
++base::expected<std::unique_ptr<syncer::SyncVaultStore>, AccountError> MakeStore(
++    BlockingHttp* http,
++    const std::string& server_url,
++    const std::string& secret,
++    const std::string& uuid,
++    const Key& key,
++    std::optional<syncer::SyncVaultCheckpoint> checkpoint,
++    PersistCallback persist) {
++  auto store = syncer::SyncVaultStore::Create(
++      std::make_unique<ServerVaultTransport>(
++          std::make_unique<BorrowedHttp>(http), server_url, secret, uuid),
++      std::make_unique<syncer::LoopbackServerStateCodec>(), key, uuid,
++      std::move(checkpoint), std::move(persist));
++  if (!store.has_value()) {
++    return base::unexpected(FromStore(store.error()));
++  }
++  return std::move(store.value());
++}
++
++}  // namespace
++
++std::string DeviceState::ToJson() const {
++  base::DictValue d;
++  d.Set("server_url", server_url);
++  d.Set("account", account);
++  d.Set("device_id", device_id);
++  d.Set("device_name", device_name);
++  d.Set("device_secret", device_secret);
++  d.Set("identity", Base64(identity));
++  d.Set("vault_uuid", vault_uuid);
++  d.Set("vault_name", vault_name);
++  d.Set("vault_key", Base64(vault_key));
++  d.Set("roster_version", base::NumberToString(roster_version));
++  if (roster) {
++    d.Set("roster", roster->ToJson());
++  }
++  if (join_secret) {
++    d.Set("join_secret", Base64(*join_secret));
++    d.Set("join_approver", join_approver);
++  }
++  d.Set("revoked", revoked);
++  return base::WriteJson(d).value_or(std::string());
++}
++
++// static
++std::optional<DeviceState> DeviceState::FromJson(std::string_view json) {
++  std::optional<base::Value> value =
++      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
++  if (!value || !value->is_dict()) {
++    return std::nullopt;
++  }
++  const base::DictValue& d = value->GetDict();
++  auto str = [&d](std::string_view key) {
++    const std::string* s = d.FindString(key);
++    return s ? *s : std::string();
++  };
++  DeviceState state;
++  state.server_url = str("server_url");
++  state.account = str("account");
++  state.device_id = str("device_id");
++  state.device_name = str("device_name");
++  state.device_secret = str("device_secret");
++  state.vault_uuid = str("vault_uuid");
++  state.vault_name = str("vault_name");
++  state.join_approver = str("join_approver");
++  std::optional<Key> identity = KeyFromBase64(str("identity"));
++  std::optional<Key> vault_key = KeyFromBase64(str("vault_key"));
++  if (!identity || !vault_key ||
++      !base::StringToUint64(str("roster_version"), &state.roster_version)) {
++    return std::nullopt;
++  }
++  state.identity = *identity;
++  state.vault_key = *vault_key;
++  if (d.contains("roster")) {
++    state.roster = Roster::FromJson(str("roster"));
++    if (!state.roster) {
++      return std::nullopt;
++    }
++  }
++  if (d.contains("join_secret")) {
++    state.join_secret = KeyFromBase64(str("join_secret"));
++    if (!state.join_secret) {
++      return std::nullopt;
++    }
++  }
++  state.revoked = d.FindBool("revoked").value_or(false);
++  return state;
++}
++
++Account::Account(BlockingHttp* http, DeviceState state)
++    : http_(http), state_(std::move(state)) {}
++
++Account::~Account() = default;
++
++Account::Status Account::Register(std::string_view server_url,
++                                  std::string_view token,
++                                  std::string_view device_name) {
++  if (state_.registered()) {
++    // A try that failed after registering: the token is already spent.
++    if (!state_.has_vault() && !state_.join_secret) {
++      return base::ok();
++    }
++    return base::unexpected(Input("Sync is already set up on this device."));
++  }
++  const std::string url = NormalizeServerUrl(server_url);
++  if (url.empty()) {
++    return base::unexpected(Input(
++        "The server address must start with https:// (plain http:// only for "
++        "this computer)."));
++  }
++  const Key identity = NewPrivateKey();
++  ApiClient api(http_, url, std::string());
++  auto reg = api.Register(token, device_name, PublicKeyFor(identity));
++  if (!reg.has_value()) {
++    return base::unexpected(FromApi(reg.error()));
++  }
++  state_ = DeviceState();
++  state_.server_url = url;
++  state_.account = reg->account;
++  state_.device_id = reg->device_id;
++  state_.device_name = std::string(device_name);
++  state_.device_secret = reg->device_secret;
++  state_.identity = identity;
++  return base::ok();
++}
++
++Account::Status Account::InitializeVault(std::string_view uuid,
++                                         const Key& key) {
++  ASSIGN_OR_RETURN(
++      std::unique_ptr<syncer::SyncVaultStore> store,
++      MakeStore(http_, state_.server_url, state_.device_secret,
++                std::string(uuid), key, std::nullopt,
++                base::BindRepeating(
++                    [](const syncer::SyncVaultCheckpoint&) { return true; })));
++  auto read = store->InitializeEmptyVaultAndReadState();
++  if (!read.has_value()) {
++    return base::unexpected(FromStore(read.error()));
++  }
++  return base::ok();
++}
++
++Account::Result<std::string> Account::CreateVault(
++    std::string_view server_url,
++    std::string_view token,
++    std::string_view device_name) {
++  RETURN_IF_ERROR(Register(server_url, token, device_name));
++  const std::string uuid = NewVaultUuid();
++  const Key key = RandomKey();
++  const std::string name = "Corvid";
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto put = api.PutVault(uuid, name);
++  if (!put.has_value()) {
++    return base::unexpected(FromApi(put.error()));
++  }
++  RETURN_IF_ERROR(InitializeVault(uuid, key));
++  Adopt(VaultGrant{uuid, key, name, std::string()});
++  const std::string self = state_.device_id;
++  const std::string self_name = state_.device_name;
++  const Key self_public = PublicKeyFor(state_.identity);
++  RETURN_IF_ERROR(UpdateRoster(uuid, key, [&](Roster& r) {
++    r.devices.push_back(RosterEntry{self, self_name, self_public, self});
++  }));
++  return EncodeRecoveryKey(key);
++}
++
++Account::Status Account::Join(std::string_view server_url,
++                              std::string_view invite_code,
++                              std::string_view device_name) {
++  std::vector<std::string> parts = base::SplitString(
++      invite_code, "~", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
++  std::string secret_bytes;
++  if (parts.size() != 3 ||
++      !base::Base64UrlDecode(parts[1],
++                             base::Base64UrlDecodePolicy::IGNORE_PADDING,
++                             &secret_bytes) ||
++      secret_bytes.size() != kKeySize) {
++    return base::unexpected(Input("That invite code is not complete."));
++  }
++  Key secret;
++  std::copy(secret_bytes.begin(), secret_bytes.end(), secret.begin());
++  RETURN_IF_ERROR(Register(server_url, parts[0], device_name));
++  state_.join_secret = secret;
++  state_.join_approver = parts[2];
++  base::DictValue body;
++  body.Set("proof", Base64(PairProof(secret, PublicKeyFor(state_.identity))));
++  const std::string json = base::WriteJson(body).value_or("{}");
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  // The server's "data" is []byte; the payload here is JSON, as in Go.
++  auto sent =
++      api.PostMessage(parts[2], kKindPairRequest, base::as_byte_span(json));
++  if (!sent.has_value()) {
++    return base::unexpected(FromApi(sent.error()));
++  }
++  return base::ok();
++}
++
++Account::Result<Key> Account::ServerPublicKey(std::string_view device_id,
++                                              std::string* name) {
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto devices = api.Devices();
++  if (!devices.has_value()) {
++    return base::unexpected(FromApi(devices.error()));
++  }
++  for (const DeviceInfo& d : *devices) {
++    if (d.id == device_id && !d.revoked) {
++      if (name) {
++        *name = d.name;
++      }
++      return d.public_key;
++    }
++  }
++  return base::unexpected(Input("That device is not on the server."));
++}
++
++Account::Result<std::string> Account::JoinComparisonCode() {
++  if (!state_.join_secret) {
++    return base::unexpected(Input("Not pairing."));
++  }
++  ASSIGN_OR_RETURN(Key approver,
++                   ServerPublicKey(state_.join_approver, nullptr));
++  return ComparisonCode(*state_.join_secret, approver,
++                        PublicKeyFor(state_.identity));
++}
++
++Account::Status Account::Recover(std::string_view server_url,
++                                 std::string_view token,
++                                 std::string_view device_name,
++                                 std::string_view recovery_key) {
++  std::optional<Key> key = DecodeRecoveryKey(recovery_key);
++  if (!key) {
++    return base::unexpected(
++        Input("That recovery key has a typo (its checksum does not match)."));
++  }
++  RETURN_IF_ERROR(Register(server_url, token, device_name));
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto vaults = api.Vaults();
++  if (!vaults.has_value()) {
++    return base::unexpected(FromApi(vaults.error()));
++  }
++  for (const VaultInfo& v : *vaults) {
++    auto head = api.ReadObject(v.uuid, "head", kMaxRosterBytes);
++    if (!head.has_value() || !head.value()) {
++      continue;
++    }
++    ObjectCrypto crypto(*key, v.uuid);
++    if (!crypto.Decrypt(/*role=head*/ 1, head.value()->data)) {
++      continue;  // Not this vault.
++    }
++    Adopt(VaultGrant{v.uuid, *key, v.display_name, std::string()});
++    const std::string self = state_.device_id;
++    const std::string self_name = state_.device_name;
++    const Key self_public = PublicKeyFor(state_.identity);
++    return UpdateRoster(v.uuid, *key, [&](Roster& r) {
++      if (!r.Find(self)) {
++        r.devices.push_back(
++            RosterEntry{self, self_name, self_public, "recovery-key"});
++      }
++    });
++  }
++  return base::unexpected(
++      Integrity("That recovery key opens none of this account's vaults."));
++}
++
++Account::Result<std::string> Account::CreateInvite() {
++  if (!state_.has_vault()) {
++    return base::unexpected(Input("This device has no vault key yet."));
++  }
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto token = api.CreateInvite(kInviteTtlSeconds);
++  if (!token.has_value()) {
++    return base::unexpected(FromApi(token.error()));
++  }
++  const Key secret = RandomKey();
++  invites_[*token] = secret;
++  std::string encoded;
++  base::Base64UrlEncode(secret, base::Base64UrlEncodePolicy::OMIT_PADDING,
++                        &encoded);
++  return *token + "~" + encoded + "~" + state_.device_id;
++}
++
++Account::Status Account::Approve(std::string_view device_id) {
++  auto it = pairings_.find(std::string(device_id));
++  if (it == pairings_.end()) {
++    return base::unexpected(Input("That device is no longer waiting."));
++  }
++  const Pairing pairing = it->second;
++  const std::string self = state_.device_id;
++  RETURN_IF_ERROR(
++      UpdateRoster(state_.vault_uuid, state_.vault_key, [&](Roster& r) {
++        if (!r.Find(pairing.device_id)) {
++          r.devices.push_back(RosterEntry{pairing.device_id, pairing.name,
++                                          pairing.public_key, self});
++        }
++      }));
++  std::vector<uint8_t> envelope = SealEnvelope(
++      state_.identity, pairing.public_key, pairing.secret, kKindVaultKey,
++      VaultGrant{state_.vault_uuid, state_.vault_key, state_.vault_name,
++                 std::string()});
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto sent = api.PostMessage(pairing.device_id, kKindVaultKey, envelope);
++  if (!sent.has_value()) {
++    return base::unexpected(FromApi(sent.error()));
++  }
++  pairings_.erase(it);
++  return base::ok();
++}
++
++void Account::Reject(std::string_view device_id) {
++  auto it = pairings_.find(std::string(device_id));
++  if (it == pairings_.end()) {
++    return;
++  }
++  pairings_.erase(it);
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  std::ignore = api.RevokeDevice(device_id);
++}
++
++void Account::Adopt(const VaultGrant& grant) {
++  state_.vault_uuid = grant.vault_uuid;
++  state_.vault_key = grant.vault_key;
++  state_.vault_name = grant.display_name;
++  state_.roster_version = 0;
++  state_.roster.reset();
++  checkpoint_.reset();
++}
++
++Account::Result<Roster> Account::ReadRoster(
++    std::string_view uuid,
++    const Key& key,
++    uint64_t min_version,
++    std::optional<std::string>* revision) {
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto object = api.ReadObject(uuid, kRosterObjectId, kMaxRosterBytes);
++  if (!object.has_value()) {
++    return base::unexpected(FromApi(object.error()));
++  }
++  if (!object.value()) {
++    if (revision) {
++      revision->reset();
++    }
++    if (min_version > 0) {
++      return base::unexpected(Integrity("The device list is gone."));
++    }
++    return Roster();
++  }
++  ObjectCrypto crypto(key, std::string(uuid));
++  std::optional<std::vector<uint8_t>> plain =
++      crypto.Decrypt(ObjectCrypto::kRoleRoster, object.value()->data);
++  if (!plain) {
++    return base::unexpected(
++        Integrity("The device list failed its integrity check."));
++  }
++  std::optional<Roster> roster = Roster::FromJson(base::as_string_view(*plain));
++  if (!roster) {
++    return base::unexpected(Integrity("The device list could not be read."));
++  }
++  if (roster->version < min_version) {
++    return base::unexpected(
++        Integrity("The server returned an older device list than this device "
++                  "already saw."));
++  }
++  if (revision) {
++    *revision = object.value()->revision;
++  }
++  return *roster;
++}
++
++template <typename Fn>
++Account::Status Account::UpdateRoster(std::string_view uuid,
++                                      const Key& key,
++                                      Fn fn) {
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  ObjectCrypto crypto(key, std::string(uuid));
++  for (int attempt = 0; attempt < kMaxRosterAttempts; ++attempt) {
++    std::optional<std::string> revision;
++    ASSIGN_OR_RETURN(Roster roster, ReadRoster(uuid, key, state_.roster_version,
++                                               &revision));
++    fn(roster);
++    roster.version++;
++    const std::string json = roster.ToJson();
++    auto written =
++        api.WriteObject(uuid, kRosterObjectId, revision,
++                        crypto.Encrypt(ObjectCrypto::kRoleRoster,
++                                       base::as_byte_span(json)),
++                        std::nullopt);
++    if (written.has_value()) {
++      state_.roster_version = roster.version;
++      state_.roster = std::move(roster);
++      return base::ok();
++    }
++    if (written.error().kind != ApiError::Kind::kConflict) {
++      return base::unexpected(FromApi(written.error()));
++    }
++  }
++  return base::unexpected(Input("The device list keeps changing; try again."));
++}
++
++Account::Status Account::RefreshRoster() {
++  if (!state_.has_vault()) {
++    return base::ok();
++  }
++  ASSIGN_OR_RETURN(Roster roster,
++                   ReadRoster(state_.vault_uuid, state_.vault_key,
++                              state_.roster_version, nullptr));
++  state_.roster_version = roster.version;
++  state_.roster = std::move(roster);
++  return base::ok();
++}
++
++Account::Result<std::vector<DeviceRow>> Account::ListDevices() {
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto devices = api.Devices();
++  if (!devices.has_value()) {
++    return base::unexpected(FromApi(devices.error()));
++  }
++  std::vector<DeviceRow> rows;
++  for (const DeviceInfo& d : *devices) {
++    if (d.revoked) {
++      continue;
++    }
++    rows.push_back(DeviceRow{d.id, d.name, d.last_seen,
++                             d.id == state_.device_id,
++                             state_.roster && state_.roster->IsActive(d.id)});
++  }
++  return rows;
++}
++
++Account::Result<std::string> Account::RemoveDevice(std::string_view device_id) {
++  if (!state_.has_vault()) {
++    return base::unexpected(Input("This device has no vault key yet."));
++  }
++  if (device_id == state_.device_id) {
++    return base::unexpected(Input("Use Turn off sync for this device."));
++  }
++  const DeviceState before = state_;
++  const std::string target(device_id);
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto revoked = api.RevokeDevice(target);
++  if (!revoked.has_value()) {
++    return base::unexpected(FromApi(revoked.error()));
++  }
++  RETURN_IF_ERROR(
++      UpdateRoster(state_.vault_uuid, state_.vault_key, [&](Roster& r) {
++        if (RosterEntry* e = r.Find(target)) {
++          e->revoked = true;
++        }
++      }));
++
++  // Latest state of the old vault, verified against our checkpoint.
++  ASSIGN_OR_RETURN(
++      std::unique_ptr<syncer::SyncVaultStore> old_store,
++      MakeStore(http_, state_.server_url, state_.device_secret,
++                state_.vault_uuid, state_.vault_key, checkpoint_,
++                base::BindRepeating(
++                    [](const syncer::SyncVaultCheckpoint&) { return true; })));
++  auto old_state = old_store->ReadState();
++  if (!old_state.has_value()) {
++    return base::unexpected(FromStore(old_state.error()));
++  }
++
++  // New vault with the same data. Nothing the removed device could read from
++  // here on: new key, new name.
++  const std::string new_uuid = NewVaultUuid();
++  const Key new_key = RandomKey();
++  auto put = api.PutVault(new_uuid, state_.vault_name);
++  if (!put.has_value()) {
++    return base::unexpected(FromApi(put.error()));
++  }
++  std::optional<syncer::SyncVaultCheckpoint> new_checkpoint;
++  ASSIGN_OR_RETURN(
++      std::unique_ptr<syncer::SyncVaultStore> new_store,
++      MakeStore(http_, state_.server_url, state_.device_secret, new_uuid,
++                new_key, std::nullopt,
++                base::BindRepeating(
++                    [](std::optional<syncer::SyncVaultCheckpoint>* out,
++                       const syncer::SyncVaultCheckpoint& checkpoint) {
++                      *out = checkpoint;
++                      return true;
++                    },
++                    base::Unretained(&new_checkpoint))));
++  auto base_state = new_store->InitializeEmptyVaultAndReadState();
++  if (!base_state.has_value()) {
++    return base::unexpected(FromStore(base_state.error()));
++  }
++  if (old_state->generation() > 0) {
++    auto committed = new_store->CommitMutation(*base_state, std::nullopt,
++                                               old_state->data());
++    if (!committed.has_value()) {
++      return base::unexpected(FromStore(committed.error()));
++    }
++  }
++
++  // Old roster without revoked devices, in the new vault.
++  Roster old_roster = *state_.roster;
++  const std::string old_uuid = state_.vault_uuid;
++  const Key old_key = state_.vault_key;
++  const std::string name = state_.vault_name;
++  Adopt(VaultGrant{new_uuid, new_key, name, std::string()});
++  Status roster_status = UpdateRoster(new_uuid, new_key, [&](Roster& r) {
++    for (const RosterEntry& e : old_roster.devices) {
++      if (!e.revoked) {
++        r.devices.push_back(e);
++      }
++    }
++  });
++  if (!roster_status.has_value()) {
++    state_ = before;  // Stay on the old vault; it is still there.
++    return base::unexpected(roster_status.error());
++  }
++  checkpoint_ = new_store->checkpoint();
++
++  const Key salt = RotationSalt(old_key, old_uuid);
++  for (const RosterEntry& e : old_roster.devices) {
++    if (e.revoked || e.device_id == state_.device_id) {
++      continue;
++    }
++    std::vector<uint8_t> envelope =
++        SealEnvelope(state_.identity, e.public_key, salt, kKindVaultRotate,
++                     VaultGrant{new_uuid, new_key, name, old_uuid});
++    auto sent = api.PostMessage(e.device_id, kKindVaultRotate, envelope);
++    if (!sent.has_value() && sent.error().kind != ApiError::Kind::kNotFound) {
++      state_ = before;
++      return base::unexpected(FromApi(sent.error()));
++    }
++  }
++  auto deleted = api.DeleteVault(old_uuid);
++  if (!deleted.has_value() && deleted.error().kind != ApiError::Kind::kNotFound) {
++    // Everyone already has the new key. Report it, keep the new vault.
++    LOG(WARNING) << "Corvid sync: old vault not deleted";
++  }
++  return EncodeRecoveryKey(new_key);
++}
++
++Account::Result<bool> Account::ProcessMessages() {
++  if (!state_.registered()) {
++    return false;
++  }
++  ApiClient api(http_, state_.server_url, state_.device_secret);
++  auto messages = api.Messages();
++  if (!messages.has_value()) {
++    if (messages.error().kind == ApiError::Kind::kRevoked) {
++      state_.revoked = true;
++    }
++    return base::unexpected(FromApi(messages.error()));
++  }
++  bool vault_changed = false;
++  std::optional<AccountError> integrity;
++  for (const Message& m : *messages) {
++    Status handled = HandleMessage(m, &vault_changed);
++    if (!handled.has_value()) {
++      if (!handled.error().integrity) {
++        // Transient: keep the message for the next attempt.
++        return base::unexpected(handled.error());
++      }
++      integrity = handled.error();
++    }
++    auto deleted = api.DeleteMessage(m.id);
++    if (!deleted.has_value()) {
++      return base::unexpected(FromApi(deleted.error()));
++    }
++  }
++  if (integrity) {
++    return base::unexpected(*integrity);
++  }
++  return vault_changed;
++}
++
++Account::Status Account::HandleMessage(const Message& m, bool* vault_changed) {
++  if (m.kind == kKindPairRequest) {
++    std::optional<base::Value> value = base::JSONReader::Read(
++        base::as_string_view(m.data), base::JSON_PARSE_RFC);
++    const std::string* proof_text =
++        value && value->is_dict() ? value->GetDict().FindString("proof")
++                                  : nullptr;
++    std::optional<Key> proof =
++        proof_text ? KeyFromBase64(*proof_text) : std::nullopt;
++    if (!proof) {
++      return base::unexpected(Integrity("A pairing request was malformed."));
++    }
++    std::string name;
++    ASSIGN_OR_RETURN(Key pub, ServerPublicKey(m.from_device, &name));
++    for (auto it = invites_.begin(); it != invites_.end(); ++it) {
++      if (crypto::SecureMemEqual(*proof, PairProof(it->second, pub))) {
++        const Key secret = it->second;
++        invites_.erase(it);
++        pairings_[m.from_device] = Pairing{
++            m.from_device, name,
++            ComparisonCode(secret, PublicKeyFor(state_.identity), pub), pub,
++            secret};
++        return base::ok();
++      }
++    }
++    return base::unexpected(
++        Integrity("A pairing request matched no open invite."));
++  }
++
++  if (m.kind == kKindVaultKey) {
++    if (!state_.join_secret || m.from_device != state_.join_approver) {
++      return base::unexpected(Integrity("An unexpected vault key arrived."));
++    }
++    ASSIGN_OR_RETURN(Key pub, ServerPublicKey(m.from_device, nullptr));
++    std::optional<VaultGrant> grant = OpenEnvelope(
++        state_.identity, pub, *state_.join_secret, kKindVaultKey, m.data);
++    if (!grant) {
++      return base::unexpected(
++          Integrity("A vault key failed to authenticate."));
++    }
++    const DeviceState before = state_;
++    Adopt(*grant);
++    Status roster = RefreshRoster();
++    if (roster.has_value() && !(state_.roster &&
++                                state_.roster->IsActive(state_.device_id))) {
++      roster = base::unexpected(
++          Integrity("This device is not in the vault's device list."));
++    }
++    if (!roster.has_value()) {
++      state_ = before;
++      return roster;
++    }
++    state_.join_secret.reset();
++    state_.join_approver.clear();
++    *vault_changed = true;
++    return base::ok();
++  }
++
++  if (m.kind == kKindVaultRotate) {
++    if (!state_.has_vault()) {
++      return base::unexpected(Integrity("A rotation arrived without a vault."));
++    }
++    // The rotating device deletes the old vault: fall back to the last roster
++    // this device authenticated.
++    Status refreshed = RefreshRoster();
++    if (!refreshed.has_value() && refreshed.error().integrity) {
++      return refreshed;
++    }
++    const RosterEntry* sender =
++        state_.roster ? state_.roster->Find(m.from_device) : nullptr;
++    if (!sender || sender->revoked) {
++      return base::unexpected(
++          Integrity("A key rotation came from a device not on the list."));
++    }
++    const Key salt = RotationSalt(state_.vault_key, state_.vault_uuid);
++    std::optional<VaultGrant> grant = OpenEnvelope(
++        state_.identity, sender->public_key, salt, kKindVaultRotate, m.data);
++    if (!grant) {
++      return base::unexpected(
++          Integrity("A key rotation failed to authenticate."));
++    }
++    if (grant->replaces_uuid != state_.vault_uuid) {
++      return base::unexpected(Integrity("A key rotation was for another vault."));
++    }
++    const DeviceState before = state_;
++    const std::optional<syncer::SyncVaultCheckpoint> before_checkpoint =
++        checkpoint_;
++    Adopt(*grant);
++    Status roster = RefreshRoster();
++    if (roster.has_value() && !(state_.roster &&
++                                state_.roster->IsActive(state_.device_id))) {
++      roster = base::unexpected(
++          Integrity("This device is not in the new device list."));
++    }
++    if (!roster.has_value()) {
++      state_ = before;
++      checkpoint_ = before_checkpoint;
++      return roster;
++    }
++    *vault_changed = true;
++    return base::ok();
++  }
++
++  return base::unexpected(Integrity("An unknown message arrived."));
++}
++
++void Account::Leave() {
++  if (state_.has_vault() && !state_.revoked) {
++    const std::string self = state_.device_id;
++    std::ignore =
++        UpdateRoster(state_.vault_uuid, state_.vault_key, [&](Roster& r) {
++          if (RosterEntry* e = r.Find(self)) {
++            e->revoked = true;
++          }
++        });
++  }
++  if (state_.registered() && !state_.revoked) {
++    ApiClient api(http_, state_.server_url, state_.device_secret);
++    std::ignore = api.RevokeDevice(state_.device_id);
++  }
++  state_ = DeviceState();
++  checkpoint_.reset();
++  invites_.clear();
++  pairings_.clear();
++}
++
++std::string Account::RecoveryKey() const {
++  return state_.has_vault() ? EncodeRecoveryKey(state_.vault_key)
++                            : std::string();
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/account.h
+@@ -0,0 +1,180 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_ACCOUNT_H_
++#define COMPONENTS_CORVID_SYNC_ACCOUNT_H_
++
++#include <cstdint>
++#include <map>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "base/types/expected.h"
++#include "components/corvid_sync/api_client.h"
++#include "components/corvid_sync/keys.h"
++#include "components/corvid_sync/roster.h"
++#include "components/sync/engine/sync_vault/sync_vault_format.h"
++
++namespace corvid_sync {
++
++// Everything this device must remember. Saved encrypted in the profile
++// (service.h). The checkpoint is saved apart: the sync thread updates it.
++struct DeviceState {
++  std::string server_url;
++  std::string account;
++  std::string device_id;
++  std::string device_name;
++  std::string device_secret;
++  Key identity{};  // X25519 private key.
++
++  // No vault_uuid: this device has no vault key yet.
++  std::string vault_uuid;
++  std::string vault_name;
++  Key vault_key{};
++  uint64_t roster_version = 0;
++  // Last authenticated roster: decides whose rotation is trusted, also after
++  // the old vault is gone.
++  std::optional<Roster> roster;
++
++  // New-device side of a pairing, until the vault key arrives.
++  std::optional<Key> join_secret;
++  std::string join_approver;
++
++  // The server said this device was removed.
++  bool revoked = false;
++
++  bool registered() const { return !device_id.empty(); }
++  bool has_vault() const { return !vault_uuid.empty(); }
++
++  std::string ToJson() const;
++  static std::optional<DeviceState> FromJson(std::string_view json);
++
++  bool operator==(const DeviceState&) const = default;
++};
++
++// A device that used one of our invites and waits for approval.
++struct Pairing {
++  std::string device_id;
++  std::string name;
++  std::string code;  // Must match the code on the new device.
++  Key public_key{};
++  Key secret{};
++};
++
++// A row of the page's device list.
++struct DeviceRow {
++  std::string id;
++  std::string name;
++  int64_t last_seen = 0;
++  bool is_this_device = false;
++  // Listed in the authenticated roster (holds the vault key).
++  bool in_roster = false;
++};
++
++// What went wrong; `integrity` marks tampering or wrong keys, as opposed to
++// the network or the user's input.
++struct AccountError {
++  std::string text;
++  bool integrity = false;
++  bool revoked = false;
++};
++
++// The device operations of SPEC.md section 4. Blocking: lives on one worker
++// sequence. Failed operations leave the state as it was, except that a
++// registered device stays registered.
++class Account {
++ public:
++  template <typename T>
++  using Result = base::expected<T, AccountError>;
++  using Status = base::expected<void, AccountError>;
++
++  // `http` must outlive this object.
++  Account(BlockingHttp* http, DeviceState state);
++  Account(const Account&) = delete;
++  Account& operator=(const Account&) = delete;
++  ~Account();
++
++  const DeviceState& state() const { return state_; }
++  // Checkpoint to use for the current vault. The caller keeps it current.
++  void set_checkpoint(std::optional<syncer::SyncVaultCheckpoint> checkpoint) {
++    checkpoint_ = std::move(checkpoint);
++  }
++  const std::optional<syncer::SyncVaultCheckpoint>& checkpoint() const {
++    return checkpoint_;
++  }
++
++  // First device: registers with an admin token and makes a new vault.
++  // Returns the recovery key.
++  Result<std::string> CreateVault(std::string_view server_url,
++                                  std::string_view token,
++                                  std::string_view device_name);
++
++  // New device: registers with an invite code and asks for the vault key.
++  Status Join(std::string_view server_url,
++              std::string_view invite_code,
++              std::string_view device_name);
++  // Shown on the new device while it waits.
++  Result<std::string> JoinComparisonCode();
++
++  // Registers with an admin token, finds the vault the recovery key opens and
++  // joins it.
++  Status Recover(std::string_view server_url,
++                 std::string_view token,
++                 std::string_view device_name,
++                 std::string_view recovery_key);
++
++  // Approver side.
++  Result<std::string> CreateInvite();
++  const std::map<std::string, Pairing>& pairings() const { return pairings_; }
++  // Only after the user confirmed both devices show the same code.
++  Status Approve(std::string_view device_id);
++  void Reject(std::string_view device_id);
++
++  // Handles the mailbox: pair requests, vault keys, rotations. Returns true
++  // when this device moved to another vault (restart the sync engine).
++  Result<bool> ProcessMessages();
++
++  // Refreshes `state().roster`.
++  Status RefreshRoster();
++  Result<std::vector<DeviceRow>> ListDevices();
++
++  // Revokes the device, then moves everyone else to a new vault and key.
++  // Returns the new recovery key. The caller restarts the sync engine.
++  Result<std::string> RemoveDevice(std::string_view device_id);
++
++  // Turns sync off here: leaves the roster and the account; forgets the state.
++  // Local browser data stays. Best effort on the server.
++  void Leave();
++
++  std::string RecoveryKey() const;
++
++ private:
++  void Adopt(const VaultGrant& grant);
++  Result<Roster> ReadRoster(std::string_view uuid,
++                            const Key& key,
++                            uint64_t min_version,
++                            std::optional<std::string>* revision);
++  template <typename Fn>
++  Status UpdateRoster(std::string_view uuid, const Key& key, Fn fn);
++  Status InitializeVault(std::string_view uuid, const Key& key);
++  Status HandleMessage(const Message& message, bool* vault_changed);
++  Result<Key> ServerPublicKey(std::string_view device_id, std::string* name);
++  Status Register(std::string_view server_url,
++                  std::string_view token,
++                  std::string_view device_name);
++
++  const raw_ptr<BlockingHttp> http_;
++  DeviceState state_;
++  std::optional<syncer::SyncVaultCheckpoint> checkpoint_;
++  // In memory only: invites and pending pairings die with the browser
++  // process, which only means making a new invite.
++  std::map<std::string, Key> invites_;  // Server token -> pairing secret.
++  std::map<std::string, Pairing> pairings_;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_ACCOUNT_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/account_unittest.cc
+@@ -0,0 +1,350 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/account.h"
++
++#include <memory>
++
++#include "base/functional/bind.h"
++#include "components/corvid_sync/server_transport.h"
++#include "components/corvid_sync/test_server.h"
++#include "components/sync/engine/loopback_server/loopback_server.h"
++#include "components/sync/engine/loopback_server/loopback_server_state_delta.h"
++#include "components/sync/engine/sync_vault/sync_vault_store.h"
++#include "components/sync/protocol/sync.pb.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace corvid_sync {
++namespace {
++
++class CorvidSyncAccountTest : public testing::Test {
++ protected:
++  // Sets up `first`, invites `second`, compares codes and approves.
++  void Pair(Account& approver, Account& joiner, const std::string& name) {
++    auto code = approver.CreateInvite();
++    ASSERT_TRUE(code.has_value());
++    ASSERT_TRUE(joiner.Join(kTestServerUrl, *code, name).has_value());
++    EXPECT_EQ(joiner.state().join_approver, approver.state().device_id);
++    EXPECT_FALSE(joiner.state().has_vault());
++    ASSERT_TRUE(approver.ProcessMessages().has_value());
++    ASSERT_EQ(approver.pairings().size(), 1u);
++    const Pairing pairing = approver.pairings().begin()->second;
++    EXPECT_EQ(pairing.name, name);
++    auto shown = joiner.JoinComparisonCode();
++    ASSERT_TRUE(shown.has_value());
++    EXPECT_EQ(*shown, pairing.code);
++    EXPECT_EQ(shown->size(), 6u);
++    ASSERT_TRUE(approver.Approve(pairing.device_id).has_value());
++    auto joined = joiner.ProcessMessages();
++    ASSERT_TRUE(joined.has_value());
++    EXPECT_TRUE(*joined);
++  }
++
++  // A real engine snapshot through Helium's store: what the browser writes.
++  void CommitSnapshot(const Account& account) {
++    auto store = MakeStore(account);
++    auto base = store->ReadState();
++    ASSERT_TRUE(base.has_value());
++    syncer::LoopbackServer loopback;
++    loopback.EnableStrongConsistencyWithConflictDetectionModel();
++    // The first command makes the permanent entities.
++    sync_pb::ClientToServerMessage message;
++    message.set_share("test");
++    message.set_message_contents(sync_pb::ClientToServerMessage::GET_UPDATES);
++    message.mutable_get_updates()->add_from_progress_marker()
++        ->set_data_type_id(32904);  // Bookmarks.
++    sync_pb::ClientToServerResponse response;
++    ASSERT_EQ(loopback.HandleCommandWithResult(message, &response).status, 200);
++    auto snapshot = loopback.SerializeStateToBytes();
++    ASSERT_TRUE(snapshot);
++    snapshot_ = *snapshot;
++    auto committed = store->CommitMutation(*base, std::nullopt, *snapshot);
++    ASSERT_TRUE(committed.has_value()) << static_cast<int>(committed.error());
++  }
++
++  std::unique_ptr<syncer::SyncVaultStore> MakeStore(const Account& account) {
++    class Lent : public BlockingHttp {
++     public:
++      explicit Lent(BlockingHttp* http) : http_(http) {}
++      HttpResponse Send(const HttpRequest& request) override {
++        return http_->Send(request);
++      }
++      raw_ptr<BlockingHttp> http_;
++    };
++    auto store = syncer::SyncVaultStore::Create(
++        std::make_unique<ServerVaultTransport>(
++            std::make_unique<Lent>(&server_), kTestServerUrl,
++            account.state().device_secret, account.state().vault_uuid),
++        std::make_unique<syncer::LoopbackServerStateCodec>(),
++        account.state().vault_key, account.state().vault_uuid, std::nullopt,
++        base::BindRepeating(
++            [](const syncer::SyncVaultCheckpoint&) { return true; }));
++    EXPECT_TRUE(store.has_value());
++    return std::move(store.value());
++  }
++
++  std::string Vault(const Account& account) {
++    return account.state().vault_uuid;
++  }
++
++  TestServer server_;
++  std::vector<uint8_t> snapshot_;
++};
++
++TEST_F(CorvidSyncAccountTest, CreateVault) {
++  Account a(&server_, DeviceState());
++  auto key = a.CreateVault(kTestServerUrl, server_.AddToken(), "laptop");
++  ASSERT_TRUE(key.has_value());
++  EXPECT_EQ(DecodeRecoveryKey(*key), a.state().vault_key);
++  EXPECT_EQ(a.RecoveryKey(), *key);
++  ASSERT_TRUE(a.state().roster);
++  EXPECT_EQ(a.state().roster->version, 1u);
++  EXPECT_TRUE(a.state().roster->IsActive(a.state().device_id));
++  // The vault reads back through Helium's store as initialized and empty.
++  auto read = MakeStore(a)->ReadState();
++  ASSERT_TRUE(read.has_value());
++  EXPECT_EQ(read->generation(), 0u);
++}
++
++TEST_F(CorvidSyncAccountTest, ServerNeverSeesSecrets) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "secret-name")
++                  .has_value());
++  const std::string key(a.state().vault_key.begin(), a.state().vault_key.end());
++  for (const auto& [id, object] : server_.vaults[Vault(a)]) {
++    EXPECT_EQ(object.data.find(key), std::string::npos) << id;
++    EXPECT_EQ(object.data.find("device_id"), std::string::npos) << id;
++    // Only the device's server-side record has its name; the roster does not
++    // show it in the clear.
++    EXPECT_EQ(object.data.find("secret-name"), std::string::npos) << id;
++  }
++}
++
++TEST_F(CorvidSyncAccountTest, BadServerUrlAndToken) {
++  Account a(&server_, DeviceState());
++  EXPECT_FALSE(a.CreateVault("http://sync.example.org", "t", "n").has_value());
++  EXPECT_FALSE(a.state().registered());
++  EXPECT_FALSE(a.CreateVault(kTestServerUrl, "wrong", "n").has_value());
++  EXPECT_FALSE(a.state().registered());
++}
++
++TEST_F(CorvidSyncAccountTest, PairingGivesTheSameKey) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  Account b(&server_, DeviceState());
++  ASSERT_NO_FATAL_FAILURE(Pair(a, b, "b"));
++  EXPECT_EQ(a.state().vault_key, b.state().vault_key);
++  EXPECT_EQ(Vault(a), Vault(b));
++  EXPECT_FALSE(b.state().join_secret);
++  EXPECT_TRUE(b.state().roster->IsActive(a.state().device_id));
++  EXPECT_TRUE(b.state().roster->IsActive(b.state().device_id));
++  // The state survives a restart.
++  auto saved = DeviceState::FromJson(b.state().ToJson());
++  ASSERT_TRUE(saved);
++  EXPECT_EQ(*saved, b.state());
++}
++
++TEST_F(CorvidSyncAccountTest, MalformedInvites) {
++  Account b(&server_, DeviceState());
++  EXPECT_FALSE(b.Join(kTestServerUrl, "", "b").has_value());
++  EXPECT_FALSE(b.Join(kTestServerUrl, "a~b", "b").has_value());
++  EXPECT_FALSE(b.Join(kTestServerUrl, "a~AAAA~c", "b").has_value());
++  EXPECT_FALSE(b.state().registered());
++}
++
++// The invite's secret never reaches the server, so a device that only got a
++// token from the server cannot pair.
++TEST_F(CorvidSyncAccountTest, ForgedPairRequestIsRefused) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  auto code = a.CreateInvite();
++  ASSERT_TRUE(code.has_value());
++  const std::string token = code->substr(0, code->find('~'));
++  const std::string forged = token + "~" + std::string(43, 'A') + "~" +
++                             a.state().device_id;
++  Account evil(&server_, DeviceState());
++  ASSERT_TRUE(evil.Join(kTestServerUrl, forged, "evil").has_value());
++  auto processed = a.ProcessMessages();
++  ASSERT_FALSE(processed.has_value());
++  EXPECT_TRUE(processed.error().integrity);
++  EXPECT_TRUE(a.pairings().empty());
++  EXPECT_FALSE(a.Approve(evil.state().device_id).has_value());
++  // The bad message was dropped, not retried for ever.
++  EXPECT_TRUE(a.ProcessMessages().has_value());
++}
++
++// A server that swaps public keys makes the codes differ, and the envelope
++// the new device receives does not open.
++TEST_F(CorvidSyncAccountTest, SwappedKeyChangesCodeAndBreaksEnvelope) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  Account b(&server_, DeviceState());
++  auto code = a.CreateInvite();
++  ASSERT_TRUE(code.has_value());
++  ASSERT_TRUE(b.Join(kTestServerUrl, *code, "b").has_value());
++  // The proof binds b's key: with the key swapped the request matches nothing.
++  const std::string real = server_.devices[b.state().device_id].public_key;
++  server_.devices[b.state().device_id].public_key = Base64(Key{9});
++  auto processed = a.ProcessMessages();
++  ASSERT_FALSE(processed.has_value());
++  EXPECT_TRUE(processed.error().integrity);
++  EXPECT_TRUE(a.pairings().empty());
++  server_.devices[b.state().device_id].public_key = real;
++}
++
++TEST_F(CorvidSyncAccountTest, UnexpectedVaultKeyIsRefused) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  const std::string vault = Vault(a);
++  ApiClient api(&server_, kTestServerUrl, a.state().device_secret);
++  ASSERT_TRUE(api.PostMessage(a.state().device_id, kKindVaultKey,
++                              std::vector<uint8_t>{1, 2, 3})
++                  .has_value());
++  auto processed = a.ProcessMessages();
++  ASSERT_FALSE(processed.has_value());
++  EXPECT_TRUE(processed.error().integrity);
++  EXPECT_EQ(Vault(a), vault);
++}
++
++TEST_F(CorvidSyncAccountTest, Recovery) {
++  Account a(&server_, DeviceState());
++  auto key = a.CreateVault(kTestServerUrl, server_.AddToken(), "a");
++  ASSERT_TRUE(key.has_value());
++
++  // Typo: nothing happens, the token stays unspent.
++  const std::string token = server_.AddToken();
++  Account typo(&server_, DeviceState());
++  std::string wrong = *key;
++  wrong[7] = wrong[7] == 'A' ? 'B' : 'A';
++  EXPECT_FALSE(typo.Recover(kTestServerUrl, token, "r", wrong).has_value());
++  EXPECT_FALSE(typo.state().registered());
++
++  // A well-formed key that opens nothing is refused.
++  Account other(&server_, DeviceState());
++  auto bad = other.Recover(kTestServerUrl, token, "r",
++                           EncodeRecoveryKey(RandomKey()));
++  ASSERT_FALSE(bad.has_value());
++  EXPECT_TRUE(bad.error().integrity);
++  EXPECT_FALSE(other.state().has_vault());
++
++  // The right key works, without spending a second token.
++  ASSERT_TRUE(other.Recover(kTestServerUrl, "ignored", "r", *key).has_value());
++  EXPECT_EQ(other.state().vault_key, a.state().vault_key);
++  EXPECT_TRUE(other.state().roster->IsActive(other.state().device_id));
++  EXPECT_EQ(other.state().roster->Find(other.state().device_id)->added_by,
++            "recovery-key");
++}
++
++TEST_F(CorvidSyncAccountTest, RosterRollbackIsRefused) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  const auto old = server_.vaults[Vault(a)]["roster"];
++  Account b(&server_, DeviceState());
++  ASSERT_NO_FATAL_FAILURE(Pair(a, b, "b"));
++  server_.vaults[Vault(a)]["roster"] = old;
++  auto refreshed = a.RefreshRoster();
++  ASSERT_FALSE(refreshed.has_value());
++  EXPECT_TRUE(refreshed.error().integrity);
++}
++
++TEST_F(CorvidSyncAccountTest, TamperedRosterIsRefused) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  server_.vaults[Vault(a)]["roster"].data[20] ^= 1;
++  auto refreshed = a.RefreshRoster();
++  ASSERT_FALSE(refreshed.has_value());
++  EXPECT_TRUE(refreshed.error().integrity);
++}
++
++TEST_F(CorvidSyncAccountTest, RemoveDeviceRotates) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  Account b(&server_, DeviceState());
++  Account c(&server_, DeviceState());
++  ASSERT_NO_FATAL_FAILURE(Pair(a, b, "b"));
++  ASSERT_NO_FATAL_FAILURE(Pair(a, c, "c"));
++  ASSERT_NO_FATAL_FAILURE(CommitSnapshot(a));
++  ASSERT_TRUE(b.RefreshRoster().has_value());
++  const std::string old_uuid = Vault(a);
++  const Key old_key = a.state().vault_key;
++
++  auto new_key = a.RemoveDevice(c.state().device_id);
++  ASSERT_TRUE(new_key.has_value()) << new_key.error().text;
++  EXPECT_NE(a.state().vault_key, old_key);
++  EXPECT_NE(Vault(a), old_uuid);
++  EXPECT_EQ(DecodeRecoveryKey(*new_key), a.state().vault_key);
++  EXPECT_EQ(server_.vaults.count(old_uuid), 0u);
++  EXPECT_FALSE(a.state().roster->Find(c.state().device_id));
++
++  // The data moved over.
++  auto moved = MakeStore(a)->ReadState();
++  ASSERT_TRUE(moved.has_value());
++  EXPECT_EQ(moved->data(), snapshot_);
++
++  // b follows, with the old vault already gone.
++  auto followed = b.ProcessMessages();
++  ASSERT_TRUE(followed.has_value()) << followed.error().text;
++  EXPECT_TRUE(*followed);
++  EXPECT_EQ(b.state().vault_key, a.state().vault_key);
++  EXPECT_EQ(Vault(b), Vault(a));
++
++  // c is out: 401, and no key arrives.
++  auto refused = c.ProcessMessages();
++  ASSERT_FALSE(refused.has_value());
++  EXPECT_TRUE(refused.error().revoked);
++  EXPECT_TRUE(c.state().revoked);
++  EXPECT_EQ(c.state().vault_key, old_key);
++}
++
++TEST_F(CorvidSyncAccountTest, RotationFromUnknownDeviceIsRefused) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  Account b(&server_, DeviceState());
++  ASSERT_NO_FATAL_FAILURE(Pair(a, b, "b"));
++  // Registered on the account (the server could do this) but not in the
++  // roster: it cannot move anyone to its own vault.
++  Account evil(&server_, DeviceState());
++  ASSERT_TRUE(evil.CreateVault(kTestServerUrl, server_.AddToken(), "e")
++                  .has_value());
++  const std::string before = Vault(b);
++  std::vector<uint8_t> envelope = SealEnvelope(
++      evil.state().identity, PublicKeyFor(b.state().identity),
++      RotationSalt(b.state().vault_key, before), kKindVaultRotate,
++      VaultGrant{Vault(evil), evil.state().vault_key, "x", before});
++  ApiClient api(&server_, kTestServerUrl, evil.state().device_secret);
++  ASSERT_TRUE(
++      api.PostMessage(b.state().device_id, kKindVaultRotate, envelope)
++          .has_value());
++  auto processed = b.ProcessMessages();
++  ASSERT_FALSE(processed.has_value());
++  EXPECT_TRUE(processed.error().integrity);
++  EXPECT_EQ(Vault(b), before);
++}
++
++TEST_F(CorvidSyncAccountTest, OfflineLeavesStateAlone) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  const DeviceState before = a.state();
++  server_.offline = true;
++  auto processed = a.ProcessMessages();
++  ASSERT_FALSE(processed.has_value());
++  EXPECT_FALSE(processed.error().integrity);
++  EXPECT_FALSE(a.CreateInvite().has_value());
++  EXPECT_EQ(a.state(), before);
++}
++
++TEST_F(CorvidSyncAccountTest, Leave) {
++  Account a(&server_, DeviceState());
++  ASSERT_TRUE(a.CreateVault(kTestServerUrl, server_.AddToken(), "a").has_value());
++  Account b(&server_, DeviceState());
++  ASSERT_NO_FATAL_FAILURE(Pair(a, b, "b"));
++  const std::string id = b.state().device_id;
++  b.Leave();
++  EXPECT_FALSE(b.state().registered());
++  EXPECT_TRUE(server_.devices[id].revoked);
++  ASSERT_TRUE(a.RefreshRoster().has_value());
++  EXPECT_FALSE(a.state().roster->IsActive(id));
++}
++
++}  // namespace
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/api_client.cc
+@@ -0,0 +1,384 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/api_client.h"
++
++#include <utility>
++
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/strings/escape.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "base/strings/stringprintf.h"
++#include "base/types/expected_macros.h"
++#include "net/base/ip_address.h"
++#include "net/base/url_util.h"
++#include "url/gurl.h"
++
++namespace corvid_sync {
++
++namespace {
++
++std::optional<base::DictValue> ParseDict(const std::string& body) {
++  std::optional<base::Value> value =
++      base::JSONReader::Read(body, base::JSON_PARSE_RFC);
++  if (!value || !value->is_dict()) {
++    return std::nullopt;
++  }
++  return std::move(*value).TakeDict();
++}
++
++ApiError BadResponse() {
++  return ApiError{.kind = ApiError::Kind::kBadResponse};
++}
++
++std::string Str(const base::DictValue& d, std::string_view key) {
++  const std::string* s = d.FindString(key);
++  return s ? *s : std::string();
++}
++
++int64_t Int(const base::DictValue& d, std::string_view key) {
++  const base::Value* v = d.Find(key);
++  if (!v) {
++    return 0;
++  }
++  if (v->is_int()) {
++    return v->GetInt();
++  }
++  if (v->is_double()) {
++    return static_cast<int64_t>(v->GetDouble());
++  }
++  return 0;
++}
++
++std::string Escape(std::string_view s) {
++  return base::EscapePath(s);
++}
++
++}  // namespace
++
++std::string ApiErrorText(const ApiError& error) {
++  switch (error.kind) {
++    case ApiError::Kind::kNetwork:
++      return "Cannot reach the sync server.";
++    case ApiError::Kind::kAborted:
++      return "Cancelled.";
++    case ApiError::Kind::kUnauthorized:
++      return "The server does not know this device.";
++    case ApiError::Kind::kRevoked:
++      return "This device was removed from the account.";
++    case ApiError::Kind::kTokenInvalid:
++      return "The code was already used, has expired or is wrong.";
++    case ApiError::Kind::kNotFound:
++    case ApiError::Kind::kNoObject:
++      return "Not found on the server.";
++    case ApiError::Kind::kConflict:
++      return "Changed on the server at the same time; try again.";
++    case ApiError::Kind::kTooLarge:
++      return "Too large for the server.";
++    case ApiError::Kind::kQuota:
++      return "The account is full on the server.";
++    case ApiError::Kind::kServer:
++      return base::StringPrintf("The server answered %d %s.", error.status,
++                                error.code.c_str());
++    case ApiError::Kind::kBadResponse:
++      return "The server's answer could not be read.";
++  }
++  return std::string();
++}
++
++std::string NormalizeServerUrl(std::string_view url) {
++  GURL gurl(base::TrimWhitespaceASCII(url, base::TRIM_ALL));
++  if (!gurl.is_valid() || gurl.has_query() || gurl.has_ref() ||
++      gurl.has_username() || gurl.has_password()) {
++    return std::string();
++  }
++  if (gurl.SchemeIs("http")) {
++    if (!net::IsLocalhost(gurl)) {
++      return std::string();
++    }
++  } else if (!gurl.SchemeIs("https")) {
++    return std::string();
++  }
++  std::string out = gurl.spec();
++  while (base::EndsWith(out, "/")) {
++    out.pop_back();
++  }
++  return out;
++}
++
++ApiClient::ApiClient(BlockingHttp* http,
++                     std::string server_url,
++                     std::string secret)
++    : http_(http),
++      server_url_(NormalizeServerUrl(server_url)),
++      secret_(std::move(secret)) {}
++
++ApiClient::~ApiClient() = default;
++
++ApiClient::Result<HttpResponse> ApiClient::Do(
++    std::string method,
++    std::string path,
++    std::string body,
++    std::string content_type,
++    std::vector<std::pair<std::string, std::string>> headers) {
++  if (server_url_.empty()) {
++    return base::unexpected(ApiError{.kind = ApiError::Kind::kNetwork,
++                                     .message = "invalid server address"});
++  }
++  HttpRequest request;
++  request.method = std::move(method);
++  request.url = server_url_ + path;
++  request.body = std::move(body);
++  request.content_type = std::move(content_type);
++  request.headers = std::move(headers);
++  if (!secret_.empty()) {
++    request.headers.emplace_back("Authorization", "Bearer " + secret_);
++  }
++  HttpResponse response = http_->Send(request);
++  if (response.aborted) {
++    return base::unexpected(ApiError{.kind = ApiError::Kind::kAborted});
++  }
++  if (response.status == 0) {
++    return base::unexpected(ApiError{.kind = ApiError::Kind::kNetwork});
++  }
++  if (response.status >= 200 && response.status < 300) {
++    return response;
++  }
++  ApiError error;
++  error.status = response.status;
++  if (std::optional<base::DictValue> d = ParseDict(response.body)) {
++    error.code = Str(*d, "error");
++    error.message = Str(*d, "message");
++  }
++  if (error.code == "device_revoked") {
++    error.kind = ApiError::Kind::kRevoked;
++  } else if (response.status == 401) {
++    error.kind = ApiError::Kind::kUnauthorized;
++  } else if (response.status == 403 && error.code == "token_invalid") {
++    error.kind = ApiError::Kind::kTokenInvalid;
++  } else if (response.status == 404) {
++    error.kind = error.code == "no_object" ? ApiError::Kind::kNoObject
++                                           : ApiError::Kind::kNotFound;
++  } else if (response.status == 412) {
++    error.kind = ApiError::Kind::kConflict;
++  } else if (response.status == 413) {
++    error.kind = ApiError::Kind::kTooLarge;
++  } else if (response.status == 507) {
++    error.kind = ApiError::Kind::kQuota;
++  } else {
++    error.kind = ApiError::Kind::kServer;
++  }
++  return base::unexpected(std::move(error));
++}
++
++ApiClient::Result<HttpResponse> ApiClient::DoJson(std::string method,
++                                                  std::string path,
++                                                  const base::DictValue* body) {
++  if (!body) {
++    return Do(std::move(method), std::move(path));
++  }
++  return Do(std::move(method), std::move(path),
++            base::WriteJson(*body).value_or("{}"), "application/json");
++}
++
++ApiClient::Status ApiClient::Health() {
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("GET", "/v1/health", nullptr));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  if (!d || Str(*d, "status") != "ok") {
++    return base::unexpected(BadResponse());
++  }
++  return base::ok();
++}
++
++ApiClient::Result<Registration> ApiClient::Register(std::string_view token,
++                                                    std::string_view name,
++                                                    const Key& public_key) {
++  base::DictValue body;
++  body.Set("token", token);
++  body.Set("name", name);
++  body.Set("public_key", Base64(public_key));
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("POST", "/v1/register", &body));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  if (!d) {
++    return base::unexpected(BadResponse());
++  }
++  Registration reg{Str(*d, "account"), Str(*d, "device_id"),
++                   Str(*d, "device_secret")};
++  if (reg.device_id.empty() || reg.device_secret.empty()) {
++    return base::unexpected(BadResponse());
++  }
++  return reg;
++}
++
++ApiClient::Result<std::vector<DeviceInfo>> ApiClient::Devices() {
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("GET", "/v1/devices", nullptr));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  const base::ListValue* list = d ? d->FindList("devices") : nullptr;
++  if (!list) {
++    return base::unexpected(BadResponse());
++  }
++  std::vector<DeviceInfo> out;
++  for (const base::Value& v : *list) {
++    if (!v.is_dict()) {
++      return base::unexpected(BadResponse());
++    }
++    const base::DictValue& e = v.GetDict();
++    std::optional<Key> pub = KeyFromBase64(Str(e, "public_key"));
++    if (!pub) {
++      return base::unexpected(BadResponse());
++    }
++    out.push_back(DeviceInfo{Str(e, "id"), Str(e, "name"), *pub,
++                             Int(e, "created"), Int(e, "last_seen"),
++                             e.Find("revoked") != nullptr &&
++                                 !e.Find("revoked")->is_none()});
++  }
++  return out;
++}
++
++ApiClient::Status ApiClient::RevokeDevice(std::string_view id) {
++  RETURN_IF_ERROR(DoJson("DELETE", "/v1/devices/" + Escape(id), nullptr));
++  return base::ok();
++}
++
++ApiClient::Result<std::string> ApiClient::CreateInvite(int64_t ttl_seconds) {
++  base::DictValue body;
++  body.Set("ttl_seconds", static_cast<int>(ttl_seconds));
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("POST", "/v1/invites", &body));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  std::string token = d ? Str(*d, "token") : std::string();
++  if (token.empty()) {
++    return base::unexpected(BadResponse());
++  }
++  return token;
++}
++
++ApiClient::Result<std::vector<VaultInfo>> ApiClient::Vaults() {
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("GET", "/v1/vaults", nullptr));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  const base::ListValue* list = d ? d->FindList("vaults") : nullptr;
++  if (!list) {
++    return base::unexpected(BadResponse());
++  }
++  std::vector<VaultInfo> out;
++  for (const base::Value& v : *list) {
++    if (v.is_dict()) {
++      out.push_back(VaultInfo{Str(v.GetDict(), "vault_uuid"),
++                              Str(v.GetDict(), "display_name")});
++    }
++  }
++  return out;
++}
++
++ApiClient::Status ApiClient::PutVault(std::string_view uuid,
++                                      std::string_view display_name) {
++  base::DictValue body;
++  body.Set("display_name", display_name);
++  RETURN_IF_ERROR(DoJson("PUT", "/v1/vaults/" + Escape(uuid), &body));
++  return base::ok();
++}
++
++ApiClient::Status ApiClient::DeleteVault(std::string_view uuid) {
++  RETURN_IF_ERROR(DoJson("DELETE", "/v1/vaults/" + Escape(uuid), nullptr));
++  return base::ok();
++}
++
++ApiClient::Result<std::optional<StoredObject>> ApiClient::ReadObject(
++    std::string_view uuid,
++    std::string_view id,
++    size_t max_bytes) {
++  Result<HttpResponse> r =
++      Do("GET", base::StringPrintf("/v1/vaults/%s/objects/%s?max_bytes=%zu",
++                                   Escape(uuid).c_str(), Escape(id).c_str(),
++                                   max_bytes));
++  if (!r.has_value()) {
++    if (r.error().kind == ApiError::Kind::kNoObject) {
++      return std::nullopt;
++    }
++    return base::unexpected(r.error());
++  }
++  if (r->etag.empty() || r->body.size() > max_bytes) {
++    return base::unexpected(BadResponse());
++  }
++  return StoredObject{std::vector<uint8_t>(r->body.begin(), r->body.end()),
++                      r->etag};
++}
++
++ApiClient::Result<std::string> ApiClient::WriteObject(
++    std::string_view uuid,
++    std::string_view id,
++    const std::optional<std::string>& expected,
++    const std::vector<uint8_t>& data,
++    std::optional<uint32_t> retention_epoch) {
++  std::vector<std::pair<std::string, std::string>> headers;
++  if (expected) {
++    headers.emplace_back("If-Match", "\"" + *expected + "\"");
++  } else {
++    headers.emplace_back("If-None-Match", "*");
++  }
++  if (retention_epoch) {
++    headers.emplace_back("X-Retention-Epoch",
++                         base::NumberToString(*retention_epoch));
++  }
++  ASSIGN_OR_RETURN(
++      HttpResponse r,
++      Do("PUT",
++         base::StringPrintf("/v1/vaults/%s/objects/%s", Escape(uuid).c_str(),
++                            Escape(id).c_str()),
++         std::string(data.begin(), data.end()), "application/octet-stream",
++         std::move(headers)));
++  if (r.etag.empty()) {
++    return base::unexpected(BadResponse());
++  }
++  return r.etag;
++}
++
++ApiClient::Status ApiClient::Collect(std::string_view uuid,
++                                     uint32_t minimum_retained_epoch) {
++  base::DictValue body;
++  body.Set("minimum_retained_epoch", static_cast<int>(minimum_retained_epoch));
++  RETURN_IF_ERROR(DoJson("POST", "/v1/vaults/" + Escape(uuid) + "/collect", &body));
++  return base::ok();
++}
++
++ApiClient::Status ApiClient::PostMessage(std::string_view to,
++                                         std::string_view kind,
++                                         base::span<const uint8_t> data) {
++  base::DictValue body;
++  body.Set("to_device", to);
++  body.Set("kind", kind);
++  body.Set("data", Base64(data));
++  RETURN_IF_ERROR(DoJson("POST", "/v1/messages", &body));
++  return base::ok();
++}
++
++ApiClient::Result<std::vector<Message>> ApiClient::Messages() {
++  ASSIGN_OR_RETURN(HttpResponse r, DoJson("GET", "/v1/messages", nullptr));
++  std::optional<base::DictValue> d = ParseDict(r.body);
++  if (!d) {
++    return base::unexpected(BadResponse());
++  }
++  std::vector<Message> out;
++  const base::ListValue* list = d->FindList("messages");
++  if (!list) {
++    return out;  // Go encodes an empty slice as null.
++  }
++  for (const base::Value& v : *list) {
++    if (!v.is_dict()) {
++      continue;
++    }
++    const base::DictValue& e = v.GetDict();
++    std::optional<std::vector<uint8_t>> data = FromBase64(Str(e, "data"));
++    out.push_back(Message{Int(e, "id"), Str(e, "from_device"), Str(e, "kind"),
++                          data ? std::move(*data) : std::vector<uint8_t>()});
++  }
++  return out;
++}
++
++ApiClient::Status ApiClient::DeleteMessage(int64_t id) {
++  RETURN_IF_ERROR(DoJson("DELETE", "/v1/messages/" + base::NumberToString(id), nullptr));
++  return base::ok();
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/api_client.h
+@@ -0,0 +1,146 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_API_CLIENT_H_
++#define COMPONENTS_CORVID_SYNC_API_CLIENT_H_
++
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "base/types/expected.h"
++#include "base/values.h"
++#include "components/corvid_sync/http.h"
++#include "components/corvid_sync/keys.h"
++
++// Client for the sync server's HTTP API (sync/protocol/SPEC.md, section 3).
++// Blocking; use it on the sync thread or the account task runner only.
++namespace corvid_sync {
++
++struct ApiError {
++  enum class Kind {
++    kNetwork,       // No HTTP answer.
++    kAborted,       // Cancelled by the browser.
++    kUnauthorized,  // 401 unauthorized
++    kRevoked,       // 401 device_revoked
++    kTokenInvalid,  // 403 token_invalid
++    kNotFound,      // 404 not_found
++    kNoObject,      // 404 no_object
++    kConflict,      // 412
++    kTooLarge,      // 413
++    kQuota,         // 507
++    kServer,        // Other 4xx/5xx.
++    kBadResponse,   // 2xx we could not read.
++  };
++  Kind kind = Kind::kServer;
++  int status = 0;
++  std::string code;
++  std::string message;
++};
++
++// Human-readable, for the sync page.
++std::string ApiErrorText(const ApiError& error);
++
++struct Registration {
++  std::string account;
++  std::string device_id;
++  std::string device_secret;
++};
++
++struct DeviceInfo {
++  std::string id;
++  std::string name;
++  Key public_key{};
++  int64_t created = 0;
++  int64_t last_seen = 0;
++  bool revoked = false;
++};
++
++struct VaultInfo {
++  std::string uuid;
++  std::string display_name;
++};
++
++struct Message {
++  int64_t id = 0;
++  std::string from_device;
++  std::string kind;
++  std::vector<uint8_t> data;
++};
++
++struct StoredObject {
++  std::vector<uint8_t> data;
++  std::string revision;
++};
++
++// "https://host[:port][/prefix]" with no trailing slash, or "" when the URL
++// is not allowed: https anywhere, plain http only to this computer
++// (localhost, 127.0.0.0/8, [::1]).
++std::string NormalizeServerUrl(std::string_view url);
++
++class ApiClient {
++ public:
++  template <typename T>
++  using Result = base::expected<T, ApiError>;
++  using Status = base::expected<void, ApiError>;
++
++  // `http` must outlive this client. `server_url` is normalized.
++  ApiClient(BlockingHttp* http, std::string server_url, std::string secret);
++  ~ApiClient();
++
++  void set_secret(std::string secret) { secret_ = std::move(secret); }
++  const std::string& server_url() const { return server_url_; }
++
++  Status Health();
++  Result<Registration> Register(std::string_view token,
++                                std::string_view name,
++                                const Key& public_key);
++  Result<std::vector<DeviceInfo>> Devices();
++  Status RevokeDevice(std::string_view id);
++  // One-time registration token for the same account.
++  Result<std::string> CreateInvite(int64_t ttl_seconds);
++
++  Result<std::vector<VaultInfo>> Vaults();
++  Status PutVault(std::string_view uuid, std::string_view display_name);
++  Status DeleteVault(std::string_view uuid);
++
++  // nullopt when the object is absent (404 no_object).
++  Result<std::optional<StoredObject>> ReadObject(std::string_view uuid,
++                                                 std::string_view id,
++                                                 size_t max_bytes);
++  // No `expected_revision`: create only. Returns the new revision.
++  Result<std::string> WriteObject(std::string_view uuid,
++                                  std::string_view id,
++                                  const std::optional<std::string>& expected,
++                                  const std::vector<uint8_t>& data,
++                                  std::optional<uint32_t> retention_epoch);
++  Status Collect(std::string_view uuid, uint32_t minimum_retained_epoch);
++
++  Status PostMessage(std::string_view to,
++                     std::string_view kind,
++                     base::span<const uint8_t> data);
++  Result<std::vector<Message>> Messages();
++  Status DeleteMessage(int64_t id);
++
++ private:
++  Result<HttpResponse> Do(std::string method,
++                          std::string path,
++                          std::string body = std::string(),
++                          std::string content_type = std::string(),
++                          std::vector<std::pair<std::string, std::string>>
++                              headers = {});
++  Result<HttpResponse> DoJson(std::string method,
++                              std::string path,
++                              const base::DictValue* body);
++
++  const raw_ptr<BlockingHttp> http_;
++  const std::string server_url_;
++  std::string secret_;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_API_CLIENT_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/api_client_unittest.cc
+@@ -0,0 +1,109 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/api_client.h"
++
++#include "components/corvid_sync/test_server.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace corvid_sync {
++namespace {
++
++TEST(CorvidSyncApi, NormalizeServerUrl) {
++  EXPECT_EQ(NormalizeServerUrl("https://sync.example.org/"),
++            "https://sync.example.org");
++  EXPECT_EQ(NormalizeServerUrl("  https://sync.example.org:8443/corvid/ "),
++            "https://sync.example.org:8443/corvid");
++  EXPECT_EQ(NormalizeServerUrl("http://127.0.0.1:8443"),
++            "http://127.0.0.1:8443");
++  EXPECT_EQ(NormalizeServerUrl("http://localhost:8443/"),
++            "http://localhost:8443");
++  // Plain HTTP elsewhere would send the device secret in the clear.
++  EXPECT_EQ(NormalizeServerUrl("http://sync.example.org"), "");
++  EXPECT_EQ(NormalizeServerUrl("http://192.168.1.2"), "");
++  EXPECT_EQ(NormalizeServerUrl("ftp://sync.example.org"), "");
++  EXPECT_EQ(NormalizeServerUrl("https://user:pw@sync.example.org"), "");
++  EXPECT_EQ(NormalizeServerUrl("https://sync.example.org/?x=1"), "");
++  EXPECT_EQ(NormalizeServerUrl("nonsense"), "");
++}
++
++class CorvidSyncApiTest : public testing::Test {
++ protected:
++  CorvidSyncApiTest() : api_(&server_, kTestServerUrl, "") {}
++
++  Registration Register() {
++    auto reg = api_.Register(server_.AddToken(), "dev", Key{7});
++    EXPECT_TRUE(reg.has_value());
++    api_.set_secret(reg->device_secret);
++    return *reg;
++  }
++
++  TestServer server_;
++  ApiClient api_;
++};
++
++TEST_F(CorvidSyncApiTest, RegisterSpendsToken) {
++  const std::string token = server_.AddToken();
++  EXPECT_TRUE(api_.Register(token, "a", Key{1}).has_value());
++  auto again = api_.Register(token, "b", Key{2});
++  ASSERT_FALSE(again.has_value());
++  EXPECT_EQ(again.error().kind, ApiError::Kind::kTokenInvalid);
++}
++
++TEST_F(CorvidSyncApiTest, ErrorKinds) {
++  EXPECT_EQ(api_.Devices().error().kind, ApiError::Kind::kUnauthorized);
++  const Registration reg = Register();
++  EXPECT_EQ(api_.ReadObject("nope", "head", 100).error().kind,
++            ApiError::Kind::kNotFound);
++  server_.offline = true;
++  EXPECT_EQ(api_.Devices().error().kind, ApiError::Kind::kNetwork);
++  server_.offline = false;
++  server_.devices[reg.device_id].revoked = true;
++  EXPECT_EQ(api_.Devices().error().kind, ApiError::Kind::kRevoked);
++}
++
++TEST_F(CorvidSyncApiTest, ObjectsAndCompareAndSwap) {
++  Register();
++  ASSERT_TRUE(api_.PutVault("v", "n").has_value());
++  // Absent is not an error.
++  auto absent = api_.ReadObject("v", "head", 100);
++  ASSERT_TRUE(absent.has_value());
++  EXPECT_FALSE(absent->has_value());
++
++  auto rev1 = api_.WriteObject("v", "head", std::nullopt, {1}, std::nullopt);
++  ASSERT_TRUE(rev1.has_value());
++  // Create-only fails when it exists; a stale revision fails.
++  EXPECT_EQ(api_.WriteObject("v", "head", std::nullopt, {2}, std::nullopt)
++                .error()
++                .kind,
++            ApiError::Kind::kConflict);
++  auto rev2 = api_.WriteObject("v", "head", *rev1, {2}, std::nullopt);
++  ASSERT_TRUE(rev2.has_value());
++  EXPECT_EQ(api_.WriteObject("v", "head", *rev1, {3}, std::nullopt)
++                .error()
++                .kind,
++            ApiError::Kind::kConflict);
++  auto read = api_.ReadObject("v", "head", 100);
++  ASSERT_TRUE(read.has_value());
++  EXPECT_EQ(read->value().data, std::vector<uint8_t>{2});
++  EXPECT_EQ(read->value().revision, *rev2);
++  // An answer larger than asked for is refused.
++  EXPECT_EQ(api_.ReadObject("v", "head", 0).error().kind,
++            ApiError::Kind::kBadResponse);
++}
++
++TEST_F(CorvidSyncApiTest, Messages) {
++  const Registration reg = Register();
++  const std::vector<uint8_t> data = {0, 1, 2, 255};
++  ASSERT_TRUE(api_.PostMessage(reg.device_id, "k", data).has_value());
++  auto mail = api_.Messages();
++  ASSERT_TRUE(mail.has_value());
++  ASSERT_EQ(mail->size(), 1u);
++  EXPECT_EQ((*mail)[0].data, data);
++  EXPECT_EQ((*mail)[0].from_device, reg.device_id);
++  ASSERT_TRUE(api_.DeleteMessage((*mail)[0].id).has_value());
++  EXPECT_TRUE(api_.Messages()->empty());
++}
++
++}  // namespace
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/backend.cc
+@@ -0,0 +1,270 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/backend.h"
++
++#include <utility>
++
++#include "base/base64.h"
++#include "base/logging.h"
++#include "base/functional/bind.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/time/time.h"
++#include "base/values.h"
++#include "components/corvid_sync/http.h"
++#include "components/corvid_sync/server_transport.h"
++#include "components/os_crypt/async/common/encryptor.h"
++#include "components/prefs/pref_registry_simple.h"
++#include "components/prefs/pref_service.h"
++#include "components/sync/engine/loopback_server/loopback_server_state_delta.h"
++#include "components/sync/engine/sync_vault/sync_vault_backend.h"
++#include "components/sync/engine/sync_vault/sync_vault_store.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++
++namespace corvid_sync {
++
++namespace {
++
++std::string ErrorName(syncer::SyncVaultStoreError error) {
++  using E = syncer::SyncVaultStoreError;
++  switch (error) {
++    case E::kAuthenticationRequired:
++      return "auth";
++    case E::kConflict:
++      return "conflict";
++    case E::kNetworkError:
++    case E::kTemporaryError:
++    case E::kAborted:
++      return "network";
++    case E::kQuotaExceeded:
++      return "quota";
++    case E::kAccessDenied:
++      return "denied";
++    case E::kRollback:
++      return "rollback";
++    case E::kFork:
++      return "fork";
++    case E::kIncompleteHistory:
++      return "incomplete";
++    case E::kAuthenticationFailed:
++    case E::kInvalidVaultKey:
++    case E::kMalformedObject:
++      return "integrity";
++    case E::kInvalidData:
++    case E::kUnsupported:
++    case E::kUnsupportedVersion:
++    case E::kObjectTooLarge:
++    case E::kCheckpointPersistenceFailed:
++      return "invalid";
++  }
++  return "invalid";
++}
++
++std::optional<std::string> Encrypt(const os_crypt_async::Encryptor& encryptor,
++                                   const std::string& plain) {
++  std::string out;
++  if (!encryptor.EncryptString(plain, &out)) {
++    return std::nullopt;
++  }
++  return base::Base64Encode(out);
++}
++
++std::optional<std::string> Decrypt(const os_crypt_async::Encryptor& encryptor,
++                                   const std::string& stored) {
++  std::string raw;
++  std::string out;
++  if (stored.empty() || !base::Base64Decode(stored, &raw) ||
++      !encryptor.DecryptString(raw, &out)) {
++    return std::nullopt;
++  }
++  return out;
++}
++
++}  // namespace
++
++void RegisterProfilePrefs(PrefRegistrySimple* registry) {
++  registry->RegisterStringPref(kStatePref, std::string());
++  registry->RegisterStringPref(kVaultPref, std::string());
++  registry->RegisterStringPref(kCheckpointPref, std::string());
++  registry->RegisterBooleanPref(kRevokedPref, false);
++  registry->RegisterDictionaryPref(kStatusPref);
++}
++
++void SaveState(PrefService* prefs,
++               const os_crypt_async::Encryptor& encryptor,
++               const DeviceState& state) {
++  if (!state.registered()) {
++    prefs->ClearPref(kStatePref);
++    prefs->ClearPref(kVaultPref);
++    prefs->ClearPref(kCheckpointPref);
++    prefs->ClearPref(kRevokedPref);
++    prefs->ClearPref(kStatusPref);
++    return;
++  }
++  std::optional<std::string> encrypted = Encrypt(encryptor, state.ToJson());
++  if (!encrypted) {
++    LOG(ERROR) << "Corvid sync: could not encrypt the device state";
++    return;
++  }
++  prefs->SetString(kStatePref, *encrypted);
++  prefs->SetBoolean(kRevokedPref, state.revoked);
++  prefs->SetString(kVaultPref, state.vault_uuid);
++}
++
++std::optional<DeviceState> LoadState(
++    const PrefService& prefs,
++    const os_crypt_async::Encryptor& encryptor) {
++  std::optional<std::string> json =
++      Decrypt(encryptor, prefs.GetString(kStatePref));
++  if (!json) {
++    return std::nullopt;
++  }
++  return DeviceState::FromJson(*json);
++}
++
++void SaveCheckpoint(PrefService* prefs,
++                    const os_crypt_async::Encryptor& encryptor,
++                    const syncer::SyncVaultCheckpoint& checkpoint) {
++  auto serialized = syncer::SerializeSyncVaultCheckpoint(checkpoint);
++  if (!serialized.has_value()) {
++    return;
++  }
++  std::optional<std::string> encrypted =
++      Encrypt(encryptor, std::string(serialized->begin(), serialized->end()));
++  if (encrypted) {
++    prefs->SetString(kCheckpointPref, *encrypted);
++  }
++}
++
++std::optional<syncer::SyncVaultCheckpoint> LoadCheckpoint(
++    const PrefService& prefs,
++    const os_crypt_async::Encryptor& encryptor,
++    const std::string& vault_uuid) {
++  std::optional<std::string> plain =
++      Decrypt(encryptor, prefs.GetString(kCheckpointPref));
++  if (!plain) {
++    return std::nullopt;
++  }
++  auto parsed = syncer::ParseSyncVaultCheckpoint(base::as_byte_span(*plain));
++  if (!parsed.has_value() || parsed->vault_uuid != vault_uuid) {
++    return std::nullopt;
++  }
++  return parsed.value();
++}
++
++BackendHost::BackendHost(
++    PrefService* prefs,
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory)
++    : prefs_(prefs), url_loader_factory_(std::move(url_loader_factory)) {}
++
++BackendHost::~BackendHost() = default;
++
++bool BackendHost::IsConfigured() const {
++  return !prefs_->GetString(kVaultPref).empty();
++}
++
++syncer::CustomSyncBackendStatus BackendHost::GetStatus() const {
++  if (!IsConfigured()) {
++    return syncer::CustomSyncBackendStatus::kProviderUnavailable;
++  }
++  return prefs_->GetBoolean(kRevokedPref)
++             ? syncer::CustomSyncBackendStatus::kReconciliationBlocked
++             : syncer::CustomSyncBackendStatus::kEnabled;
++}
++
++std::string BackendHost::GetNamespace() const {
++  const std::string& uuid = prefs_->GetString(kVaultPref);
++  return uuid.empty() ? std::string() : "corvid-sync-" + uuid;
++}
++
++std::unique_ptr<syncer::CustomSyncBackend> BackendHost::CreateBackend(
++    scoped_refptr<os_crypt_async::Encryptor> encryptor) {
++  if (!encryptor || !IsConfigured()) {
++    return nullptr;
++  }
++  std::optional<DeviceState> state = LoadState(*prefs_, *encryptor);
++  if (!state || !state->has_vault() || state->revoked) {
++    return nullptr;
++  }
++  const std::string uuid = state->vault_uuid;
++  std::optional<syncer::SyncVaultCheckpoint> checkpoint =
++      LoadCheckpoint(*prefs_, *encryptor, uuid);
++
++  // Runs on the sync thread; prefs live on this sequence. A later write of the
++  // same value wins, and losing the newest one in a crash only falls back to
++  // an older ancestor, which still catches rollbacks past it.
++  auto persist = base::BindRepeating(
++      [](scoped_refptr<base::SequencedTaskRunner> runner,
++         base::WeakPtr<BackendHost> host,
++         scoped_refptr<os_crypt_async::Encryptor> encryptor,
++         const syncer::SyncVaultCheckpoint& checkpoint) {
++        auto serialized = syncer::SerializeSyncVaultCheckpoint(checkpoint);
++        if (!serialized.has_value()) {
++          return false;
++        }
++        std::optional<std::string> encrypted = Encrypt(
++            *encryptor, std::string(serialized->begin(), serialized->end()));
++        if (!encrypted) {
++          return false;
++        }
++        runner->PostTask(FROM_HERE,
++                         base::BindOnce(&BackendHost::OnCheckpoint, host,
++                                        checkpoint.vault_uuid,
++                                        std::move(*encrypted)));
++        return true;
++      },
++      base::SequencedTaskRunner::GetCurrentDefault(),
++      weak_factory_.GetWeakPtr(), encryptor);
++
++  auto store = syncer::SyncVaultStore::Create(
++      std::make_unique<ServerVaultTransport>(
++          std::make_unique<UrlLoaderBlockingHttp>(url_loader_factory_->Clone()),
++          state->server_url, state->device_secret, uuid),
++      std::make_unique<syncer::LoopbackServerStateCodec>(), state->vault_key,
++      uuid, std::move(checkpoint), std::move(persist));
++  if (!store.has_value()) {
++    return nullptr;
++  }
++  auto diagnostics = base::BindRepeating(
++      [](scoped_refptr<base::SequencedTaskRunner> runner,
++         base::WeakPtr<BackendHost> host, std::string uuid,
++         std::optional<syncer::SyncVaultStoreError> error,
++         const syncer::SyncVaultCheckpoint& checkpoint,
++         std::optional<syncer::SyncVaultStateDiagnostics>) {
++        runner->PostTask(FROM_HERE,
++                         base::BindOnce(&BackendHost::OnDiagnostics, host, uuid,
++                                        error, checkpoint.generation));
++      },
++      base::SequencedTaskRunner::GetCurrentDefault(),
++      weak_factory_.GetWeakPtr(), uuid);
++  return std::make_unique<syncer::SyncVaultBackend>(std::move(store.value()),
++                                                    std::move(diagnostics));
++}
++
++void BackendHost::OnCheckpoint(std::string vault_uuid, std::string encrypted) {
++  // A late write from the engine of a vault we already left.
++  if (prefs_->GetString(kVaultPref) == vault_uuid) {
++    prefs_->SetString(kCheckpointPref, encrypted);
++  }
++}
++
++void BackendHost::OnDiagnostics(std::string vault_uuid,
++                                std::optional<syncer::SyncVaultStoreError> error,
++                                uint64_t generation) {
++  if (prefs_->GetString(kVaultPref) != vault_uuid) {
++    return;
++  }
++  base::DictValue status = prefs_->GetDict(kStatusPref).Clone();
++  status.Set("generation", base::NumberToString(generation));
++  if (error) {
++    status.Set("last_error", ErrorName(*error));
++  } else {
++    status.Remove("last_error");
++    status.Set("last_success",
++               base::NumberToString(base::Time::Now().InMillisecondsSinceUnixEpoch()));
++  }
++  prefs_->SetDict(kStatusPref, std::move(status));
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/backend.h
+@@ -0,0 +1,90 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_BACKEND_H_
++#define COMPONENTS_CORVID_SYNC_BACKEND_H_
++
++#include <memory>
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
++#include "components/corvid_sync/account.h"
++#include "components/sync/engine/custom_sync_backend.h"
++#include "components/sync/engine/sync_vault/sync_vault_connection_manager.h"
++#include "components/sync/engine/sync_vault/sync_vault_format.h"
++#include "components/sync/service/sync_client.h"
++
++class PrefRegistrySimple;
++class PrefService;
++
++namespace network {
++class SharedURLLoaderFactory;
++}
++
++namespace os_crypt_async {
++class Encryptor;
++}
++
++namespace corvid_sync {
++
++// Profile prefs. The secrets are in `kStatePref`, encrypted with OSCrypt.
++inline constexpr char kStatePref[] = "corvid.sync.state";
++// UUID of the vault in use; empty when sync is off here. Not secret.
++inline constexpr char kVaultPref[] = "corvid.sync.vault";
++inline constexpr char kCheckpointPref[] = "corvid.sync.checkpoint";
++inline constexpr char kRevokedPref[] = "corvid.sync.revoked";
++// Last engine result for the page: "generation", "last_success", "last_error".
++inline constexpr char kStatusPref[] = "corvid.sync.status";
++
++void RegisterProfilePrefs(PrefRegistrySimple* registry);
++
++// Encrypted pref helpers.
++void SaveState(PrefService* prefs,
++               const os_crypt_async::Encryptor& encryptor,
++               const DeviceState& state);
++std::optional<DeviceState> LoadState(
++    const PrefService& prefs,
++    const os_crypt_async::Encryptor& encryptor);
++void SaveCheckpoint(PrefService* prefs,
++                    const os_crypt_async::Encryptor& encryptor,
++                    const syncer::SyncVaultCheckpoint& checkpoint);
++// nullopt when absent, unreadable or for another vault than `vault_uuid`.
++std::optional<syncer::SyncVaultCheckpoint> LoadCheckpoint(
++    const PrefService& prefs,
++    const os_crypt_async::Encryptor& encryptor,
++    const std::string& vault_uuid);
++
++// What ChromeSyncClient needs for Helium's custom backend: tells whether sync
++// is configured, and builds Helium's vault engine on our transport.
++class BackendHost {
++ public:
++  BackendHost(PrefService* prefs,
++              scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory);
++  BackendHost(const BackendHost&) = delete;
++  BackendHost& operator=(const BackendHost&) = delete;
++  ~BackendHost();
++
++  bool IsConfigured() const;
++  syncer::CustomSyncBackendStatus GetStatus() const;
++  std::string GetNamespace() const;
++  std::unique_ptr<syncer::CustomSyncBackend> CreateBackend(
++      scoped_refptr<os_crypt_async::Encryptor> encryptor);
++
++ private:
++  void OnCheckpoint(std::string vault_uuid, std::string encrypted);
++  void OnDiagnostics(std::string vault_uuid,
++                     std::optional<syncer::SyncVaultStoreError> error,
++                     uint64_t generation);
++
++  const raw_ptr<PrefService> prefs_;
++  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
++  base::WeakPtrFactory<BackendHost> weak_factory_{this};
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_BACKEND_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/http.cc
+@@ -0,0 +1,245 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/http.h"
++
++#include <optional>
++
++#include "base/functional/bind.h"
++#include "base/memory/ref_counted.h"
++#include "base/notreached.h"
++#include "base/strings/string_util.h"
++#include "base/task/thread_pool.h"
++#include "base/threading/thread_restrictions.h"
++#include "base/time/time.h"
++#include "base/timer/timer.h"
++#include "net/base/load_flags.h"
++#include "net/http/http_response_headers.h"
++#include "net/traffic_annotation/network_traffic_annotation.h"
++#include "services/network/public/cpp/resource_request.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++#include "services/network/public/cpp/simple_url_loader.h"
++#include "services/network/public/cpp/simple_url_loader_stream_consumer.h"
++#include "services/network/public/mojom/url_response_head.mojom.h"
++
++namespace corvid_sync {
++
++namespace {
++
++constexpr base::TimeDelta kTimeout = base::Minutes(2);
++// Largest object (16 MiB) plus room for the JSON around it.
++constexpr size_t kMaxBody = 17 * 1024 * 1024;
++
++constexpr net::NetworkTrafficAnnotationTag kAnnotation =
++    net::DefineNetworkTrafficAnnotation("corvid_sync", R"(
++      semantics {
++        sender: "Corvid sync"
++        description:
++          "Reads and writes the user's end-to-end encrypted sync vault and "
++          "device list on the sync server the user set up."
++        trigger: "Sync is set up on corvid://sync."
++        data:
++          "Encrypted vault objects, this device's name and public key, and "
++          "a per-device secret for the server."
++        destination: OTHER
++      }
++      policy {
++        cookies_allowed: NO
++        setting: "Turn sync off on corvid://sync."
++        policy_exception_justification: "Not implemented."
++      })");
++
++}  // namespace
++
++// Allowed to wait on the sync thread and the account worker, like HttpBridge
++// (base/threading/thread_restrictions.h).
++class HttpWait {
++ public:
++  static void Wait(base::WaitableEvent& event) {
++    base::ScopedAllowBaseSyncPrimitives allow_wait;
++    event.Wait();
++  }
++};
++
++// Lives on the network sequence; the waiting side only touches the state
++// under the lock.
++class UrlLoaderBlockingHttp::Core
++    : public base::RefCountedThreadSafe<UrlLoaderBlockingHttp::Core>,
++      public network::SimpleURLLoaderStreamConsumer {
++ public:
++  explicit Core(
++      std::unique_ptr<network::PendingSharedURLLoaderFactory> pending_factory)
++      : pending_factory_(std::move(pending_factory)) {}
++
++  // Called on the waiting sequence. Returns false when aborted.
++  HttpResponse Run(scoped_refptr<base::SequencedTaskRunner> runner,
++                   const HttpRequest& request) {
++    {
++      base::AutoLock lock(lock_);
++      if (aborted_) {
++        return HttpResponse{.aborted = true};
++      }
++      done_ = false;
++      response_ = HttpResponse();
++      event_.Reset();
++    }
++    runner->PostTask(FROM_HERE,
++                     base::BindOnce(&Core::Start, this, request));
++    HttpWait::Wait(event_);
++    base::AutoLock lock(lock_);
++    if (aborted_) {
++      return HttpResponse{.aborted = true};
++    }
++    return std::move(response_);
++  }
++
++  void Abort(scoped_refptr<base::SequencedTaskRunner> runner) {
++    {
++      base::AutoLock lock(lock_);
++      aborted_ = true;
++    }
++    event_.Signal();
++    runner->PostTask(FROM_HERE, base::BindOnce(&Core::Reset, this));
++  }
++
++  void Shutdown(scoped_refptr<base::SequencedTaskRunner> runner) {
++    runner->PostTask(FROM_HERE, base::BindOnce(&Core::Reset, this));
++  }
++
++ private:
++  friend class base::RefCountedThreadSafe<Core>;
++  ~Core() override = default;
++
++  void Start(HttpRequest request) {
++    if (!factory_ && pending_factory_) {
++      factory_ = network::SharedURLLoaderFactory::Create(
++          std::move(pending_factory_));
++    }
++    {
++      base::AutoLock lock(lock_);
++      if (aborted_ || !factory_) {
++        Finish(HttpResponse());
++        return;
++      }
++    }
++    auto resource = std::make_unique<network::ResourceRequest>();
++    resource->url = GURL(request.url);
++    resource->method = request.method;
++    resource->credentials_mode = network::mojom::CredentialsMode::kOmit;
++    resource->load_flags = net::LOAD_DISABLE_CACHE;
++    for (const auto& [name, value] : request.headers) {
++      resource->headers.SetHeader(name, value);
++    }
++    loader_ = network::SimpleURLLoader::Create(std::move(resource),
++                                               kAnnotation);
++    if (request.method == "PUT" || request.method == "POST") {
++      loader_->AttachStringForUpload(
++          request.body, request.content_type.empty()
++                            ? "application/octet-stream"
++                            : request.content_type);
++    }
++    loader_->SetAllowHttpErrorResults(true);
++    loader_->SetTimeoutDuration(kTimeout);
++    // Streamed so the limit holds for an untrusted server (DownloadToString
++    // stops at 5 MiB, smaller than the largest object).
++    body_.clear();
++    loader_->DownloadAsStream(factory_.get(), this);
++  }
++
++  // network::SimpleURLLoaderStreamConsumer:
++  void OnDataReceived(std::string_view data,
++                      base::OnceClosure resume) override {
++    if (body_.size() + data.size() > kMaxBody) {
++      loader_.reset();
++      body_.clear();
++      base::AutoLock lock(lock_);
++      Finish(HttpResponse());
++      return;
++    }
++    body_.append(data);
++    std::move(resume).Run();
++  }
++
++  void OnRetry(base::OnceClosure start_retry) override {
++    NOTREACHED();  // No retry options are set.
++  }
++
++  void OnComplete(bool success) override {
++    HttpResponse response;
++    const network::mojom::URLResponseHead* head = loader_->ResponseInfo();
++    if (head && head->headers) {
++      response.status = head->headers->response_code();
++      std::optional<std::string> etag = head->headers->GetNormalizedHeader("ETag");
++      if (etag) {
++        response.etag = std::string(base::TrimString(*etag, "\"",
++                                                     base::TRIM_ALL));
++      }
++    }
++    if (success) {
++      response.body = std::move(body_);
++    } else {
++      response.status = 0;  // Network error.
++    }
++    body_.clear();
++    loader_.reset();
++    base::AutoLock lock(lock_);
++    Finish(std::move(response));
++  }
++
++  void Finish(HttpResponse response) EXCLUSIVE_LOCKS_REQUIRED(lock_) {
++    response_ = std::move(response);
++    done_ = true;
++    event_.Signal();
++  }
++
++  void Reset() {
++    loader_.reset();
++    factory_.reset();
++  }
++
++  std::unique_ptr<network::PendingSharedURLLoaderFactory> pending_factory_;
++  scoped_refptr<network::SharedURLLoaderFactory> factory_;
++  std::unique_ptr<network::SimpleURLLoader> loader_;
++  std::string body_;
++
++  base::Lock lock_;
++  bool aborted_ GUARDED_BY(lock_) = false;
++  bool done_ GUARDED_BY(lock_) = false;
++  HttpResponse response_ GUARDED_BY(lock_);
++  base::WaitableEvent event_{base::WaitableEvent::ResetPolicy::MANUAL,
++                             base::WaitableEvent::InitialState::NOT_SIGNALED};
++};
++
++UrlLoaderBlockingHttp::UrlLoaderBlockingHttp(
++    std::unique_ptr<network::PendingSharedURLLoaderFactory> pending_factory)
++    : network_runner_(base::ThreadPool::CreateSequencedTaskRunner(
++          {base::MayBlock(), base::TaskPriority::USER_VISIBLE})),
++      core_(base::MakeRefCounted<Core>(std::move(pending_factory))) {}
++
++UrlLoaderBlockingHttp::~UrlLoaderBlockingHttp() {
++  core_->Shutdown(network_runner_);
++}
++
++HttpResponse UrlLoaderBlockingHttp::Send(const HttpRequest& request) {
++  // The signal takes one handler at a time and other sync code uses it too, so
++  // hold it only for the duration of a request.
++  if (signal_ && !signal_->TryRegisterHandler(this)) {
++    return HttpResponse{.aborted = true};
++  }
++  HttpResponse response = core_->Run(network_runner_, request);
++  if (signal_) {
++    signal_->UnregisterHandler(this);
++  }
++  return response;
++}
++
++void UrlLoaderBlockingHttp::SetCancelationSignal(
++    syncer::CancelationSignal* signal) {
++  signal_ = signal;
++}
++
++void UrlLoaderBlockingHttp::OnCancelationSignalReceived() {
++  core_->Abort(network_runner_);
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/http.h
+@@ -0,0 +1,79 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_HTTP_H_
++#define COMPONENTS_CORVID_SYNC_HTTP_H_
++
++#include <memory>
++#include <string>
++#include <utility>
++#include <vector>
++
++#include "base/memory/raw_ptr.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/synchronization/lock.h"
++#include "base/synchronization/waitable_event.h"
++#include "base/task/sequenced_task_runner.h"
++#include "base/thread_annotations.h"
++#include "components/sync/engine/cancelation_signal.h"
++
++namespace network {
++class PendingSharedURLLoaderFactory;
++class SharedURLLoaderFactory;
++class SimpleURLLoader;
++}  // namespace network
++
++namespace corvid_sync {
++
++struct HttpRequest {
++  std::string method;  // GET, PUT, POST, DELETE
++  std::string url;
++  std::vector<std::pair<std::string, std::string>> headers;
++  std::string body;
++  std::string content_type;
++};
++
++struct HttpResponse {
++  // 0 when the request did not get an HTTP answer (network error, abort).
++  int status = 0;
++  bool aborted = false;
++  std::string body;
++  std::string etag;
++};
++
++// Synchronous HTTP for the sync thread and the account task runner. Each call
++// blocks the calling sequence until the answer arrives.
++class BlockingHttp {
++ public:
++  virtual ~BlockingHttp() = default;
++  virtual HttpResponse Send(const HttpRequest& request) = 0;
++  // Makes Send() return `aborted` from now on, also from another sequence.
++  virtual void SetCancelationSignal(syncer::CancelationSignal* signal) {}
++};
++
++// Real implementation: SimpleURLLoader on its own sequence, like Chromium's
++// HttpBridge. No cookies, no credentials other than the bearer header.
++class UrlLoaderBlockingHttp : public BlockingHttp,
++                              public syncer::CancelationSignal::Observer {
++ public:
++  explicit UrlLoaderBlockingHttp(
++      std::unique_ptr<network::PendingSharedURLLoaderFactory> pending_factory);
++  ~UrlLoaderBlockingHttp() override;
++
++  HttpResponse Send(const HttpRequest& request) override;
++  void SetCancelationSignal(syncer::CancelationSignal* signal) override;
++
++  // syncer::CancelationSignal::Observer:
++  void OnCancelationSignalReceived() override;
++
++ private:
++  class Core;
++
++  scoped_refptr<base::SequencedTaskRunner> network_runner_;
++  scoped_refptr<Core> core_;
++  raw_ptr<syncer::CancelationSignal> signal_ = nullptr;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_HTTP_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/keys.cc
+@@ -0,0 +1,350 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/keys.h"
++
++#include <utility>
++
++#include "base/base64.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/numerics/byte_conversions.h"
++#include "base/strings/string_util.h"
++#include "base/strings/stringprintf.h"
++#include "base/uuid.h"
++#include "base/values.h"
++#include "crypto/aead.h"
++#include "crypto/hash.h"
++#include "crypto/hmac.h"
++#include "crypto/kdf.h"
++#include "crypto/random.h"
++#include "third_party/boringssl/src/include/openssl/curve25519.h"
++
++namespace corvid_sync {
++
++namespace {
++
++constexpr char kLabelPairProof[] = "corvid-sync-v1/pair-request";
++constexpr char kLabelComparison[] = "corvid-sync-v1/comparison-code";
++constexpr char kLabelEnvelope[] = "corvid-sync-v1/envelope";
++constexpr char kLabelRotate[] = "corvid-sync-v1/rotate";
++constexpr char kRecoveryTag[] = "CVK1";
++// Helium's wire labels, kept for compatibility (SPEC.md section 2).
++constexpr char kObjectKeyInfo[] =
++    "helium-private-sync-v1/object-aead/aes-256-gcm-siv";
++constexpr char kObjectAdPrefix[] = "helium-private-sync-v1/object/";
++constexpr size_t kNonceSize = 12;
++constexpr char kBase32Alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
++
++void Append(std::vector<uint8_t>& out, std::string_view s) {
++  out.insert(out.end(), s.begin(), s.end());
++}
++
++void Append(std::vector<uint8_t>& out, base::span<const uint8_t> s) {
++  out.insert(out.end(), s.begin(), s.end());
++}
++
++Key Hmac(base::span<const uint8_t> key, base::span<const uint8_t> data) {
++  return crypto::hmac::SignSha256(key, data);
++}
++
++std::string Base32NoPad(base::span<const uint8_t> in) {
++  std::string out;
++  uint32_t buffer = 0;
++  int bits = 0;
++  for (uint8_t b : in) {
++    buffer = (buffer << 8) | b;
++    bits += 8;
++    while (bits >= 5) {
++      out.push_back(kBase32Alphabet[(buffer >> (bits - 5)) & 31]);
++      bits -= 5;
++    }
++  }
++  if (bits > 0) {
++    out.push_back(kBase32Alphabet[(buffer << (5 - bits)) & 31]);
++  }
++  return out;
++}
++
++std::optional<std::vector<uint8_t>> FromBase32NoPad(std::string_view in) {
++  std::vector<uint8_t> out;
++  uint32_t buffer = 0;
++  int bits = 0;
++  for (char c : in) {
++    const char* p = strchr(kBase32Alphabet, c);
++    if (!c || !p) {
++      return std::nullopt;
++    }
++    buffer = (buffer << 5) | static_cast<uint32_t>(p - kBase32Alphabet);
++    bits += 5;
++    if (bits >= 8) {
++      out.push_back(static_cast<uint8_t>(buffer >> (bits - 8)));
++      bits -= 8;
++    }
++  }
++  // Leftover bits must be zero padding (canonical encoding, like Go's).
++  if (bits >= 5 || (buffer & ((1u << bits) - 1)) != 0) {
++    return std::nullopt;
++  }
++  return out;
++}
++
++Key EnvelopeKey(const Key& self_private,
++                const Key& peer_public,
++                base::span<const uint8_t> salt,
++                std::string_view kind,
++                const Key& sender_public,
++                const Key& recipient_public,
++                bool* ok) {
++  Key shared{};
++  *ok = X25519(shared.data(), self_private.data(), peer_public.data()) == 1;
++  std::vector<uint8_t> info;
++  Append(info, std::string(kLabelEnvelope) + "/" + std::string(kind) + "/");
++  Append(info, sender_public);
++  Append(info, recipient_public);
++  return crypto::kdf::Hkdf<kKeySize>(crypto::hash::kSha256, shared, salt,
++                                     info);
++}
++
++std::string EnvelopeAd(std::string_view kind) {
++  return std::string(kLabelEnvelope) + "/" + std::string(kind);
++}
++
++}  // namespace
++
++Key NewPrivateKey() {
++  Key pub, priv;
++  X25519_keypair(pub.data(), priv.data());
++  return priv;
++}
++
++Key PublicKeyFor(const Key& private_key) {
++  Key pub;
++  X25519_public_from_private(pub.data(), private_key.data());
++  return pub;
++}
++
++Key RandomKey() {
++  return crypto::RandBytesAsArray<kKeySize>();
++}
++
++std::string NewVaultUuid() {
++  return base::Uuid::GenerateRandomV4().AsLowercaseString();
++}
++
++bool IsValidUuid(std::string_view uuid) {
++  base::Uuid parsed = base::Uuid::ParseLowercase(uuid);
++  return parsed.is_valid();
++}
++
++Key PairProof(base::span<const uint8_t> pair_secret,
++              base::span<const uint8_t> new_public) {
++  std::vector<uint8_t> data;
++  Append(data, kLabelPairProof);
++  Append(data, new_public);
++  return Hmac(pair_secret, data);
++}
++
++std::string ComparisonCode(base::span<const uint8_t> pair_secret,
++                           base::span<const uint8_t> approver_public,
++                           base::span<const uint8_t> new_public) {
++  std::vector<uint8_t> data;
++  Append(data, kLabelComparison);
++  Append(data, approver_public);
++  Append(data, new_public);
++  Key sum = Hmac(pair_secret, data);
++  uint64_t value =
++      base::U64FromBigEndian(base::span(sum).first<8>());
++  return base::StringPrintf("%06llu",
++                            static_cast<unsigned long long>(value % 1000000));
++}
++
++Key RotationSalt(base::span<const uint8_t> old_vault_key,
++                 std::string_view old_vault_uuid) {
++  std::vector<uint8_t> data;
++  Append(data, kLabelRotate);
++  Append(data, old_vault_uuid);
++  return Hmac(old_vault_key, data);
++}
++
++std::vector<uint8_t> SealEnvelope(const Key& sender_private,
++                                  const Key& recipient_public,
++                                  base::span<const uint8_t> salt,
++                                  std::string_view kind,
++                                  const VaultGrant& grant,
++                                  std::optional<std::array<uint8_t, 12>> nonce) {
++  const Key sender_public = PublicKeyFor(sender_private);
++  bool ok = false;
++  Key k = EnvelopeKey(sender_private, recipient_public, salt, kind,
++                      sender_public, recipient_public, &ok);
++  if (!ok) {
++    return {};
++  }
++  // Field order matches Go's encoding/json (struct order); only the bytes
++  // after decryption matter, the receiver parses JSON.
++  base::DictValue dict;
++  dict.Set("vault_uuid", grant.vault_uuid);
++  dict.Set("vault_key", Base64(grant.vault_key));
++  dict.Set("display_name", grant.display_name);
++  if (!grant.replaces_uuid.empty()) {
++    dict.Set("replaces_uuid", grant.replaces_uuid);
++  }
++  std::string json = base::WriteJson(dict).value_or("");
++  std::array<uint8_t, kNonceSize> n =
++      nonce ? *nonce : crypto::RandBytesAsArray<kNonceSize>();
++  std::vector<uint8_t> out(n.begin(), n.end());
++  std::vector<uint8_t> sealed = crypto::aead::Seal(
++      crypto::aead::AES_256_GCM, k, base::as_byte_span(json), n,
++      base::as_byte_span(EnvelopeAd(kind)));
++  Append(out, sealed);
++  return out;
++}
++
++std::optional<VaultGrant> OpenEnvelope(const Key& recipient_private,
++                                       const Key& sender_public,
++                                       base::span<const uint8_t> salt,
++                                       std::string_view kind,
++                                       base::span<const uint8_t> envelope) {
++  if (envelope.size() < kNonceSize + 16) {
++    return std::nullopt;
++  }
++  const Key recipient_public = PublicKeyFor(recipient_private);
++  bool ok = false;
++  Key k = EnvelopeKey(recipient_private, sender_public, salt, kind,
++                      sender_public, recipient_public, &ok);
++  if (!ok) {
++    return std::nullopt;
++  }
++  std::optional<std::vector<uint8_t>> plain = crypto::aead::Open(
++      crypto::aead::AES_256_GCM, k, envelope.subspan(kNonceSize),
++      envelope.first(kNonceSize), base::as_byte_span(EnvelopeAd(kind)));
++  if (!plain) {
++    return std::nullopt;
++  }
++  std::optional<base::Value> value = base::JSONReader::Read(
++      base::as_string_view(*plain), base::JSON_PARSE_RFC);
++  if (!value || !value->is_dict()) {
++    return std::nullopt;
++  }
++  const base::DictValue& dict = value->GetDict();
++  const std::string* uuid = dict.FindString("vault_uuid");
++  const std::string* key = dict.FindString("vault_key");
++  const std::string* name = dict.FindString("display_name");
++  const std::string* replaces = dict.FindString("replaces_uuid");
++  if (!uuid || !key || !IsValidUuid(*uuid)) {
++    return std::nullopt;
++  }
++  std::optional<Key> vault_key = KeyFromBase64(*key);
++  if (!vault_key) {
++    return std::nullopt;
++  }
++  VaultGrant grant;
++  grant.vault_uuid = *uuid;
++  grant.vault_key = *vault_key;
++  grant.display_name = name ? *name : std::string();
++  grant.replaces_uuid = replaces ? *replaces : std::string();
++  return grant;
++}
++
++std::string EncodeRecoveryKey(const Key& vault_key) {
++  std::vector<uint8_t> raw(vault_key.begin(), vault_key.end());
++  auto sum = crypto::hash::Sha256(vault_key);
++  raw.push_back(sum[0]);
++  raw.push_back(sum[1]);
++  std::string s = Base32NoPad(raw);
++  std::string out = kRecoveryTag;
++  for (size_t i = 0; i < s.size(); i += 5) {
++    out += "-" + s.substr(i, 5);
++  }
++  return out;
++}
++
++std::optional<Key> DecodeRecoveryKey(std::string_view text) {
++  std::string s;
++  for (char c : text) {
++    if (!base::IsAsciiWhitespace(c) && c != '-') {
++      s.push_back(base::ToUpperASCII(c));
++    }
++  }
++  if (base::StartsWith(s, kRecoveryTag)) {
++    s = s.substr(strlen(kRecoveryTag));
++  }
++  // Common misreadings.
++  for (char& c : s) {
++    if (c == '0') c = 'O';
++    if (c == '1') c = 'I';
++    if (c == '8') c = 'B';
++  }
++  std::optional<std::vector<uint8_t>> raw = FromBase32NoPad(s);
++  if (!raw || raw->size() != kKeySize + 2) {
++    return std::nullopt;
++  }
++  Key key;
++  std::copy(raw->begin(), raw->begin() + kKeySize, key.begin());
++  auto sum = crypto::hash::Sha256(key);
++  if (sum[0] != (*raw)[kKeySize] || sum[1] != (*raw)[kKeySize + 1]) {
++    return std::nullopt;
++  }
++  return key;
++}
++
++ObjectCrypto::ObjectCrypto(const Key& vault_key, std::string vault_uuid)
++    : object_key_(crypto::kdf::Hkdf<kKeySize>(
++          crypto::hash::kSha256,
++          vault_key,
++          base::as_byte_span(vault_uuid),
++          base::as_byte_span(std::string_view(kObjectKeyInfo)))),
++      vault_uuid_(std::move(vault_uuid)) {}
++
++ObjectCrypto::~ObjectCrypto() = default;
++
++std::vector<uint8_t> ObjectCrypto::AssociatedData(uint8_t role) const {
++  std::vector<uint8_t> ad;
++  Append(ad, kObjectAdPrefix);
++  Append(ad, vault_uuid_);
++  ad.push_back(role);
++  return ad;
++}
++
++std::vector<uint8_t> ObjectCrypto::Encrypt(
++    uint8_t role,
++    base::span<const uint8_t> plaintext,
++    std::optional<std::array<uint8_t, 12>> nonce) const {
++  std::array<uint8_t, kNonceSize> n =
++      nonce ? *nonce : crypto::RandBytesAsArray<kNonceSize>();
++  std::vector<uint8_t> out(n.begin(), n.end());
++  Append(out, crypto::aead::Seal(crypto::aead::AES_256_GCM_SIV, object_key_,
++                                 plaintext, n, AssociatedData(role)));
++  return out;
++}
++
++std::optional<std::vector<uint8_t>> ObjectCrypto::Decrypt(
++    uint8_t role,
++    base::span<const uint8_t> container) const {
++  if (container.size() < kNonceSize + 16) {
++    return std::nullopt;
++  }
++  return crypto::aead::Open(crypto::aead::AES_256_GCM_SIV, object_key_,
++                            container.subspan(kNonceSize),
++                            container.first(kNonceSize), AssociatedData(role));
++}
++
++std::string Base64(base::span<const uint8_t> data) {
++  return base::Base64Encode(data);
++}
++
++std::optional<std::vector<uint8_t>> FromBase64(std::string_view text) {
++  return base::Base64Decode(text);
++}
++
++std::optional<Key> KeyFromBase64(std::string_view text) {
++  std::optional<std::vector<uint8_t>> raw = FromBase64(text);
++  if (!raw || raw->size() != kKeySize) {
++    return std::nullopt;
++  }
++  Key key;
++  std::copy(raw->begin(), raw->end(), key.begin());
++  return key;
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/keys.h
+@@ -0,0 +1,115 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_KEYS_H_
++#define COMPONENTS_CORVID_SYNC_KEYS_H_
++
++#include <array>
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/containers/span.h"
++
++// Corvid's additions to Helium's vault format (sync/protocol/SPEC.md,
++// section 4): device identity keys, pairing proof and comparison code, key
++// envelopes, the recovery key and the encrypted roster object. Test vectors:
++// sync/protocol/vectors-pairing.json and vectors-vault.json.
++namespace corvid_sync {
++
++inline constexpr size_t kKeySize = 32;
++using Key = std::array<uint8_t, kKeySize>;
++
++inline constexpr char kKindPairRequest[] = "pair-request";
++inline constexpr char kKindVaultKey[] = "vault-key";
++inline constexpr char kKindVaultRotate[] = "vault-rotate";
++
++// X25519 identity key of this device.
++Key NewPrivateKey();
++Key PublicKeyFor(const Key& private_key);
++
++Key RandomKey();
++// Random version 4 UUID, lowercase.
++std::string NewVaultUuid();
++bool IsValidUuid(std::string_view uuid);
++
++// HMAC-SHA256(pair_secret, "corvid-sync-v1/pair-request" || new_pub).
++Key PairProof(base::span<const uint8_t> pair_secret,
++              base::span<const uint8_t> new_public);
++
++// Six digits both devices show while pairing.
++std::string ComparisonCode(base::span<const uint8_t> pair_secret,
++                           base::span<const uint8_t> approver_public,
++                           base::span<const uint8_t> new_public);
++
++// Salt of a vault-rotate envelope; proves knowledge of the old key.
++Key RotationSalt(base::span<const uint8_t> old_vault_key,
++                 std::string_view old_vault_uuid);
++
++// What a key envelope carries.
++struct VaultGrant {
++  std::string vault_uuid;
++  Key vault_key{};
++  std::string display_name;
++  std::string replaces_uuid;  // Set on rotation.
++
++  bool operator==(const VaultGrant&) const = default;
++};
++
++// nonce(12) || AES-256-GCM(k, nonce, JSON grant, "corvid-sync-v1/envelope/"
++// kind). `nonce` is random unless a test passes one.
++std::vector<uint8_t> SealEnvelope(
++    const Key& sender_private,
++    const Key& recipient_public,
++    base::span<const uint8_t> salt,
++    std::string_view kind,
++    const VaultGrant& grant,
++    std::optional<std::array<uint8_t, 12>> nonce = std::nullopt);
++
++// nullopt when the envelope does not authenticate or is malformed.
++std::optional<VaultGrant> OpenEnvelope(const Key& recipient_private,
++                                       const Key& sender_public,
++                                       base::span<const uint8_t> salt,
++                                       std::string_view kind,
++                                       base::span<const uint8_t> envelope);
++
++// "CVK1-" + base32(key || SHA-256(key)[0:2]) in groups of 5.
++std::string EncodeRecoveryKey(const Key& vault_key);
++// Tolerates case, spaces, missing dashes and 0/1/8 for O/I/B. nullopt on a
++// typo (checksum) or bad length.
++std::optional<Key> DecodeRecoveryKey(std::string_view text);
++
++// Encryption of Corvid's own vault objects (the roster, role 16), the same
++// container as Helium's head: nonce || AES-256-GCM-SIV(object key, ...).
++class ObjectCrypto {
++ public:
++  static constexpr uint8_t kRoleRoster = 16;
++
++  ObjectCrypto(const Key& vault_key, std::string vault_uuid);
++  ~ObjectCrypto();
++
++  std::vector<uint8_t> Encrypt(
++      uint8_t role,
++      base::span<const uint8_t> plaintext,
++      std::optional<std::array<uint8_t, 12>> nonce = std::nullopt) const;
++  std::optional<std::vector<uint8_t>> Decrypt(
++      uint8_t role,
++      base::span<const uint8_t> container) const;
++
++ private:
++  std::vector<uint8_t> AssociatedData(uint8_t role) const;
++
++  Key object_key_;
++  std::string vault_uuid_;
++};
++
++// base64 helpers for the server's JSON ([]byte fields in Go = std base64).
++std::string Base64(base::span<const uint8_t> data);
++std::optional<std::vector<uint8_t>> FromBase64(std::string_view text);
++std::optional<Key> KeyFromBase64(std::string_view text);
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_KEYS_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/keys_unittest.cc
+@@ -0,0 +1,164 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/keys.h"
++
++#include <string>
++#include <vector>
++
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++// Vectors from sync/protocol/vectors-pairing.json and vectors-vault.json, made
++// by the Go reference client.
++namespace corvid_sync {
++namespace {
++
++std::vector<uint8_t> Hex(const std::string& s) {
++  std::vector<uint8_t> out;
++  EXPECT_TRUE(base::HexStringToBytes(s, &out));
++  return out;
++}
++
++Key K(const std::string& s) {
++  std::vector<uint8_t> v = Hex(s);
++  Key k{};
++  std::copy(v.begin(), v.end(), k.begin());
++  return k;
++}
++
++std::string HexOf(base::span<const uint8_t> b) {
++  return base::ToLowerASCII(base::HexEncode(b));
++}
++
++const char kVaultKey[] = "1111111111111111111111111111111111111111111111111111111111111111";
++const char kRecovery[] = "CVK1-CEIRC-EIRCE-IRCEI-RCEIR-CEIRC-EIRCE-IRCEI-RCEIR-CEIRC-EIRCE-IQFVA";
++const char kPairSecret[] = "2222222222222222222222222222222222222222222222222222222222222222";
++const char kApproverPriv[] = "3333333333333333333333333333333333333333333333333333333333333333";
++const char kApproverPub[] = "7b0d47d93427f8311160781c7c733fd89f88970aef490d8aa0ee19a4cb8a1b14";
++const char kNewPriv[] = "4444444444444444444444444444444444444444444444444444444444444444";
++const char kNewPub[] = "ff2ee45601ec1b67310c7790404585ae697331eee1c1f8cf2419731c1fff3e6b";
++const char kProof[] = "0cdd28fadf0293c63a74e1558195fcfc13640fc3a20d0395dffff13d0fc92932";
++const char kCode[] = "962747";
++const char kUuid[] = "6b1f0c2e-7d3a-4e5b-8c9d-0a1b2c3d4e5f";
++const char kName[] = "Alice";
++const char kOldUuid[] = "0f8e7a3c-2b1d-4c5e-9f60-718293a4b5c6";
++const char kRotationSalt[] = "cee577c23ec2f160b1456a162534fee437c789670ef92bfa458ffd8d0f114751";
++const char kNonce[] = "555555555555555555555555";
++const char kKeyEnvelope[] = "555555555555555555555555b4552c6209db2ca7dab2cc2fa8ac775826184736e706e58b11da199e6628dd2efba0c44b5d4856554a49d8497e56ecf361f756b7e809326e7ff58da6110bf2fd537ee3e0065d8fc9bb705d25afc43a85f1456a4e2a8860f45ef6f3dc473ce1097b48b3b10e6d397301ec486512dfdf62e859a305906817901f7d300b5626284e1bd47abef4edc417761228d1b8994644b4633f3e034101";
++const char kRotateEnvelope[] = "555555555555555555555555dcb0074441420124b5405ccf9a38f90671d2e41c331a9d4cd14181dd9693e501672d42ac428e35d9927fda5504be8810fd10d9e3d4e5c99e9358780b58d5c4b9ece78c7594c6a745f48c03bc1b8ee44c5dbc03d37d444d33d91b35635a0806c2ad444f9c0ab1bc29980f2d930488dc633e2572f7d310c4c5011b962c2293c0302ee85311a38a1eb30e37e2809a0db239dddd6b7c8aeb20b358a52a72a3c373360b0d8fc394f998f0b4c4afddc972b69ecaef47eba29c1d630b1684fe006569c5750dca24455d7736716d360ae37c";
++const char kObjVaultKey[] = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
++const char kObjUuid[] = "0f8e7a3c-2b1d-4c5e-9f60-718293a4b5c6";
++const char kRosterPlain[] = "7b2276657273696f6e223a312c2264657669636573223a5b5d7d";
++const char kRosterNonce[] = "060606060606060606060606";
++const char kRosterContainer[] = "0606060606060606060606062ac6ec30d9886722360fddb72f1148924e0b52d8dbcda1dbd6519432dbc8cd13115f78c890d31b6711e3";
++
++std::array<uint8_t, 12> Nonce(const std::string& hex) {
++  std::vector<uint8_t> v = Hex(hex);
++  std::array<uint8_t, 12> n{};
++  std::copy(v.begin(), v.end(), n.begin());
++  return n;
++}
++
++TEST(CorvidSyncKeys, PublicKeys) {
++  EXPECT_EQ(PublicKeyFor(K(kApproverPriv)), K(kApproverPub));
++  EXPECT_EQ(PublicKeyFor(K(kNewPriv)), K(kNewPub));
++}
++
++TEST(CorvidSyncKeys, PairProofAndCode) {
++  EXPECT_EQ(PairProof(K(kPairSecret), K(kNewPub)), K(kProof));
++  EXPECT_EQ(ComparisonCode(K(kPairSecret), K(kApproverPub), K(kNewPub)), kCode);
++  // Swapped keys (what a lying server would cause) give another code.
++  EXPECT_NE(ComparisonCode(K(kPairSecret), K(kNewPub), K(kApproverPub)), kCode);
++}
++
++TEST(CorvidSyncKeys, RotationSalt) {
++  // The vector's old vault key is 32 bytes of 0x66.
++  Key old_key;
++  old_key.fill(0x66);
++  EXPECT_EQ(RotationSalt(old_key, kOldUuid), K(kRotationSalt));
++}
++
++TEST(CorvidSyncKeys, RecoveryKey) {
++  EXPECT_EQ(EncodeRecoveryKey(K(kVaultKey)), kRecovery);
++  EXPECT_EQ(DecodeRecoveryKey(kRecovery), K(kVaultKey));
++  // Tolerated: case, spaces, no dashes.
++  std::string loose = base::ToLowerASCII(std::string(kRecovery));
++  EXPECT_EQ(DecodeRecoveryKey(loose), K(kVaultKey));
++  std::string no_dash(kRecovery);
++  std::erase(no_dash, '-');
++  EXPECT_EQ(DecodeRecoveryKey(no_dash), K(kVaultKey));
++  // Typos.
++  std::string typo(kRecovery);
++  typo[7] = typo[7] == 'A' ? 'B' : 'A';
++  EXPECT_FALSE(DecodeRecoveryKey(typo));
++  EXPECT_FALSE(DecodeRecoveryKey(""));
++  EXPECT_FALSE(DecodeRecoveryKey("CVK1-AAAAA"));
++  EXPECT_FALSE(DecodeRecoveryKey("not a key!"));
++}
++
++TEST(CorvidSyncKeys, OpensGoEnvelopes) {
++  auto grant = OpenEnvelope(K(kNewPriv), K(kApproverPub), K(kPairSecret),
++                            kKindVaultKey, Hex(kKeyEnvelope));
++  ASSERT_TRUE(grant);
++  EXPECT_EQ(grant->vault_uuid, kUuid);
++  EXPECT_EQ(grant->vault_key, K(kVaultKey));
++  EXPECT_EQ(grant->display_name, kName);
++  EXPECT_TRUE(grant->replaces_uuid.empty());
++
++  auto rotated = OpenEnvelope(K(kNewPriv), K(kApproverPub), K(kRotationSalt),
++                              kKindVaultRotate, Hex(kRotateEnvelope));
++  ASSERT_TRUE(rotated);
++  EXPECT_EQ(rotated->replaces_uuid, kOldUuid);
++}
++
++TEST(CorvidSyncKeys, EnvelopeRejects) {
++  std::vector<uint8_t> env = Hex(kKeyEnvelope);
++  const Key priv = K(kNewPriv), pub = K(kApproverPub), secret = K(kPairSecret);
++  EXPECT_TRUE(OpenEnvelope(priv, pub, secret, kKindVaultKey, env));
++  // Wrong pairing secret, kind, sender, recipient.
++  EXPECT_FALSE(OpenEnvelope(priv, pub, K(kVaultKey), kKindVaultKey, env));
++  EXPECT_FALSE(OpenEnvelope(priv, pub, secret, kKindVaultRotate, env));
++  EXPECT_FALSE(OpenEnvelope(priv, K(kNewPub), secret, kKindVaultKey, env));
++  EXPECT_FALSE(OpenEnvelope(K(kApproverPriv), pub, secret, kKindVaultKey, env));
++  // Tampered, truncated.
++  std::vector<uint8_t> bad = env;
++  bad[20] ^= 1;
++  EXPECT_FALSE(OpenEnvelope(priv, pub, secret, kKindVaultKey, bad));
++  EXPECT_FALSE(OpenEnvelope(priv, pub, secret, kKindVaultKey,
++                            base::span(env).first(10u)));
++}
++
++TEST(CorvidSyncKeys, SealThenOpen) {
++  VaultGrant grant{kUuid, K(kVaultKey), kName, kOldUuid};
++  auto env = SealEnvelope(K(kApproverPriv), K(kNewPub), K(kPairSecret),
++                          kKindVaultRotate, grant, Nonce(kNonce));
++  EXPECT_EQ(HexOf(base::span(env).first(12u)), kNonce);
++  auto opened = OpenEnvelope(K(kNewPriv), K(kApproverPub), K(kPairSecret),
++                             kKindVaultRotate, env);
++  ASSERT_TRUE(opened);
++  EXPECT_EQ(*opened, grant);
++}
++
++TEST(CorvidSyncKeys, RosterContainerMatchesGo) {
++  ObjectCrypto crypto(K(kObjVaultKey), kObjUuid);
++  EXPECT_EQ(HexOf(crypto.Encrypt(ObjectCrypto::kRoleRoster, Hex(kRosterPlain),
++                                 Nonce(kRosterNonce))),
++            kRosterContainer);
++  auto plain = crypto.Decrypt(ObjectCrypto::kRoleRoster, Hex(kRosterContainer));
++  ASSERT_TRUE(plain);
++  EXPECT_EQ(HexOf(*plain), kRosterPlain);
++  // Another role or vault does not open it.
++  EXPECT_FALSE(crypto.Decrypt(1, Hex(kRosterContainer)));
++  ObjectCrypto other(K(kObjVaultKey), kUuid);
++  EXPECT_FALSE(other.Decrypt(ObjectCrypto::kRoleRoster, Hex(kRosterContainer)));
++}
++
++TEST(CorvidSyncKeys, Uuid) {
++  EXPECT_TRUE(IsValidUuid(NewVaultUuid()));
++  EXPECT_FALSE(IsValidUuid("nope"));
++}
++
++}  // namespace
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/roster.cc
+@@ -0,0 +1,107 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/roster.h"
++
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/strings/string_number_conversions.h"
++
++namespace corvid_sync {
++
++RosterEntry* Roster::Find(std::string_view device_id) {
++  for (RosterEntry& e : devices) {
++    if (e.device_id == device_id) {
++      return &e;
++    }
++  }
++  return nullptr;
++}
++
++const RosterEntry* Roster::Find(std::string_view device_id) const {
++  return const_cast<Roster*>(this)->Find(device_id);
++}
++
++bool Roster::IsActive(std::string_view device_id) const {
++  const RosterEntry* e = Find(device_id);
++  return e && !e->revoked;
++}
++
++std::string Roster::ToJson() const {
++  // Built by hand so the version stays an exact integer (base::Value has no
++  // 64-bit integers) and the key order matches Go's.
++  std::string out = "{\"version\":" + base::NumberToString(version) +
++                    ",\"devices\":[";
++  for (size_t i = 0; i < devices.size(); ++i) {
++    const RosterEntry& e = devices[i];
++    base::DictValue d;
++    d.Set("device_id", e.device_id);
++    d.Set("name", e.name);
++    d.Set("public_key", Base64(e.public_key));
++    d.Set("added_by", e.added_by);
++    if (e.revoked) {
++      d.Set("revoked", true);
++    }
++    if (i) {
++      out += ",";
++    }
++    out += base::WriteJson(d).value_or("{}");
++  }
++  return out + "]}";
++}
++
++std::optional<Roster> Roster::FromJson(std::string_view json) {
++  std::optional<base::Value> value =
++      base::JSONReader::Read(json, base::JSON_PARSE_RFC);
++  if (!value || !value->is_dict()) {
++    return std::nullopt;
++  }
++  const base::DictValue& d = value->GetDict();
++  Roster roster;
++  const base::Value* version = d.Find("version");
++  if (!version) {
++    return std::nullopt;
++  }
++  if (version->is_int() && version->GetInt() >= 0) {
++    roster.version = static_cast<uint64_t>(version->GetInt());
++  } else if (version->is_double() && version->GetDouble() >= 0) {
++    roster.version = static_cast<uint64_t>(version->GetDouble());
++  } else {
++    return std::nullopt;
++  }
++  const base::Value* devices_value = d.Find("devices");
++  if (!devices_value) {
++    return std::nullopt;
++  }
++  // Go writes a nil slice as null.
++  if (devices_value->is_none()) {
++    return roster;
++  }
++  if (!devices_value->is_list()) {
++    return std::nullopt;
++  }
++  for (const base::Value& v : devices_value->GetList()) {
++    if (!v.is_dict()) {
++      return std::nullopt;
++    }
++    const base::DictValue& e = v.GetDict();
++    const std::string* id = e.FindString("device_id");
++    const std::string* pub = e.FindString("public_key");
++    if (!id || !pub) {
++      return std::nullopt;
++    }
++    std::optional<Key> key = KeyFromBase64(*pub);
++    if (!key) {
++      return std::nullopt;
++    }
++    const std::string* name = e.FindString("name");
++    const std::string* added_by = e.FindString("added_by");
++    roster.devices.push_back(RosterEntry{
++        *id, name ? *name : std::string(), *key,
++        added_by ? *added_by : std::string(),
++        e.FindBool("revoked").value_or(false)});
++  }
++  return roster;
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/roster.h
+@@ -0,0 +1,50 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_ROSTER_H_
++#define COMPONENTS_CORVID_SYNC_ROSTER_H_
++
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "base/values.h"
++#include "components/corvid_sync/keys.h"
++
++namespace corvid_sync {
++
++inline constexpr char kRosterObjectId[] = "roster";
++
++// The devices that hold the vault key (SPEC.md section 4). Stored in the
++// vault as the object "roster", encrypted like the head (role 16).
++struct RosterEntry {
++  std::string device_id;
++  std::string name;
++  Key public_key{};
++  std::string added_by;
++  bool revoked = false;
++
++  bool operator==(const RosterEntry&) const = default;
++};
++
++struct Roster {
++  uint64_t version = 0;
++  std::vector<RosterEntry> devices;
++
++  RosterEntry* Find(std::string_view device_id);
++  const RosterEntry* Find(std::string_view device_id) const;
++  // Listed and not revoked.
++  bool IsActive(std::string_view device_id) const;
++
++  // Same JSON as the Go client (encoding/json of its struct).
++  std::string ToJson() const;
++  static std::optional<Roster> FromJson(std::string_view json);
++
++  bool operator==(const Roster&) const = default;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_ROSTER_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/roster_unittest.cc
+@@ -0,0 +1,43 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/roster.h"
++
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace corvid_sync {
++namespace {
++
++TEST(CorvidSyncRoster, RoundTrip) {
++  Roster roster;
++  roster.version = 7;
++  roster.devices.push_back(RosterEntry{"dev_1", "A \"quoted\" name", Key{1},
++                                       "dev_1", false});
++  roster.devices.push_back(RosterEntry{"dev_2", "B", Key{2}, "dev_1", true});
++  auto parsed = Roster::FromJson(roster.ToJson());
++  ASSERT_TRUE(parsed);
++  EXPECT_EQ(*parsed, roster);
++  EXPECT_TRUE(parsed->IsActive("dev_1"));
++  EXPECT_FALSE(parsed->IsActive("dev_2"));
++  EXPECT_FALSE(parsed->IsActive("dev_3"));
++}
++
++TEST(CorvidSyncRoster, ReadsGoJson) {
++  // Go: empty slice in the test vector, null for a nil slice.
++  auto empty = Roster::FromJson(R"({"version":1,"devices":[]})");
++  ASSERT_TRUE(empty);
++  EXPECT_EQ(empty->version, 1u);
++  EXPECT_TRUE(Roster::FromJson(R"({"version":0,"devices":null})"));
++}
++
++TEST(CorvidSyncRoster, RejectsMalformed) {
++  EXPECT_FALSE(Roster::FromJson("not json"));
++  EXPECT_FALSE(Roster::FromJson("{}"));
++  EXPECT_FALSE(Roster::FromJson(R"({"version":-1,"devices":[]})"));
++  EXPECT_FALSE(Roster::FromJson(R"({"version":1,"devices":[{"name":"x"}]})"));
++  EXPECT_FALSE(Roster::FromJson(
++      R"({"version":1,"devices":[{"device_id":"a","public_key":"AAAA"}]})"));
++}
++
++}  // namespace
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/server_transport.cc
+@@ -0,0 +1,108 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/server_transport.h"
++
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/strings/string_util.h"
++#include "base/task/sequenced_task_runner.h"
++
++namespace corvid_sync {
++
++using syncer::SyncVaultTransportError;
++
++namespace {
++
++// Helium names objects with base::HexEncode (uppercase); the server's content
++// addresses are lowercase hex (SPEC.md section 3). Names never enter the vault
++// format: commits hold raw digests.
++std::string ServerObjectId(const std::string& object_id) {
++  return base::ToLowerASCII(object_id);
++}
++
++}  // namespace
++
++SyncVaultTransportError ToTransportError(const ApiError& error) {
++  switch (error.kind) {
++    case ApiError::Kind::kNetwork:
++      return SyncVaultTransportError::kNetworkError;
++    case ApiError::Kind::kAborted:
++      return SyncVaultTransportError::kAborted;
++    case ApiError::Kind::kUnauthorized:
++    case ApiError::Kind::kRevoked:
++      return SyncVaultTransportError::kAuthenticationRequired;
++    case ApiError::Kind::kTokenInvalid:
++    case ApiError::Kind::kNotFound:  // The vault itself is gone.
++      return SyncVaultTransportError::kAccessDenied;
++    case ApiError::Kind::kConflict:
++      return SyncVaultTransportError::kConflict;
++    case ApiError::Kind::kQuota:
++      return SyncVaultTransportError::kQuotaExceeded;
++    case ApiError::Kind::kServer:
++      return error.status >= 500 ? SyncVaultTransportError::kTemporaryError
++                                 : SyncVaultTransportError::kInvalidData;
++    case ApiError::Kind::kNoObject:
++    case ApiError::Kind::kTooLarge:
++    case ApiError::Kind::kBadResponse:
++      return SyncVaultTransportError::kInvalidData;
++  }
++  return SyncVaultTransportError::kInvalidData;
++}
++
++ServerVaultTransport::ServerVaultTransport(std::unique_ptr<BlockingHttp> http,
++                                           std::string server_url,
++                                           std::string device_secret,
++                                           std::string vault_uuid)
++    : http_(std::move(http)),
++      api_(http_.get(), std::move(server_url), std::move(device_secret)),
++      vault_uuid_(std::move(vault_uuid)) {}
++
++ServerVaultTransport::~ServerVaultTransport() = default;
++
++void ServerVaultTransport::SetCancelationSignal(
++    syncer::CancelationSignal* signal) {
++  http_->SetCancelationSignal(signal);
++}
++
++ServerVaultTransport::ReadResult ServerVaultTransport::ReadObject(
++    const std::string& object_id,
++    size_t maximum_bytes) {
++  auto r = api_.ReadObject(vault_uuid_, ServerObjectId(object_id),
++                           maximum_bytes);
++  if (!r.has_value()) {
++    return base::unexpected(ToTransportError(r.error()));
++  }
++  if (!r.value()) {
++    return std::nullopt;
++  }
++  return syncer::OpaqueSyncVaultObject{std::move(r.value()->data),
++                                       std::move(r.value()->revision)};
++}
++
++ServerVaultTransport::WriteResult ServerVaultTransport::WriteObject(
++    const std::string& object_id,
++    std::optional<std::string> expected_revision,
++    std::vector<uint8_t> data,
++    std::optional<uint32_t> retention_epoch) {
++  auto r = api_.WriteObject(vault_uuid_, ServerObjectId(object_id),
++                            expected_revision, data, retention_epoch);
++  if (!r.has_value()) {
++    return base::unexpected(ToTransportError(r.error()));
++  }
++  return std::move(r.value());
++}
++
++void ServerVaultTransport::CollectEpochsBefore(uint32_t minimum_retained_epoch,
++                                               CollectCallback callback) {
++  auto r = api_.Collect(vault_uuid_, minimum_retained_epoch);
++  CollectResult result = base::ok();
++  if (!r.has_value()) {
++    result = base::unexpected(ToTransportError(r.error()));
++  }
++  base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(std::move(callback), result));
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/server_transport.h
+@@ -0,0 +1,49 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_SERVER_TRANSPORT_H_
++#define COMPONENTS_CORVID_SYNC_SERVER_TRANSPORT_H_
++
++#include <memory>
++#include <optional>
++#include <string>
++#include <vector>
++
++#include "components/corvid_sync/api_client.h"
++#include "components/corvid_sync/http.h"
++#include "components/sync/engine/sync_vault/sync_vault_transport.h"
++
++namespace corvid_sync {
++
++syncer::SyncVaultTransportError ToTransportError(const ApiError& error);
++
++// Helium's vault transport over the Corvid sync server: object reads and
++// conditional writes map 1:1 onto /v1/vaults/{uuid}/objects/{id}.
++class ServerVaultTransport : public syncer::SyncVaultTransport {
++ public:
++  ServerVaultTransport(std::unique_ptr<BlockingHttp> http,
++                       std::string server_url,
++                       std::string device_secret,
++                       std::string vault_uuid);
++  ~ServerVaultTransport() override;
++
++  // syncer::SyncVaultTransport:
++  void SetCancelationSignal(syncer::CancelationSignal* signal) override;
++  ReadResult ReadObject(const std::string& object_id,
++                        size_t maximum_bytes) override;
++  WriteResult WriteObject(const std::string& object_id,
++                          std::optional<std::string> expected_revision,
++                          std::vector<uint8_t> data,
++                          std::optional<uint32_t> retention_epoch) override;
++  void CollectEpochsBefore(uint32_t minimum_retained_epoch,
++                           CollectCallback callback) override;
++
++ private:
++  std::unique_ptr<BlockingHttp> http_;
++  ApiClient api_;
++  const std::string vault_uuid_;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_SERVER_TRANSPORT_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/server_transport_unittest.cc
+@@ -0,0 +1,115 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/server_transport.h"
++
++#include <memory>
++
++#include "base/functional/bind.h"
++#include "base/run_loop.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_util.h"
++#include "components/corvid_sync/test_server.h"
++#include "crypto/hash.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++namespace corvid_sync {
++namespace {
++
++using syncer::SyncVaultTransport;
++using syncer::SyncVaultTransportError;
++
++class Lent : public BlockingHttp {
++ public:
++  explicit Lent(BlockingHttp* http) : http_(http) {}
++  HttpResponse Send(const HttpRequest& request) override {
++    return http_->Send(request);
++  }
++
++ private:
++  raw_ptr<BlockingHttp> http_;
++};
++
++class CorvidSyncTransportTest : public testing::Test {
++ protected:
++  void SetUp() override {
++    ApiClient api(&server_, kTestServerUrl, "");
++    auto reg = api.Register(server_.AddToken(), "d", Key{1});
++    ASSERT_TRUE(reg.has_value());
++    device_id_ = reg->device_id;
++    server_.vaults["v"];
++    transport_ = std::make_unique<ServerVaultTransport>(
++        std::make_unique<Lent>(&server_), kTestServerUrl, reg->device_secret,
++        "v");
++  }
++
++  TestServer server_;
++  std::string device_id_;
++  std::unique_ptr<ServerVaultTransport> transport_;
++};
++
++TEST_F(CorvidSyncTransportTest, ReadWriteConditional) {
++  auto absent = transport_->ReadObject("head", 100);
++  ASSERT_TRUE(absent.has_value());
++  EXPECT_FALSE(absent->has_value());
++
++  auto rev = transport_->WriteObject("head", std::nullopt, {1}, std::nullopt);
++  ASSERT_TRUE(rev.has_value());
++  auto again = transport_->WriteObject("head", std::nullopt, {2}, std::nullopt);
++  ASSERT_FALSE(again.has_value());
++  EXPECT_EQ(again.error(), SyncVaultTransportError::kConflict);
++  ASSERT_TRUE(transport_->WriteObject("head", *rev, {3}, std::nullopt)
++                  .has_value());
++  auto read = transport_->ReadObject("head", 100);
++  ASSERT_TRUE(read.has_value());
++  EXPECT_EQ(read->value().data, std::vector<uint8_t>{3});
++  EXPECT_FALSE(read->value().revision.empty());
++}
++
++// Helium's object names are uppercase hex; the server wants lowercase.
++TEST_F(CorvidSyncTransportTest, ObjectNamesAreLowercased) {
++  const std::vector<uint8_t> data = {1, 2, 3};
++  const std::string upper = base::HexEncode(crypto::hash::Sha256(data));
++  ASSERT_NE(upper, base::ToLowerASCII(upper));
++  auto written = transport_->WriteObject(upper, std::nullopt, data, 0u);
++  ASSERT_TRUE(written.has_value());
++  EXPECT_EQ(server_.vaults["v"].count(base::ToLowerASCII(upper)), 1u);
++  auto read = transport_->ReadObject(upper, 100);
++  ASSERT_TRUE(read.has_value());
++  ASSERT_TRUE(read->has_value());
++  EXPECT_EQ(read->value().data, data);
++}
++
++TEST_F(CorvidSyncTransportTest, ErrorMapping) {
++  server_.offline = true;
++  EXPECT_EQ(transport_->ReadObject("head", 100).error(),
++            SyncVaultTransportError::kNetworkError);
++  server_.offline = false;
++  // The vault is gone (rotated away).
++  server_.vaults.clear();
++  EXPECT_EQ(transport_->ReadObject("head", 100).error(),
++            SyncVaultTransportError::kAccessDenied);
++  server_.devices[device_id_].revoked = true;
++  EXPECT_EQ(transport_->ReadObject("head", 100).error(),
++            SyncVaultTransportError::kAuthenticationRequired);
++}
++
++TEST_F(CorvidSyncTransportTest, CollectCallsBackLater) {
++  base::RunLoop loop;
++  std::optional<SyncVaultTransport::CollectResult> result;
++  transport_->CollectEpochsBefore(
++      3, base::BindOnce(
++             [](std::optional<SyncVaultTransport::CollectResult>* out,
++                base::OnceClosure done, SyncVaultTransport::CollectResult r) {
++               *out = r;
++               std::move(done).Run();
++             },
++             &result, loop.QuitClosure()));
++  EXPECT_FALSE(result);
++  loop.Run();
++  ASSERT_TRUE(result);
++  EXPECT_TRUE(result->has_value());
++}
++
++}  // namespace
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/service.cc
+@@ -0,0 +1,415 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/service.h"
++
++#include <utility>
++
++#include "base/command_line.h"
++#include "base/functional/bind.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/task/thread_pool.h"
++#include "base/time/time.h"
++#include "components/corvid_sync/backend.h"
++#include "components/os_crypt/async/browser/os_crypt_async.h"
++#include "components/prefs/pref_service.h"
++#include "components/sync/base/data_type.h"
++#include "components/sync/base/user_selectable_type.h"
++#include "components/sync/service/sync_service.h"
++#include "components/sync/service/sync_user_settings.h"
++#include "services/network/public/cpp/shared_url_loader_factory.h"
++
++namespace corvid_sync {
++
++namespace {
++
++// How often to check the mailbox and pull changes (no push in protocol v1).
++constexpr base::TimeDelta kDefaultPoll = base::Minutes(2);
++constexpr char kPollSwitch[] = "corvid-sync-poll-seconds";
++
++base::TimeDelta PollInterval() {
++  int seconds = 0;
++  if (base::StringToInt(
++          base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
++              kPollSwitch),
++          &seconds) &&
++      seconds > 0) {
++    return base::Seconds(seconds);
++  }
++  return kDefaultPoll;
++}
++
++}  // namespace
++
++OpResult::OpResult() = default;
++OpResult::OpResult(OpResult&&) = default;
++OpResult& OpResult::operator=(OpResult&&) = default;
++OpResult::~OpResult() = default;
++
++// Owns the Account and its connection on a worker sequence that may block.
++class Service::Worker {
++ public:
++  Worker(std::unique_ptr<network::PendingSharedURLLoaderFactory> pending,
++         DeviceState state)
++      : http_(std::move(pending)), account_(&http_, std::move(state)) {}
++
++  OpResult Run(Op op, std::optional<syncer::SyncVaultCheckpoint> checkpoint) {
++    OpResult result;
++    const std::string before = account_.state().vault_uuid;
++    if (before.empty() || (checkpoint && checkpoint->vault_uuid == before)) {
++      account_.set_checkpoint(std::move(checkpoint));
++    }
++    std::move(op).Run(account_, result);
++    result.state = account_.state();
++    result.checkpoint = account_.checkpoint();
++    result.vault_changed =
++        result.vault_changed || before != account_.state().vault_uuid;
++    if (account_.state().join_secret) {
++      if (auto code = account_.JoinComparisonCode(); code.has_value()) {
++        result.join_code = *code;
++      }
++    }
++    for (const auto& [id, pairing] : account_.pairings()) {
++      base::DictValue row;
++      row.Set("id", id);
++      row.Set("name", pairing.name);
++      row.Set("code", pairing.code);
++      result.pairings.Append(std::move(row));
++    }
++    return result;
++  }
++
++ private:
++  UrlLoaderBlockingHttp http_;
++  Account account_;
++};
++
++Service::Service(
++    PrefService* prefs,
++    scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++    os_crypt_async::OSCryptAsync* os_crypt,
++    syncer::SyncService* sync_service)
++    : prefs_(prefs),
++      url_loader_factory_(std::move(url_loader_factory)),
++      sync_service_(sync_service) {
++  os_crypt->GetInstance(
++      base::BindOnce(&Service::OnEncryptor, weak_factory_.GetWeakPtr()));
++}
++
++Service::~Service() = default;
++
++void Service::Shutdown() {
++  poll_timer_.Stop();
++  weak_factory_.InvalidateWeakPtrs();
++  worker_.Reset();
++  url_loader_factory_.reset();
++}
++
++void Service::AddObserver(Observer* observer) {
++  observers_.AddObserver(observer);
++}
++
++void Service::RemoveObserver(Observer* observer) {
++  observers_.RemoveObserver(observer);
++}
++
++void Service::OnEncryptor(scoped_refptr<os_crypt_async::Encryptor> encryptor) {
++  encryptor_ = std::move(encryptor);
++  if (!prefs_->GetString(kStatePref).empty()) {
++    std::optional<DeviceState> state = LoadState(*prefs_, *encryptor_);
++    if (state) {
++      state_ = std::move(*state);
++    } else {
++      // Keep the pref: the OS keyring may just be locked this time.
++      load_error_ = "The saved sync settings could not be decrypted.";
++    }
++  }
++  worker_ = base::SequenceBound<Worker>(
++      base::ThreadPool::CreateSequencedTaskRunner(
++          {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
++           base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN}),
++      url_loader_factory_->Clone(), state_);
++  UpdateTimer();
++  if (state_.registered()) {
++    Poll();
++  }
++}
++
++void Service::UpdateTimer() {
++  if (state_.registered() && !state_.revoked) {
++    if (!poll_timer_.IsRunning()) {
++      poll_timer_.Start(FROM_HERE, PollInterval(),
++                        base::BindRepeating(&Service::Poll,
++                                            base::Unretained(this)));
++    }
++  } else {
++    poll_timer_.Stop();
++  }
++}
++
++void Service::Run(Op op) {
++  if (!worker_) {
++    return;
++  }
++  std::optional<syncer::SyncVaultCheckpoint> checkpoint;
++  if (encryptor_ && state_.has_vault()) {
++    checkpoint = LoadCheckpoint(*prefs_, *encryptor_, state_.vault_uuid);
++  }
++  ops_in_flight_++;
++  worker_.AsyncCall(&Worker::Run)
++      .WithArgs(std::move(op), std::move(checkpoint))
++      .Then(base::BindOnce(&Service::OnDone, weak_factory_.GetWeakPtr()));
++}
++
++void Service::OnDone(OpResult result) {
++  ops_in_flight_--;
++  const bool was_active = !prefs_->GetString(kVaultPref).empty();
++  const bool was_revoked = prefs_->GetBoolean(kRevokedPref);
++  state_ = std::move(result.state);
++  join_code_ = std::move(result.join_code);
++  pairings_ = std::move(result.pairings);
++  if (result.devices) {
++    devices_ = std::move(*result.devices);
++  }
++  if (encryptor_) {
++    SaveState(prefs_, *encryptor_, state_);
++    if (result.vault_changed) {
++      prefs_->ClearPref(kCheckpointPref);
++      prefs_->ClearPref(kStatusPref);
++      if (result.checkpoint) {
++        SaveCheckpoint(prefs_, *encryptor_, *result.checkpoint);
++      }
++    }
++  }
++  UpdateTimer();
++
++  if (sync_service_) {
++    const bool active = !prefs_->GetString(kVaultPref).empty();
++    if (result.vault_changed || was_active != active ||
++        was_revoked != state_.revoked) {
++      const bool newly_active = active && !was_active;
++      if (newly_active) {
++        sync_service_->GetUserSettings()->SetInitialSyncFeatureSetupComplete();
++      }
++      const bool reconfigured = sync_service_->ReconfigureBackend();
++      if (newly_active && reconfigured) {
++        // Only valid with a backend selected. Same task as the restart above,
++        // so nothing syncs under the default of "everything" first.
++        // What PROJECT.md section 4.6 lists: no open tabs by default.
++        sync_service_->GetUserSettings()->SetSelectedTypes(
++            /*sync_everything=*/false,
++            {syncer::UserSelectableType::kBookmarks,
++             syncer::UserSelectableType::kPreferences,
++             syncer::UserSelectableType::kThemes,
++             syncer::UserSelectableType::kPasswords,
++             syncer::UserSelectableType::kExtensions,
++             syncer::UserSelectableType::kHistory});
++      }
++    }
++  }
++
++  base::DictValue transient;
++  if (!result.recovery_key.empty()) {
++    transient.Set("recoveryKey", result.recovery_key);
++  }
++  if (!result.invite_code.empty()) {
++    transient.Set("inviteCode", result.invite_code);
++  }
++  if (result.error) {
++    transient.Set("error", result.error->text);
++    transient.Set("integrity", result.error->integrity);
++  }
++  const base::DictValue view = View();
++  for (Observer& observer : observers_) {
++    observer.OnSyncViewChanged(view, transient);
++  }
++}
++
++base::DictValue Service::View() const {
++  base::DictValue view;
++  const char* mode = "off";
++  if (state_.revoked) {
++    mode = "revoked";
++  } else if (state_.has_vault()) {
++    mode = "on";
++  } else if (state_.join_secret) {
++    mode = "waiting";
++  }
++  view.Set("mode", mode);
++  view.Set("server", state_.server_url);
++  view.Set("deviceName", state_.device_name);
++  view.Set("deviceId", state_.device_id);
++  view.Set("joinCode", join_code_);
++  view.Set("pairings", pairings_.Clone());
++  view.Set("devices", devices_.Clone());
++  view.Set("status", prefs_->GetDict(kStatusPref).Clone());
++  view.Set("busy", ops_in_flight_ > 0);
++  if (!load_error_.empty()) {
++    view.Set("loadError", load_error_);
++  }
++  return view;
++}
++
++namespace {
++
++// Fills the devices and the roster for the page. A failure here is not worth
++// reporting on top of what the operation itself reported.
++void FillDevices(Account& account, OpResult& result) {
++  if (!account.state().registered() || account.state().revoked) {
++    return;
++  }
++  if (account.state().has_vault()) {
++    std::ignore = account.RefreshRoster();
++  }
++  auto rows = account.ListDevices();
++  if (!rows.has_value()) {
++    return;
++  }
++  base::ListValue list;
++  for (const DeviceRow& row : *rows) {
++    base::DictValue d;
++    d.Set("id", row.id);
++    d.Set("name", row.name);
++    d.Set("lastSeen", base::NumberToString(row.last_seen));
++    d.Set("self", row.is_this_device);
++    d.Set("inRoster", row.in_roster);
++    list.Append(std::move(d));
++  }
++  result.devices = std::move(list);
++}
++
++void ProcessMail(Account& account, OpResult& result) {
++  auto processed = account.ProcessMessages();
++  if (!processed.has_value()) {
++    // Offline is normal; the page shows the engine's status. Tampering is not.
++    if (processed.error().integrity) {
++      result.error = processed.error();
++    }
++    return;
++  }
++  result.vault_changed = processed.value();
++}
++
++}  // namespace
++
++void Service::Poll() {
++  Run(base::BindOnce(&ProcessMail));
++  if (sync_service_ && state_.has_vault() && !state_.revoked) {
++    sync_service_->TriggerRefresh(
++        syncer::SyncService::TriggerRefreshSource::kExtensionSyncProvider,
++        syncer::DataTypeSet::All());
++  }
++}
++
++void Service::Refresh() {
++  Run(base::BindOnce([](Account& account, OpResult& result) {
++    ProcessMail(account, result);
++    FillDevices(account, result);
++  }));
++}
++
++void Service::CreateVault(std::string server,
++                          std::string token,
++                          std::string name) {
++  Run(base::BindOnce(
++      [](std::string server, std::string token, std::string name,
++         Account& account, OpResult& result) {
++        auto key = account.CreateVault(server, token, name);
++        if (key.has_value()) {
++          result.recovery_key = *key;
++          FillDevices(account, result);
++        } else {
++          result.error = key.error();
++        }
++      },
++      std::move(server), std::move(token), std::move(name)));
++}
++
++void Service::Join(std::string server, std::string code, std::string name) {
++  Run(base::BindOnce(
++      [](std::string server, std::string code, std::string name,
++         Account& account, OpResult& result) {
++        auto joined = account.Join(server, code, name);
++        if (!joined.has_value()) {
++          result.error = joined.error();
++        }
++      },
++      std::move(server), std::move(code), std::move(name)));
++}
++
++void Service::Recover(std::string server,
++                      std::string token,
++                      std::string name,
++                      std::string recovery_key) {
++  Run(base::BindOnce(
++      [](std::string server, std::string token, std::string name,
++         std::string recovery_key, Account& account, OpResult& result) {
++        auto recovered = account.Recover(server, token, name, recovery_key);
++        if (recovered.has_value()) {
++          FillDevices(account, result);
++        } else {
++          result.error = recovered.error();
++        }
++      },
++      std::move(server), std::move(token), std::move(name),
++      std::move(recovery_key)));
++}
++
++void Service::CreateInvite() {
++  Run(base::BindOnce([](Account& account, OpResult& result) {
++    auto code = account.CreateInvite();
++    if (code.has_value()) {
++      result.invite_code = *code;
++    } else {
++      result.error = code.error();
++    }
++  }));
++}
++
++void Service::Approve(std::string device_id) {
++  Run(base::BindOnce(
++      [](std::string id, Account& account, OpResult& result) {
++        auto approved = account.Approve(id);
++        if (!approved.has_value()) {
++          result.error = approved.error();
++        }
++        FillDevices(account, result);
++      },
++      std::move(device_id)));
++}
++
++void Service::Reject(std::string device_id) {
++  Run(base::BindOnce(
++      [](std::string id, Account& account, OpResult& result) {
++        account.Reject(id);
++        FillDevices(account, result);
++      },
++      std::move(device_id)));
++}
++
++void Service::RemoveDevice(std::string device_id) {
++  Run(base::BindOnce(
++      [](std::string id, Account& account, OpResult& result) {
++        auto key = account.RemoveDevice(id);
++        if (key.has_value()) {
++          result.recovery_key = *key;
++        } else {
++          result.error = key.error();
++        }
++        FillDevices(account, result);
++      },
++      std::move(device_id)));
++}
++
++void Service::ShowRecoveryKey() {
++  Run(base::BindOnce([](Account& account, OpResult& result) {
++    result.recovery_key = account.RecoveryKey();
++  }));
++}
++
++void Service::TurnOff() {
++  Run(base::BindOnce(
++      [](Account& account, OpResult& result) { account.Leave(); }));
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/service.h
+@@ -0,0 +1,131 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_SERVICE_H_
++#define COMPONENTS_CORVID_SYNC_SERVICE_H_
++
++#include <memory>
++#include <optional>
++#include <string>
++
++#include "base/functional/callback.h"
++#include "base/memory/raw_ptr.h"
++#include "base/memory/scoped_refptr.h"
++#include "base/memory/weak_ptr.h"
++#include "base/observer_list.h"
++#include "base/threading/sequence_bound.h"
++#include "base/timer/timer.h"
++#include "base/values.h"
++#include "components/corvid_sync/account.h"
++#include "components/keyed_service/core/keyed_service.h"
++#include "components/os_crypt/async/common/encryptor.h"
++
++class PrefService;
++
++namespace network {
++class SharedURLLoaderFactory;
++}
++
++namespace os_crypt_async {
++class OSCryptAsync;
++}
++
++namespace syncer {
++class SyncService;
++}
++
++namespace corvid_sync {
++
++// Result of one operation on the worker, for the UI sequence.
++struct OpResult {
++  OpResult();
++  OpResult(OpResult&&);
++  OpResult& operator=(OpResult&&);
++  ~OpResult();
++
++  std::optional<AccountError> error;
++  DeviceState state;
++  std::optional<syncer::SyncVaultCheckpoint> checkpoint;
++  bool vault_changed = false;
++  // Shown once, not kept in the view.
++  std::string recovery_key;
++  std::string invite_code;
++  // Comparison code on the new device; pending pairings; device list.
++  std::string join_code;
++  base::ListValue pairings;
++  std::optional<base::ListValue> devices;
++};
++
++// The profile's sync account: runs account operations off the UI thread,
++// saves their results, restarts the sync engine when the vault changes, and
++// polls the mailbox and the vault head. Does nothing until sync is set up.
++class Service : public KeyedService {
++ public:
++  class Observer : public base::CheckedObserver {
++   public:
++    // `transient` holds one-time answers: "recoveryKey", "inviteCode",
++    // "error", "integrity".
++    virtual void OnSyncViewChanged(const base::DictValue& view,
++                                   const base::DictValue& transient) = 0;
++  };
++
++  Service(PrefService* prefs,
++          scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
++          os_crypt_async::OSCryptAsync* os_crypt,
++          syncer::SyncService* sync_service);
++  Service(const Service&) = delete;
++  Service& operator=(const Service&) = delete;
++  ~Service() override;
++
++  void AddObserver(Observer* observer);
++  void RemoveObserver(Observer* observer);
++
++  // Sends the view to observers after refreshing it from the server.
++  void Refresh();
++  void CreateVault(std::string server, std::string token, std::string name);
++  void Join(std::string server, std::string code, std::string name);
++  void Recover(std::string server,
++               std::string token,
++               std::string name,
++               std::string recovery_key);
++  void CreateInvite();
++  void Approve(std::string device_id);
++  void Reject(std::string device_id);
++  void RemoveDevice(std::string device_id);
++  void ShowRecoveryKey();
++  void TurnOff();
++
++  base::DictValue View() const;
++
++  // KeyedService:
++  void Shutdown() override;
++
++ private:
++  class Worker;
++  using Op = base::OnceCallback<void(Account&, OpResult&)>;
++
++  void OnEncryptor(scoped_refptr<os_crypt_async::Encryptor> encryptor);
++  void Run(Op op);
++  void OnDone(OpResult result);
++  void Poll();
++  void UpdateTimer();
++
++  const raw_ptr<PrefService> prefs_;
++  scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory_;
++  const raw_ptr<syncer::SyncService> sync_service_;
++  scoped_refptr<os_crypt_async::Encryptor> encryptor_;
++  base::SequenceBound<Worker> worker_;
++  DeviceState state_;
++  std::string join_code_;
++  base::ListValue pairings_;
++  base::ListValue devices_;
++  std::string load_error_;
++  int ops_in_flight_ = 0;
++  base::RepeatingTimer poll_timer_;
++  base::ObserverList<Observer> observers_;
++  base::WeakPtrFactory<Service> weak_factory_{this};
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_SERVICE_H_
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/test_main.cc
+@@ -0,0 +1,20 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++// Plain gtest main: //base/test pulls in the test fonts, which Helium's tree
++// does not have.
++
++#include "base/at_exit.h"
++#include "base/command_line.h"
++#include "base/feature_list.h"
++#include "base/task/single_thread_task_executor.h"
++#include "testing/gtest/include/gtest/gtest.h"
++
++int main(int argc, char** argv) {
++  base::AtExitManager at_exit;
++  base::CommandLine::Init(argc, argv);
++  base::FeatureList::InitInstance(std::string(), std::string());
++  base::SingleThreadTaskExecutor executor;
++  testing::InitGoogleTest(&argc, argv);
++  return RUN_ALL_TESTS();
++}
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/test_server.cc
+@@ -0,0 +1,275 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#include "components/corvid_sync/test_server.h"
++
++#include <optional>
++
++#include "base/hash/sha1.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "base/strings/string_number_conversions.h"
++#include "base/strings/string_split.h"
++#include "base/strings/string_util.h"
++#include "base/values.h"
++#include "crypto/hash.h"
++
++namespace corvid_sync {
++
++namespace {
++
++HttpResponse Error(int status, const std::string& code) {
++  HttpResponse r;
++  r.status = status;
++  base::DictValue d;
++  d.Set("error", code);
++  r.body = base::WriteJson(d).value_or("");
++  return r;
++}
++
++HttpResponse Json(int status, const base::DictValue& d) {
++  HttpResponse r;
++  r.status = status;
++  r.body = base::WriteJson(d).value_or("");
++  return r;
++}
++
++std::string Header(const HttpRequest& request, const std::string& name) {
++  for (const auto& [k, v] : request.headers) {
++    if (k == name) {
++      return v;
++    }
++  }
++  return std::string();
++}
++
++}  // namespace
++
++TestServer::TestServer() = default;
++TestServer::~TestServer() = default;
++
++std::string TestServer::NextRevision() {
++  return "rev" + base::NumberToString(next_++);
++}
++
++std::string TestServer::AddToken() {
++  std::string token = "tok" + base::NumberToString(next_++);
++  tokens.insert(token);
++  return token;
++}
++
++HttpResponse TestServer::Send(const HttpRequest& request) {
++  request_count++;
++  if (offline) {
++    return HttpResponse();
++  }
++  return Handle(request);
++}
++
++HttpResponse TestServer::Handle(const HttpRequest& request) {
++  std::string path = request.url.substr(strlen(kTestServerUrl));
++  std::string query;
++  if (size_t q = path.find('?'); q != std::string::npos) {
++    query = path.substr(q + 1);
++    path = path.substr(0, q);
++  }
++  const std::vector<std::string> p = base::SplitString(
++      path, "/", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++  const std::string& m = request.method;
++  std::optional<base::Value> json =
++      base::JSONReader::Read(request.body, base::JSON_PARSE_RFC);
++  const base::DictValue* body =
++      json && json->is_dict() ? &json->GetDict() : nullptr;
++
++  if (m == "GET" && p == std::vector<std::string>{"v1", "health"}) {
++    base::DictValue d;
++    d.Set("status", "ok");
++    return Json(200, d);
++  }
++  if (m == "POST" && p == std::vector<std::string>{"v1", "register"}) {
++    const std::string* token = body ? body->FindString("token") : nullptr;
++    if (!token || !tokens.erase(*token)) {
++      return Error(403, "token_invalid");
++    }
++    const std::string id = "dev_" + base::NumberToString(next_++);
++    const std::string secret = "secret" + base::NumberToString(next_++);
++    devices[id] = Device{*body->FindString("name"),
++                         *body->FindString("public_key"), secret};
++    base::DictValue d;
++    d.Set("account", "acct");
++    d.Set("device_id", id);
++    d.Set("device_secret", secret);
++    return Json(201, d);
++  }
++
++  // The rest needs a device.
++  std::string self;
++  const std::string auth = Header(request, "Authorization");
++  for (const auto& [id, device] : devices) {
++    if (auth == "Bearer " + device.secret) {
++      self = id;
++    }
++  }
++  if (self.empty()) {
++    return Error(401, "unauthorized");
++  }
++  if (devices[self].revoked) {
++    return Error(401, "device_revoked");
++  }
++
++  if (p.size() >= 2 && p[1] == "devices") {
++    if (m == "GET") {
++      base::ListValue list;
++      for (const auto& [id, device] : devices) {
++        base::DictValue d;
++        d.Set("id", id);
++        d.Set("name", device.name);
++        d.Set("public_key", device.public_key);
++        d.Set("created", 1);
++        d.Set("last_seen", 2);
++        if (device.revoked) {
++          d.Set("revoked", 3);
++        }
++        list.Append(std::move(d));
++      }
++      base::DictValue d;
++      d.Set("devices", std::move(list));
++      return Json(200, d);
++    }
++    if (m == "DELETE" && p.size() == 3) {
++      auto it = devices.find(p[2]);
++      if (it == devices.end()) {
++        return Error(404, "not_found");
++      }
++      it->second.revoked = true;
++      std::erase_if(mail, [&](const Mail& x) { return x.to == p[2]; });
++      HttpResponse r;
++      r.status = 204;
++      return r;
++    }
++  }
++  if (m == "POST" && p.size() == 2 && p[1] == "invites") {
++    base::DictValue d;
++    d.Set("token", AddToken());
++    d.Set("expires", 1);
++    return Json(201, d);
++  }
++  if (p.size() >= 2 && p[1] == "messages") {
++    if (m == "POST") {
++      const std::string to = *body->FindString("to_device");
++      if (!devices.count(to)) {
++        return Error(404, "not_found");
++      }
++      const int64_t id = next_++;
++      mail.push_back(Mail{id, to, self, *body->FindString("kind"),
++                          *body->FindString("data")});
++      base::DictValue d;
++      d.Set("id", static_cast<int>(id));
++      return Json(201, d);
++    }
++    if (m == "GET") {
++      base::ListValue list;
++      for (const Mail& x : mail) {
++        if (x.to == self) {
++          base::DictValue d;
++          d.Set("id", static_cast<int>(x.id));
++          d.Set("from_device", x.from);
++          d.Set("kind", x.kind);
++          d.Set("data", x.data);
++          list.Append(std::move(d));
++        }
++      }
++      base::DictValue d;
++      d.Set("messages", std::move(list));
++      return Json(200, d);
++    }
++    if (m == "DELETE" && p.size() == 3) {
++      int64_t id = 0;
++      base::StringToInt64(p[2], &id);
++      std::erase_if(mail, [&](const Mail& x) {
++        return x.id == id && x.to == self;
++      });
++      HttpResponse r;
++      r.status = 204;
++      return r;
++    }
++  }
++  if (p.size() >= 2 && p[1] == "vaults") {
++    if (p.size() == 2 && m == "GET") {
++      base::ListValue list;
++      for (const auto& [uuid, objects] : vaults) {
++        base::DictValue d;
++        d.Set("vault_uuid", uuid);
++        d.Set("display_name", "Corvid");
++        list.Append(std::move(d));
++      }
++      base::DictValue d;
++      d.Set("vaults", std::move(list));
++      return Json(200, d);
++    }
++    if (p.size() == 3 && m == "PUT") {
++      vaults[p[2]];
++      HttpResponse r;
++      r.status = 201;
++      r.body = "{}";
++      return r;
++    }
++    auto vault = p.size() >= 3 ? vaults.find(p[2]) : vaults.end();
++    if (vault == vaults.end()) {
++      return Error(404, "not_found");
++    }
++    if (p.size() == 3 && m == "DELETE") {
++      vaults.erase(vault);
++      HttpResponse r;
++      r.status = 204;
++      return r;
++    }
++    if (p.size() == 4 && p[3] == "collect" && m == "POST") {
++      base::DictValue d;
++      d.Set("deleted", 0);
++      return Json(200, d);
++    }
++    if (p.size() == 5 && p[3] == "objects") {
++      const std::string& id = p[4];
++      auto object = vault->second.find(id);
++      if (m == "GET") {
++        if (object == vault->second.end()) {
++          return Error(404, "no_object");
++        }
++        HttpResponse r;
++        r.status = 200;
++        r.body = object->second.data;
++        r.etag = object->second.revision;
++        return r;
++      }
++      if (m == "PUT") {
++        const bool mutable_object = id == "head" || id == "roster";
++        if (!mutable_object) {
++          if (base::ToLowerASCII(base::HexEncode(crypto::hash::Sha256(
++                  request.body))) != id ||
++              Header(request, "X-Retention-Epoch").empty()) {
++            return Error(400, "bad_object");
++          }
++        }
++        const std::string if_match = Header(request, "If-Match");
++        if (Header(request, "If-None-Match") == "*") {
++          if (object != vault->second.end()) {
++            return Error(412, "conflict");
++          }
++        } else if (if_match.empty() || object == vault->second.end() ||
++                   if_match != "\"" + object->second.revision + "\"") {
++          return Error(412, "conflict");
++        }
++        std::string revision = NextRevision();
++        vault->second[id] = Object{request.body, revision};
++        HttpResponse r;
++        r.status = 201;
++        r.etag = revision;
++        return r;
++      }
++    }
++  }
++  return Error(400, "bad_request");
++}
++
++}  // namespace corvid_sync
+new file mode 100644
+--- /dev/null
++++ b/components/corvid_sync/test_server.h
+@@ -0,0 +1,60 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++// Copyright (C) 2026 Corvid contributors
++
++#ifndef COMPONENTS_CORVID_SYNC_TEST_SERVER_H_
++#define COMPONENTS_CORVID_SYNC_TEST_SERVER_H_
++
++#include <map>
++#include <set>
++#include <string>
++#include <vector>
++
++#include "components/corvid_sync/http.h"
++
++namespace corvid_sync {
++
++inline constexpr char kTestServerUrl[] = "https://sync.test";
++
++// The server's rules from SPEC.md section 3, in memory, one account. The real
++// server is tested in sync/; this lets the client tests also act as a
++// malicious server (`vaults` is open for tampering).
++class TestServer : public BlockingHttp {
++ public:
++  struct Object {
++    std::string data;
++    std::string revision;
++  };
++  struct Device {
++    std::string name;
++    std::string public_key;
++    std::string secret;
++    bool revoked = false;
++  };
++  struct Mail {
++    int64_t id;
++    std::string to, from, kind, data;
++  };
++
++  TestServer();
++  ~TestServer() override;
++
++  std::string AddToken();
++  HttpResponse Send(const HttpRequest& request) override;
++
++  // When true, every request fails like a network outage.
++  bool offline = false;
++  int request_count = 0;
++  std::map<std::string, std::map<std::string, Object>> vaults;
++  std::map<std::string, Device> devices;
++  std::vector<Mail> mail;
++  std::set<std::string> tokens;
++
++ private:
++  HttpResponse Handle(const HttpRequest& request);
++  std::string NextRevision();
++  int next_ = 1;
++};
++
++}  // namespace corvid_sync
++
++#endif  // COMPONENTS_CORVID_SYNC_TEST_SERVER_H_
+--- a/components/corvid_webui/BUILD.gn
++++ b/components/corvid_webui/BUILD.gn
+@@ -21,6 +21,9 @@ corvid_webui_files = [
+   "diagnostics/index.html",
+   "diagnostics/diagnostics.css",
+   "diagnostics/diagnostics.js",
++  "sync/index.html",
++  "sync/sync.css",
++  "sync/sync.js",
+ ]
+ 
+ generate_grd("build_grd") {
+--- a/components/sync/base/data_type.cc
++++ b/components/sync/base/data_type.cc
+@@ -1601,7 +1601,7 @@ DataTypeSet CustomSyncSupportedTypes() {
+       BOOKMARKS, DEVICE_INFO, DICTIONARY,
+       EXTENSIONS, EXTENSION_SETTINGS,
+       HISTORY, HISTORY_DELETE_DIRECTIVES,
+-      NIGORI, PREFERENCES, PRIORITY_PREFERENCES, READING_LIST,
++      NIGORI, PASSWORDS, PREFERENCES, PRIORITY_PREFERENCES, READING_LIST,
+       SAVED_TAB_GROUP, SEARCH_ENGINES, SEND_TAB_TO_SELF, SESSIONS,
+       THEMES, WEB_APPS
+   };

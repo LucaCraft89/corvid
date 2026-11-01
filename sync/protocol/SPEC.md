@@ -1,6 +1,6 @@
 # Corvid sync protocol, version 1
 
-Status: draft, implemented by `sync/server` and `sync/client` (phase 4). Background and the choice behind it: `docs/decisions/002-sync.md`.
+Status: draft, implemented by `sync/server` and `sync/client` (phase 4) and by the browser (phase 7). Background and the choice behind it: `docs/decisions/002-sync.md`.
 
 ## 1. Model and threat model
 - **Server** (self-hosted, untrusted for confidentiality): stores accounts, devices, vaults of opaque objects and a small mailbox. It never sees a key or plaintext.
@@ -49,7 +49,7 @@ TLS is required in deployment (built-in or a proxy). Device requests carry `Auth
 | `POST /v1/messages` | `{to_device, kind, data}` (≤ 64 KiB) | 201 `{id}` |
 | `GET /v1/messages` / `DELETE /v1/messages/{id}` | | own mailbox |
 
-Object rules: `{id}` is `head`, `roster`, or 64 lowercase hex. A hex object must equal SHA-256 of its body, is create-only and needs `X-Retention-Epoch`; collection deletes hex objects whose epoch is below the floor and never touches `head`/`roster`. Revisions are random and change on every write. Accounts are isolated; a per-account byte quota applies (default 1 GiB).
+Object rules: `{id}` is `head`, `roster`, or 64 lowercase hex. (Helium's engine names objects in uppercase hex; the browser's transport lowercases the name. Names are not part of the vault format, commits hold raw digests.) A hex object must equal SHA-256 of its body, is create-only and needs `X-Retention-Epoch`; collection deletes hex objects whose epoch is below the floor and never touches `head`/`roster`. Revisions are random and change on every write. Accounts are isolated; a per-account byte quota applies (default 1 GiB).
 
 Registration tokens come from the admin CLI (`corvid-sync-server token --account NAME`) or from an existing device (`/v1/invites`). A token only gives server access; the vault key comes from section 4.
 
@@ -68,6 +68,13 @@ Registration tokens come from the admin CLI (`corvid-sync-server token --account
 
 **Revocation.** A device revokes another (`DELETE /v1/devices/{id}`) and marks it revoked in the roster, pulls the latest state, then **rotates**: new vault UUID and key, snapshot of the merged state, roster without the revoked device, a `vault-rotate` envelope to every remaining device with `salt = HMAC-SHA256(old_vault_key, "corvid-sync-v1/rotate" || old_vault_uuid)` and `replaces_uuid` = old UUID, then deletes the old vault and shows a new recovery key. A receiver accepts only if the sender is an active entry in its last authenticated roster, the envelope opens with its own old key, and `replaces_uuid` is its current vault. It then re-publishes all records it knows into the new vault, so nothing written in between is lost.
 
+## 4a. The browser client (phase 7)
+No change to the wire format. `components/corvid_sync` (patch `common/sync-client.patch`) implements sections 3 and 4 in C++ and gives Helium's unchanged engine a `SyncVaultTransport` for this API. Choices a client may make differently:
+- **Server address:** `https://`, or plain `http://` only to the same computer.
+- **Polling:** the mailbox and the vault head every 2 minutes while sync is set up (`--corvid-sync-poll-seconds` for tests).
+- **Key rotation:** the rotating device copies the vault's whole payload (Helium's loopback-server state) into the new vault as its first commit; every device then restarts its engine under a sync namespace named after the new vault. Chromium's own initial merge re-publishes what a device changed in between, which is what section 4 asks of a receiver.
+- **Storage:** device secret, identity key, vault key and roster in one profile pref, encrypted with OSCrypt; the checkpoint in another. A crash can lose the newest checkpoint write; the device then falls back to an older ancestor, which still catches a rollback past that point.
+
 ## 5. Test vectors and tests
 - `client/gcmsiv/testdata/rfc8452.json`: the 26 AES-256-GCM-SIV vectors of RFC 8452 C.2 and C.3.
 - `protocol/vectors-vault.json`: key derivation, associated data and containers for each role; commit chain with object IDs.
@@ -75,4 +82,4 @@ Registration tokens come from the admin CLI (`corvid-sync-server token --account
 - `go test ./...` in `sync/`; `CORVID_SYNC_SERVER_BIN=<binary>` runs the end-to-end tests against the built binary; `CORVID_PROTOC` + `CORVID_VAULT_PROTO` compare the encoding with protoc.
 
 ## 6. Not in version 1
-Change notifications (clients poll `head`); an admin page (metadata only); Postgres; the browser transport (phase 7: a `SyncVaultTransport` for this API, smallest patch); per-type payloads beyond `corvid-kv-v1`.
+Change notifications (clients poll `head`); an admin page (metadata only); Postgres; per-type payloads beyond `corvid-kv-v1`.

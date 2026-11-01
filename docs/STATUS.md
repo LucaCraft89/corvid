@@ -1,6 +1,6 @@
 # STATUS
 
-Updated: 2026-10-31 (phase 6)
+Updated: 2026-11-01 (phase 7)
 
 ## Done
 - Phase 0: repo reset to a fresh root (old work kept in history on branch `claude/busy-rubin-t8bloc`), skeleton created, `docs/PROJECT.md` committed, base researched: `docs/decisions/001-base.md`.
@@ -48,8 +48,16 @@ Updated: 2026-10-31 (phase 6)
   - Rebuilds (ccache, `-j 22`): stores patch steps 1m 9s, 44 s and under 30 s each after; uBO patch 1m 46s (incl. credits generation), then 51 s.
   - Not tested: `.zip` and drag-and-drop installs on `corvid://extensions` (needs a real OS drag; the code is Chromium's, developer mode only); "Load unpacked" only through `--load-extension` (same loader). Turning Edge Add-ons off (same code path as the Chrome Web Store switch, which was tested).
 
+- Phase 7 (2026-11-01): sync in the browser, Linux. 2 patches: `patches/common/sync-client.patch` (28 new files, 75 added lines in 11 existing files), `patches/common/password-manager.patch` (2 files). Decision additions: `docs/decisions/002-sync.md`. How-to: `sync/README.md`.
+  - Reused: Helium's vault store, connection manager and service path run unchanged. Added: `components/corvid_sync/` (HTTP transport, server API client, pairing, roster, recovery key, revocation with key rotation, encrypted state, poll service), `ChromeSyncClient` overrides (rev 2 has no code that creates a backend), page `corvid://sync` (`webui/src/pages/sync/`, linked from `corvid://preferences`).
+  - Wire protocol: unchanged. `SPEC.md` gained a note on object names and a section on the browser client. Found by a unit test: Helium names objects in uppercase hex, the server requires lowercase, so every commit would have failed; the transport lowercases.
+  - Behaviour changes to check: the built-in password manager is now on by default (Helium forced it off; PROJECT.md 4.5 asks for it; passkeys stay forced off). Setup selects bookmarks, settings, themes, passwords, extensions and history, not open tabs (PROJECT.md 4.6).
+  - Tests, all on the final binary. `npm run sync-check` (new) **48/48**, log `build/logs/sync-check-p7.txt`: three real profiles through the real Go server, driven through the page. Pairing with matching codes; merge of what each device had before; bookmarks (add both ways, rename, delete), settings, history, passwords including the password value; server files contain none of the test strings; offline edits on both devices converge after the server returns (add, rename, delete, setting); browser closed then restarted catches up; recovery key (typo refused, right key gets the data); removing a device rotates the key, the other device follows, the removed one gets 401 and nothing new; server restored from an old backup is reported as rollback and nothing is applied; type selection. `corvid_sync_unittests` (new) 36/36: Go test vectors for keys, envelopes, recovery key and roster container; compare-and-swap; forged pairing, unknown rotator, roster rollback and tamper refused. `npm run check` PASS (55 unit tests, 116 renders). `npm run browser-check` 41/41. `go test ./...` in `sync/` PASS. `build/test-extensions.sh` 20/20. Privacy gate PASS (below). Strict re-apply of all 9 patches: 80 files, 0 differences.
+  - Rebuilds (ccache, `-j 22`): first build after the `base/` header change about 70 min in two stretches (37 m + 32 m, plus a 10 m run cut off by a timeout); later single-file changes under 2 min.
+  - Not tested: the default 2-minute poll (`sync-check` uses `--corvid-sync-poll-seconds=5`, so its timings say nothing about real waiting times); a real TLS server (only `http://127.0.0.1`; `https://` is the same loader, `--tls-cert` is still unrun); two separate computers; a real OS keyring (tests use `--password-store=basic`); the 17 MiB response limit in `http.cc`; saving a password through a real web form (added through the password manager page's API); themes and extensions as sync types (selected, not checked). `Service` and `UrlLoaderBlockingHttp` have no unit tests, only `sync-check`.
+
 ## Gate result (Corvid binary, 15 min)
-`build/privacy-gate.sh --minutes 15` on the phase 6 binary (all 7 patches, upstream uBO preinstalled with updates off), run 2026-10-31 23:27, `/work/gate/20261031-232752/`, log `build/logs/privacy-gate-p6.txt`:
+`build/privacy-gate.sh --minutes 15` on the phase 7 binary (all 9 patches, sync not set up, password manager on), run 2026-11-01 14:05, `/work/gate/20261101-140546/`, log `build/logs/privacy-gate-p7.txt`:
 ```
 DNS lookups (0)
 Connections (0)
@@ -57,9 +65,9 @@ URLs requested by the network stack (0, from the net log):
 Hosts resolved by the browser (0)
 PASS: nothing outside the allowlist
 ```
-uBO was installed in that profile (its 13 MB filter database is there). The two `trk:` requests to Helium's dummy host seen in phases 2 and 5 did not appear this time (not investigated). Phase 5 run (same result apart from those): `build/logs/privacy-gate-p5.txt`.
+With sync set up, the browser contacts only the server the user entered. That case is not in the gate (no allowlist entry is needed: it is the user's own choice). Phase 6 run: `build/logs/privacy-gate-p6.txt`.
 
-## What is still stock (phase 6 end)
+## What is still stock (phase 7 end)
 Reachable in normal use:
 - Chromium/Helium settings (`corvid://settings`) apart from our link row; the Customize side panel ("Theme" row). Our preferences page only sets the look of our pages and the new tab search box: its search engine does not change the address bar's engine, and its theme/colour do not change the browser frame (the frame follows the desktop accent or the stock theme settings).
 - HTTPS-First: native dialog over a blank page. Other interstitials: captive portal, bad clock, MITM software, blocked interception, lookalike URL, supervised user and policy blocks (all still Chromium's HTML; `SSLErrorHandler` picks some of them for certificate errors). Safe Browsing pages are off in Helium (`safe_browsing_mode=0`).
@@ -71,11 +79,13 @@ Reachable in normal use:
 
 
 ## Next
-- Phase 7 (`docs/PHASES.md`).
+- Phase 8 (`docs/PHASES.md`).
+- Owner decision from phase 7: password manager on by default (done per PROJECT.md 4.5; say if the save prompts should start off).
+- Phase 7 follow-ups: a way to change the selected sync types (PROJECT.md wants history and open tabs switchable; `corvid://sync` has no switches yet); passkeys and "layouts and modules" do not sync; a vault deleted on the server with no rotation message reads as "cannot reach the server" on the page; run against a TLS server and across two computers.
 - Owner decisions from phase 6 (`docs/decisions/003-ubo.md`): turn uBO updates on by default (needs allowlist entries for its hosts) or keep them off; ask about it in first-run onboarding?
 - Phase 6 follow-ups: hide or rewire Helium's two dead toggles and the "enable in Helium services" download error; Windows preinstall route for uBO (external extensions need a prompt there; phase 8); make sure the Linux packages carry `extensions/` next to the binary (not checked yet); grow the compatibility list toward PROJECT.md's top 100; ship a newer uBO by bumping `build/ublock.conf`.
 - Phase 5 follow-ups: decide whether `corvid://preferences` should drive the browser frame colour (ThemeService) and the address-bar search engine (TemplateURLService) instead of only our pages; give the SSL page the user's theme prefs; turn `en.ts` into a .grdp; replace the remaining interstitials listed above if they matter; Windows/macOS accent comes with phase 8.
-- Phase 4 follow-ups: run `docker build` where Docker exists; test `--tls-cert`; optional admin page (metadata only) and change notifications are not built; phase 7 writes a `SyncVaultTransport` for our API (Helium's engine expects the extension provider), wires pairing/recovery into a WebUI page (add it as a `CorvidUIConfig` page like phase 5's), and must never use Helium's provider key-wrapping path.
+- Phase 4 follow-ups: run `docker build` where Docker exists; test `--tls-cert`; optional admin page (metadata only) and change notifications are not built.
 - webui follow-ups: no translations yet; owner still to pick default seed, typeface and density (PROJECT.md open questions 7 and 8).
 - Rebrand gaps for later: favicons of internal pages are still Helium's (only product logos are placeholders); the about text "made possible by the ... open source project" now names Corvid twice (should credit Chromium and Helium); `MAINTMAIL` in the Linux package info still says Helium's; code identifiers (`kHeliumUIScheme`, `helium_onboarding`) are internal and stay.
 
@@ -95,6 +105,8 @@ cd webui && npm run browser-check -- errors accent   # some checks: newtab setti
 build/ublock.sh                          # uBO release from build/ublock.conf -> third_party/ublock_origin (patch step "ublock")
 build/test-extensions.sh                 # phase 6: 20 store extensions + preinstalled uBO -> docs/extension-compat.md (~15 min, network)
 build/test-extensions.sh --only preinstalled,Momentum   # some of them; results in /work/tmp/extcompat/results.json only
+cd webui && CORVID_TEST_TMP=/work/tmp npm run sync-check   # phase 7: real profiles through the real server (~10 min, local only)
+(cd /work/src && third_party/ninja/ninja -C out/Default corvid_sync_unittests && out/Default/corvid_sync_unittests)   # phase 7 client unit tests
 export PATH=/work/tools/go/bin:$PATH GOPATH=/work/tools/gopath GOCACHE=/work/tools/gocache   # Go for sync/
 cd sync && go test -race ./...           # phase 4: all sync tests (~10 s)
 cd sync && CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /work/tmp/sync-bin/corvid-sync-server ./server
@@ -140,3 +152,10 @@ GN args = Helium's `flags.gn` + `flags.linux.gn` minus the overridden keys, plus
 - Extensions are read from `<binary dir>/extensions/` on Linux (`DIR_EXTERNAL_EXTENSIONS`); the copy step creates it `0700`, `build/build.sh` opens it up so `tester` (gate) can read it. Policies would come from `/etc/chromium/policies` (shared with a system Chromium; not used).
 - Credits are only generated with `generate_about_credits=true` (official builds); the dev args now set it. `third_party/ublock/README.chromium` (Helium's fork) is patched to `Shipped: no` so it is not credited.
 - `pgrep -f`/`pkill -f` with a pattern that appears in your own command line kills your own shell (exit 144): use `[n]ode x.mjs`-style patterns.
+- VM reboots: a crash between sessions left `components/corvid_sync/roster.{h,cc}` full of NUL bytes (the last files written; ext4 delayed allocation). Compile errors naming a type from a file you just wrote mean: check for this. Run `sync` after writing work you cannot lose. The data drive also changed from `/dev/sdb` to `/dev/sda`; `/etc/fstab` uses the UUID, so it still mounts. Anything started earlier (Xvfb) is gone.
+- Unit tests in `components/corvid_sync` use their own `test_main.cc`: `//base/test` pulls in the test fonts, which Helium's tree does not have, so `test()` targets fail at ninja with `Ahem.ttf missing`.
+- `CancelationSignal` takes one handler at a time and `GetLocalChangesRequest` uses it too: register only for the duration of a request.
+- `SimpleURLLoader::DownloadToString` DCHECKs above 5 MiB; vault objects reach 16 MiB, so `http.cc` streams with its own limit.
+- `SyncUserSettings::SetSelectedTypes` hits `NOTREACHED` unless a backend is selected: call it after `ReconfigureBackend()`, in the same task.
+- Playwright passes `--disable-sync` by default; `sync-check` drops it. Debug builds: Blink DCHECKs (`layer_tree_view.cc`, presentation callbacks) when a headless tab paints many frames that are never presented, so long-lived test tabs can die; `sync-check` reopens them.
+- `browser-check` under no display starts its own Xvfb per check; it now clears `DISPLAY` afterwards (it used to break the checks that followed).

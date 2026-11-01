@@ -1,0 +1,25 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later
+ * Copyright (C) 2026 Corvid contributors */
+
+.sync {
+  width: 100%; max-width: 720px; margin: 0 auto;
+  padding: 32px var(--corvid-page-pad) 48px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.sync h1, .sync h2, .sync p { margin: 0; }
+.sync section:not([hidden]) { display: flex; flex-direction: column; gap: 12px; }
+.sync-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sync-alert { background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container); }
+.sync-secret { gap: 12px; }
+.sync-code {
+  font-family: var(--md-ref-typeface-mono); font-size: 20px; line-height: 1.5;
+  overflow-wrap: anywhere; user-select: all;
+}
+.sync-invite {
+  font-family: var(--md-ref-typeface-mono); font-size: 13px; margin-bottom: 8px !important;
+  overflow-wrap: anywhere; user-select: all;
+}
+.sync-devices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sync-device { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; justify-content: space-between; }
+.sync-device-text { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
+.sync-device-text p { color: var(--md-sys-color-on-surface-variant); }

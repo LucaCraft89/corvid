@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const src = join(root, 'src');
-export const PAGES = ['newtab', 'settings', 'error', 'diagnostics'];
+export const PAGES = ['newtab', 'settings', 'error', 'diagnostics', 'sync'];
 
 /** The product name lives in build/branding.conf only. */
 export function productName() {
@@ -67,6 +67,7 @@ async function buildPages(outDir) {
     '<li><a href="settings/">Settings</a></li>',
     '<li><a href="diagnostics/">Diagnostics</a></li>',
     '<li><a href="diagnostics/?empty">Diagnostics (empty)</a></li>',
+    ...['off', 'waiting', 'on', 'pairing', 'revoked', 'problem'].map((s) => `<li><a href="sync/?state=${s}">Sync: ${s}</a></li>`),
     ...Object.keys(m.SAMPLES).map((s) => `<li><a href="error/?sample=${s}">Error: ${s}</a></li>`),
     '<li><a href="error/?code=ERR_CONNECTION_RESET&amp;url=https://example.org/">Error from query: ERR_CONNECTION_RESET</a></li>',
   ];

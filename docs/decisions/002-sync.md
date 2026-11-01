@@ -9,3 +9,9 @@ Read from `imputnet/helium-chromium` (`patches/helium/core/sync/`, `settings/syn
 - **End to end:** no. The extension API is behind `kApiSyncVaultProvider` (disabled by default), there is no provider, and only the settings mojom contract exists (no handler, no page). No device list, no device approval, no revocation.
 
 **Recommendation (taken):** reuse Helium's vault format and encryption byte for byte, and write our own self-hosted server whose object API maps 1:1 onto Helium's transport (so phase 7 keeps Helium's engine and only adds a transport). Add what PROJECT.md 4.6 needs and Helium lacks: token registration, per-device credentials and revocation, device approval with a comparison code, key rotation after revocation, and a device roster inside the vault. Never use the provider key-wrapping path (it gives the server the key). Spec: `sync/protocol/SPEC.md`.
+
+## Phase 7 additions (2026-11-01)
+- **Engine reused as planned.** Helium's store, connection manager and service path run unchanged; rev 2 has no code that creates a backend, so `ChromeSyncClient` now does.
+- **Passwords needed the password manager back.** Helium's `disable-password-manager.patch` forces it off by policy and leaves `PASSWORDS` out of its custom-backend types. PROJECT.md 4.5 asks for the built-in manager, so `password-manager.patch` lifts the force for passwords and defaults the setting to on. Passkeys stay forced off: not part of phase 7, and Helium's reasons (Google's enclave) still apply until 4.5's vault exists.
+- **Selected types.** "Sync everything" would include open tabs, which PROJECT.md 4.6 wants off by default, so setup selects the listed types explicitly. Passkeys and "layouts and modules" are not synced yet. There is no page to change the selection yet.
+- **Polling, not push.** A device checks every 2 minutes (protocol v1 has no notifications).

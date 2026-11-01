@@ -8,6 +8,7 @@ Plain TypeScript and CSS, no framework, independent of the Chromium tree. Since 
 | settings | `corvid://preferences`, linked from Settings > Appearance | `webui-settings.patch` |
 | error | net error page (renderer) and certificate interstitial (browser) | `webui-error-pages.patch` |
 | diagnostics | `corvid://diagnostics` | `diagnostics.patch` |
+| sync | `corvid://sync` | `sync-client.patch` |
 
 `build/webui-sync.sh` runs `node scripts/build.mjs --chromium` and copies the result to `components/corvid_webui/dist/` in the Chromium tree (also run by `build/build.sh` before every build); the patches pack it into `resources.pak`.
 
@@ -31,7 +32,7 @@ node scripts/build.mjs --chromium DIR   # files for the browser (build/webui-syn
 - `src/strings/en.ts`: the one string catalog. Sentence case, plain words, `{placeholders}`. The product name is never written there: `{product}` comes from `build/branding.conf` at build time.
 - `src/shared/`: prefs store (profile prefs in the browser, localStorage on the dev server), theme application (incl. the desktop accent colour), search engines and address-or-search logic, error page model, diagnostics model, DOM helpers.
 - `src/shared/bridge.ts`: the only place that talks to the browser. The browser serves `corvid-init.js` (`window.corvidInit`: prefs, accent, read-only in private windows) before the page script, takes `chrome.send('corvidReady' | 'corvidSetPrefs' | 'corvidGetDiagnostics' | 'corvidClearDiagnostics')`, and calls back `corvidBrowser.dispatch('prefs' | 'accent' | 'diagnostics', value)`. The error page instead gets `window.corvidErrorInfo` inlined and uses Chromium's `errorPageController` / `certificateErrorPageController`.
-- `src/pages/{newtab,settings,error,diagnostics}/`: the pages. Error page input: `?code=ERR_...&url=...&info=<JSON>` or `window.corvidErrorInfo`; dev samples with `?sample=dns|offline|connection|timeout|ssl|ssl-hsts|blocked|generic`.
+- `src/pages/{newtab,settings,error,diagnostics,sync}/`: the pages. Sync page dev samples: `?state=off|waiting|on|pairing|revoked|problem`. Error page input: `?code=ERR_...&url=...&info=<JSON>` or `window.corvidErrorInfo`; dev samples with `?sample=dns|offline|connection|timeout|ssl|ssl-hsts|blocked|generic`.
 - `scripts/`: `build.mjs` (esbuild; generates `tokens.css` and the default theme CSS for first paint; `--chromium` for the browser: minified, error page inlined into one file), `serve.mjs`, `render-check.mjs`, `browser-check.mjs`, `fake-portal.py` (stand-in xdg-desktop-portal for the accent check).
 
 ## Rules the code follows

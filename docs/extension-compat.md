@@ -2,7 +2,7 @@
 
 Written by `build/test-extensions.sh` (do not edit by hand; rerun it).
 
-- Browser: Corvid 0.20.2.1 (Chromium 156.0.8078.73), Linux (dev build), run 2026-10-31 23:29 UTC.
+- Browser: Corvid 0.20.2.1 (Chromium 156.0.8078.73), Linux (dev build), run 2026-11-01 14:21 UTC.
 - Result: **20/20 installed extensions pass** (target 85% on desktop); must-pass categories: adblock 5/5, password 4/4, newtab 2/2.
 - Each extension gets a fresh profile and is installed the way a user would: its store link or ID in `corvid://preferences` (or the Chrome Web Store page), then the real install prompt is clicked.
 - Checks: installed and enabled; background (service worker or page) running; popup or options page loads with no script error; a category check where one exists (ad blockers: an ad script on a known ad host is blocked, with the preinstalled uBlock Origin turned off; new tab: `chrome://newtab` shows the extension; dark mode: a white page turns dark; ClearURLs: tracking parameters are removed).

@@ -15,7 +15,7 @@ export interface BrowserInit {
   readOnly?: boolean;
 }
 
-export type BrowserEvent = 'prefs' | 'accent' | 'diagnostics';
+export type BrowserEvent = 'prefs' | 'accent' | 'diagnostics' | 'sync';
 type Listener = (value: unknown) => void;
 
 declare global {

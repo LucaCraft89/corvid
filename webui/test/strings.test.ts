@@ -30,6 +30,8 @@ const DYNAMIC = [
   /^settings\.theme\.(mode|style|contrast)\.\w+$/,
   /^settings\.density\.(comfortable|compact|spacious)$/,
   /^diag\.kind\.(crash|hang|network|tls)$/,
+  /^sync\.server\.(empty|invalid|insecure)$/,
+  /^sync\.deviceName\.(empty|long)$/,
   /^diag\.summary\.(hang|network|tls)(NoHost)?$/,
 ];
 

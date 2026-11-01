@@ -10,7 +10,7 @@ import { defaultStore, type Prefs, type PrefsStore } from './prefs.js';
 import { browserInit, onBrowser, send } from './bridge.js';
 import { applyTheme, setSystemAccent } from './theme.js';
 
-export type PageName = 'newtab' | 'settings' | 'error' | 'diagnostics';
+export type PageName = 'newtab' | 'settings' | 'error' | 'diagnostics' | 'sync';
 
 /** Host of each page inside the browser (corvid://<host>/). */
 export const BROWSER_HOSTS: Record<PageName, string> = {
@@ -18,6 +18,7 @@ export const BROWSER_HOSTS: Record<PageName, string> = {
   settings: 'preferences',
   error: 'error',
   diagnostics: 'diagnostics',
+  sync: 'sync',
 };
 
 /**

@@ -25,3 +25,18 @@ CORVID_VAULT_PROTO=/work/src/components/sync/engine/sync_vault/sync_vault.proto 
 docker build -t corvid-sync-server .                              # see Dockerfile for run lines
 ```
 Back up `sync.db` (plus `-wal`/`-shm` while it runs, or stop it first). The server holds only ciphertext; losing every device and the recovery key means the data is gone.
+
+## The browser side
+`components/corvid_sync/` in Chromium (`patches/common/sync-client.patch`). Helium's vault engine and Chromium's sync engine run unchanged; this adds what they lack:
+- `http` / `api_client` / `server_transport`: Helium's `SyncVaultTransport` over this server's API. Blocking, on the sync thread.
+- `keys` / `roster` / `account`: section 4 of the spec (pairing, recovery key, revocation with rotation). Checked against `protocol/vectors-*.json`.
+- `backend`: what `ChromeSyncClient` calls: is sync set up, and build the engine. Keys and secrets live in one profile pref, encrypted with OSCrypt.
+- `service`: per profile. Runs account work off the UI thread, restarts the engine when the vault changes, polls every 2 minutes. Does nothing until sync is set up, so a browser without sync sends nothing.
+
+Page: `corvid://sync` (`webui/src/pages/sync/`), linked from `corvid://preferences`. Selected at setup: bookmarks, settings, themes, passwords, extensions, history. Not open tabs.
+
+```sh
+out/Default/corvid_sync_unittests             # client unit tests (build target corvid_sync_unittests)
+cd webui && npm run sync-check                # real profiles through the real server (~10 min)
+```
+To try it by hand: start the server, run `corvid-sync-server token --db sync.db --account NAME`, open `corvid://sync` and choose "Start sync for the first time". Plain `http://` only works for a server on the same computer; anywhere else needs `https://`, because the device secret travels in a header.

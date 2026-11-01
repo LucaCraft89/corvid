@@ -1,0 +1,127 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <title></title>
+  <link rel="stylesheet" href="../shared/tokens.css">
+  <link rel="stylesheet" href="../shared/theme-default.css">
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="sync.css">
+  <script type="module" src="sync.js"></script>
+</head>
+<body>
+  <main class="sync">
+    <h1 class="headline-small" data-i18n="sync.pageTitle"></h1>
+    <p class="body-medium muted" data-i18n="sync.intro"></p>
+    <p class="card body-medium sync-alert" id="error" role="alert" hidden></p>
+
+    <section class="card sync-secret" id="recovery" hidden>
+      <h2 class="title-medium" data-i18n="sync.recovery.title"></h2>
+      <p class="body-medium muted" data-i18n="sync.recovery.help"></p>
+      <p class="sync-code" id="recovery-key"></p>
+      <div class="sync-actions">
+        <button type="button" class="button outlined" id="recovery-copy"><span data-icon="copy"></span><span data-i18n="sync.copy"></span></button>
+        <button type="button" class="button text" id="recovery-hide" data-i18n="sync.recovery.hide"></button>
+      </div>
+    </section>
+
+    <section id="setup" hidden>
+      <div class="card">
+        <div class="setting">
+          <div class="field">
+            <label for="server" data-i18n="sync.server"></label>
+            <input id="server" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://sync.example.org" aria-describedby="server-error">
+            <span class="error-text" id="server-error" aria-live="polite"></span>
+          </div>
+          <div class="field">
+            <label for="device-name" data-i18n="sync.deviceName"></label>
+            <input id="device-name" type="text" autocomplete="off" maxlength="64" aria-describedby="device-name-error">
+            <span class="error-text" id="device-name-error" aria-live="polite"></span>
+          </div>
+        </div>
+      </div>
+      <form class="card setting" id="join-form" novalidate>
+        <h2 class="title-medium" data-i18n="sync.join.title"></h2>
+        <p class="body-medium muted" data-i18n="sync.join.help"></p>
+        <div class="field">
+          <label for="invite" data-i18n="sync.join.code"></label>
+          <input id="invite" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div><button type="submit" class="button" data-i18n="sync.join.button"></button></div>
+      </form>
+      <form class="card setting" id="create-form" novalidate>
+        <h2 class="title-medium" data-i18n="sync.create.title"></h2>
+        <p class="body-medium muted" data-i18n="sync.create.help"></p>
+        <div class="field">
+          <label for="token" data-i18n="sync.create.token"></label>
+          <input id="token" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div><button type="submit" class="button tonal" data-i18n="sync.create.button"></button></div>
+      </form>
+      <form class="card setting" id="recover-form" novalidate>
+        <h2 class="title-medium" data-i18n="sync.recover.title"></h2>
+        <p class="body-medium muted" data-i18n="sync.recover.help"></p>
+        <div class="field">
+          <label for="recover-token" data-i18n="sync.create.token"></label>
+          <input id="recover-token" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="recover-key" data-i18n="sync.recover.key"></label>
+          <input id="recover-key" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        </div>
+        <div><button type="submit" class="button tonal" data-i18n="sync.recover.button"></button></div>
+      </form>
+    </section>
+
+    <section class="card setting" id="waiting" hidden>
+      <h2 class="title-medium" data-i18n="sync.waiting.title"></h2>
+      <p class="body-medium muted" data-i18n="sync.waiting.help"></p>
+      <p class="sync-code" id="join-code"></p>
+      <div><button type="button" class="button text" id="waiting-cancel" data-i18n="sync.waiting.cancel"></button></div>
+    </section>
+
+    <section class="card setting" id="revoked" hidden>
+      <h2 class="title-medium" data-i18n="sync.revoked.title"></h2>
+      <p class="body-medium muted" data-i18n="sync.revoked.help"></p>
+      <div><button type="button" class="button tonal" id="revoked-reset" data-i18n="sync.revoked.reset"></button></div>
+    </section>
+
+    <section class="card setting" id="unavailable" hidden>
+      <p class="body-medium" data-i18n="sync.unavailable"></p>
+    </section>
+
+    <section id="active" hidden>
+      <div class="card setting">
+        <h2 class="title-medium" data-i18n="sync.status.title"></h2>
+        <p class="body-medium" id="status" role="status"></p>
+        <p class="body-medium muted" id="server-name"></p>
+      </div>
+      <div id="pairings"></div>
+      <div class="card setting">
+        <h2 class="title-medium" data-i18n="sync.add.title"></h2>
+        <p class="body-medium muted" data-i18n="sync.add.help"></p>
+        <div class="sync-actions"><button type="button" class="button" id="invite-create" data-i18n="sync.add.button"></button></div>
+        <div id="invite-box" hidden>
+          <p class="sync-invite" id="invite-code"></p>
+          <button type="button" class="button outlined" id="invite-copy"><span data-icon="copy"></span><span data-i18n="sync.copy"></span></button>
+        </div>
+      </div>
+      <div class="card setting">
+        <h2 class="title-medium" data-i18n="sync.devices.title"></h2>
+        <ul class="sync-devices" id="devices"></ul>
+      </div>
+      <div class="card setting">
+        <div class="sync-actions">
+          <button type="button" class="button outlined" id="show-key" data-i18n="sync.recovery.show"></button>
+          <button type="button" class="button text" id="turn-off" data-i18n="sync.off.button"></button>
+        </div>
+        <p class="body-medium muted" data-i18n="sync.off.help"></p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

@@ -333,7 +333,7 @@ CHECKS.accent = async () => {
     ok(w, r3 > g3 && g3 > b3, `browser frame did not follow the live accent change (${orange})`);
     await close(green);
   } finally {
-    xvfb?.kill();
+    if (xvfb) { xvfb.kill(); delete process.env.DISPLAY; }
   }
 };
 
@@ -445,7 +445,7 @@ ws.onmessage = (m) => { const r = JSON.parse(m.data); if (r.id === 1) { console.
     execFileSync('import', ['-window', 'root', join(out, 'browser-diagnostics-hang.png')], { env: process.env });
   } finally {
     proc.kill();
-    xvfb?.kill();
+    if (xvfb) { xvfb.kill(); delete process.env.DISPLAY; }
   }
 };
 
@@ -464,6 +464,11 @@ CHECKS.private = async () => {
   ok(w, info.ours, 'private new tab is not the Corvid page');
   ok(w, info.init?.readOnly === true, 'private new tab is not read-only');
   await shot(p, 'private-newtab');
+  // Sync belongs to the regular profile: the page says so and offers no setup.
+  const sp = await open(ctx, 'chrome://sync/', w);
+  await sp.waitForFunction(() => !document.querySelector('#unavailable').hidden, null, { timeout: 10000 }).catch(() => {});
+  const syncInfo = await sp.evaluate(() => ({ unavailable: !document.querySelector('#unavailable').hidden, setup: !document.querySelector('#setup').hidden }));
+  ok(w, syncInfo.unavailable && !syncInfo.setup, `private sync page: ${JSON.stringify(syncInfo)}`);
   await browser.close();
 };
 
